@@ -1,0 +1,814 @@
+#- $Id: mod.def 6332 2023-02-22 13:46:32Z aclsce $
+#---------------------------------------------------------------------
+#-This file is the definition file of the script "model".
+#---------------------------------------------------------------------
+#- Each model is defined by
+#- (prefix #-H-) model informations,
+#- (prefix #-M-) the email address of the model manager,
+#- (prefix #-C-) elements to extract for the model, in the order :
+#-   name of the component in the repository
+#-   tag/revision of the component
+#-   index of the repository in the server table
+#-   installation path in the local working directory
+#-   local working directory in modipsl
+#- (prefix #-S-) containing the control system and server address.
+#---------------------------------------------------------------------
+#- Repository informations
+#---------------------------------------------------------------------
+#-               WARNING (2021/07/09) 
+#---------------------------------------------------------------------
+#- We cleaned all old versions from this file  mod.def
+#- removed configurations are : 
+#- IPSLCM6.0.0-LR => IPSLCM6.0.15 / IPSLCM6.1.0 => IPSLCM6.1.9 / 
+#- IPSLCM5A and IPSLCM5B / LMDZOR_v6.1.2 => LMDZOR_v6.1.9 / 
+#- LMDZ5A2.1_ISO / LMDZORINCAREPR_v6 / ORCHIDEE_trunk_TP
+#- If you want to checkout a mod.def with all informations on old versions
+#- you can use the 3 following command lines 
+#- svn co -r 5879 http://forge.ipsl.jussieu.fr/igcmg/svn/modipsl/trunk/util/ --depth empty
+#- cd util
+#- svn up mod.def
+#- or you can extract all modipsl architecture with mod.def containing old revisions
+#- svn co -r 5879 http://forge.ipsl.jussieu.fr/igcmg/svn/modipsl/trunk modipsl 
+#---------------------------------------------------------------------
+#-               END WARNING 
+#---------------------------------------------------------------------
+
+
+
+
+#-S- 7 svn https://forge.ipsl.jussieu.fr/nemo/svn
+#-S- 8 svn --username icmc_users https://forge.ipsl.jussieu.fr/igcmg/svn
+#-S- 9 svn --username inca https://forge.ipsl.jussieu.fr/inca/svn
+#-S- 10 svn --username icmc_users https://forge.ipsl.jussieu.fr/libigcm/svn
+#-S- 12 svn https://forge.ipsl.jussieu.fr/ioserver/svn 
+#-S- 13 svn https://forge.ipsl.jussieu.fr/fcm/svn
+#-S- 14 svn svn://forge.ipsl.jussieu.fr/orchidee
+#-S- 15 svn https://oasis3mct.cerfacs.fr/svn
+#-S- 16 svn --username reprobus https://forge.ipsl.jussieu.fr/lmdz-reprobus/svn
+#-S- 17 svn https://forge.ipsl.jussieu.fr/shaconemo/svn
+#-S- 18 svn https://forge.ipsl.jussieu.fr/dynamico/svn/codes
+#-S- 19 svn https://forge.ipsl.jussieu.fr/heat/svn/codes/dynamico_lmdz
+#-S- 20 svn https://svn.lmd.jussieu.fr/LMDZ
+#-S- 21 git https://gitlab.in2p3.fr/ipsl/projets/dynamico/dynamico.git
+#-S- 22 git https://forge.nemo-ocean.eu/nemo/nemo.git
+#---------------------------------------------------------------------
+
+
+#---- IOIPSL standalone
+
+#-H- IOIPSL_PLUS  IOIPSL contains source for library and for rebuild
+#-H- IOIPSL_PLUS  IOIPSL last tagged public version
+#-C- IOIPSL_PLUS  IOIPSL/tags/v2_2_5 HEAD 8 IOIPSL modeles
+
+#---- IPSLCM configurations
+
+#-H- IPSLCM5A2.1  IPSLCM5A2.1 coupled configuration
+#-H- IPSLCM5A2.1  2nd frozen IPSLCM5A2 version
+#-H- IPSLCM5A2.1  NEMOGCM branch nemo_v3_6_STABLE revision 6665
+#-H- IPSLCM5A2.1  XIOS2 branchs/xios-2.5 revision 1903
+#-H- IPSLCM5A2.1  IOIPSL/src svn tags/v2_2_2
+#-H- IPSLCM5A2.1  LMDZ5 branches/IPSLCM5A2.1 rev 3674
+#-H- IPSLCM5A2.1  ORCHIDEE  branches/ORCHIDEE-IPSLCM5A2.1 rev 6596
+#-H- IPSLCM5A2.1  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM5A2.1  IPSLCM5A2 svn 5088
+#-H- IPSLCM5A2.1  libIGCM trunk rev 1534
+#-C- IPSLCM5A2.1  IOIPSL/tags/v2_2_2/src                        HEAD         8  IOIPSL/src     modeles
+#-C- IPSLCM5A2.1  branches/ORCHIDEE-IPSLCM5A2.1/ORCHIDEE        6596        14  ORCHIDEE       modeles
+#-C- IPSLCM5A2.1  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch 4775         8  oasis3-mct     .
+#-C- IPSLCM5A2.1  LMDZ5/branches/IPSLCM5A2.1                    3674        20  LMDZ           modeles
+#-C- IPSLCM5A2.1  CONFIG/UNIFORM/v6/IPSLCM5A2                   5088         8  IPSLCM5A2        config
+#-C- IPSLCM5A2.1  trunk/libIGCM                                 1534        10  libIGCM        .
+#-C- IPSLCM5A2.1  branches/2015/nemo_v3_6_STABLE/NEMOGCM        6665         7  .              modeles
+#-C- IPSLCM5A2.1  XIOS/branchs/xios-2.5                         1903        12  XIOS           modeles
+
+#-H- IPSLCM5A2.2  IPSLCM5A2.2 coupled configuration
+#-H- IPSLCM5A2.2  Working IPSLCM5A2 version
+#-H- IPSLCM5A2.2  NEMOGCM branch nemo_v3_6_STABLE revision 6665
+#-H- IPSLCM5A2.2  XIOS2 branchs/xios-2.5 revision 1903
+#-H- IPSLCM5A2.2  IOIPSL/src svn tags/v2_2_2
+#-H- IPSLCM5A2.2  LMDZ5 branches/IPSLCM5A2.1 rev 3907
+#-H- IPSLCM5A2.2  ORCHIDEE  branches/ORCHIDEE-IPSLCM5A2.1 rev 7376
+#-H- IPSLCM5A2.2  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM5A2.2  IPSLCM5A2 svn 6056
+#-H- IPSLCM5A2.2  libIGCM trunk rev 1552
+#-C- IPSLCM5A2.2  IOIPSL/tags/v2_2_2/src                        HEAD         8  IOIPSL/src     modeles
+#-C- IPSLCM5A2.2  branches/ORCHIDEE-IPSLCM5A2.1/ORCHIDEE        7376        14  ORCHIDEE       modeles
+#-C- IPSLCM5A2.2  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch 4775         8  oasis3-mct     .
+#-C- IPSLCM5A2.2  LMDZ5/branches/IPSLCM5A2.1                    3907        20  LMDZ           modeles
+#-C- IPSLCM5A2.2  CONFIG/UNIFORM/v6/IPSLCM5A2                   6056         8  IPSLCM5A2        config
+#-C- IPSLCM5A2.2  trunk/libIGCM                                 1572        10  libIGCM        .
+#-C- IPSLCM5A2.2  branches/2015/nemo_v3_6_STABLE/NEMOGCM        6665         7  .              modeles
+#-C- IPSLCM5A2.2  XIOS/branchs/xios-2.5                         1903        12  XIOS           modeles
+
+#-H- IPSLCM5A2_work  IPSLCM5A2.2 coupled configuration
+#-H- IPSLCM5A2_work  Working IPSLCM5A2 version
+#-H- IPSLCM5A2_work  NEMOGCM branch nemo_v3_6_STABLE revision 6665
+#-H- IPSLCM5A2_work  XIOS2 branchs/xios-2.5 revision 1903
+#-H- IPSLCM5A2_work  IOIPSL/src svn tags/v2_2_2
+#-H- IPSLCM5A2_work  LMDZ5 branches/IPSLCM5A2.1 rev 3907
+#-H- IPSLCM5A2_work  ORCHIDEE  branches/ORCHIDEE-IPSLCM5A2.1 rev 7376
+#-H- IPSLCM5A2_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM5A2_work  IPSLCM5A2 svn 6056
+#-H- IPSLCM5A2_work  libIGCM trunk rev 1552
+#-C- IPSLCM5A2_work  IOIPSL/tags/v2_2_2/src                        HEAD         8  IOIPSL/src     modeles
+#-C- IPSLCM5A2_work  branches/ORCHIDEE-IPSLCM5A2.1/ORCHIDEE        7376        14  ORCHIDEE       modeles
+#-C- IPSLCM5A2_work  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch 4775         8  oasis3-mct     .
+#-C- IPSLCM5A2_work  LMDZ5/branches/IPSLCM5A2.1                    3907        20  LMDZ           modeles
+#-C- IPSLCM5A2_work  CONFIG/UNIFORM/v6/IPSLCM5A2                   6056         8  IPSLCM5A2        config
+#-C- IPSLCM5A2_work  trunk/libIGCM                                 1572        10  libIGCM        .
+#-C- IPSLCM5A2_work  branches/2015/nemo_v3_6_STABLE/NEMOGCM        6665         7  .              modeles
+#-C- IPSLCM5A2_work  XIOS/branchs/xios-2.5                         1903        12  XIOS           modeles
+
+#-H- IPSLCM6.1.9-LR IPSLCM6.1.9-LR coupled configuration
+#-H- IPSLCM6.1.9-LR 10th IPSLCM6.1-LR version
+#-H- IPSLCM6.1.9-LR https://forge.ipsl.jussieu.fr/igcmg/ticket/120
+#-H- IPSLCM6.1.9-LR NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.1.9-LR SHACONEMO revision 278
+#-H- IPSLCM6.1.9-LR XIOS2 trunk revision 1550 branch xios-2.5
+#-H- IPSLCM6.1.9-LR IOIPSL src tags 2_2_4
+#-H- IPSLCM6.1.9-LR LMDZ6 LMDZ6/branches/IPSLCM6.0.15 rev 3427
+#-H- IPSLCM6.1.9-LR ORCHIDEE version tags/ORCHIDEE_2_0/ORCHIDEE revision 5661
+#-H- IPSLCM6.1.9-LR OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.1.9-LR IPSLCM6 svn 4313
+#-H- IPSLCM6.1.9-LR libIGCM trunk rev 1478
+#-C- IPSLCM6.1.9-LR IOIPSL/tags/v2_2_4/src                           HEAD         8 IOIPSL/src     modeles
+#-C- IPSLCM6.1.9-LR tags/ORCHIDEE_2_0/ORCHIDEE                       5661        14 ORCHIDEE       modeles
+#-C- IPSLCM6.1.9-LR CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.1.9-LR LMDZ6/branches/IPSLCM6.0.15                      3427        20 LMDZ           modeles
+#-C- IPSLCM6.1.9-LR CONFIG/UNIFORM/v6/IPSLCM6                        4313         8 IPSLCM6        config
+#-C- IPSLCM6.1.9-LR trunk/libIGCM                                    1478        10 libIGCM        .
+#-C- IPSLCM6.1.9-LR branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7 .              modeles
+#-C- IPSLCM6.1.9-LR trunk/ORCA1_LIM3_PISCES                           278        17 .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.1.9-LR XIOS/branchs/xios-2.5                            1786        12 XIOS           modeles
+
+#-H- IPSLCM6.1.10-LR IPSLCM6.1.10-LR coupled configuration
+#-H- IPSLCM6.1.10-LR 11th IPSLCM6.1-LR version
+#-H- IPSLCM6.1.10-LR https://forge.ipsl.jussieu.fr/igcmg/ticket/120
+#-H- IPSLCM6.1.10-LR NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.1.10-LR SHACONEMO revision 278
+#-H- IPSLCM6.1.10-LR XIOS2 branch xios-2.5 rev 1786
+#-H- IPSLCM6.1.10-LR IOIPSL src tags 2_2_4
+#-H- IPSLCM6.1.10-LR LMDZ6 LMDZ6/branches/IPSLCM6.0.15 rev 3608
+#-H- IPSLCM6.1.10-LR ORCHIDEE version tags/ORCHIDEE_2_0/ORCHIDEE revision 6268
+#-H- IPSLCM6.1.10-LR OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.1.10-LR IPSLCM6 svn 4816
+#-H- IPSLCM6.1.10-LR libIGCM trunk rev 1517
+#-C- IPSLCM6.1.10-LR IOIPSL/tags/v2_2_4/src                           HEAD         8 IOIPSL/src     modeles
+#-C- IPSLCM6.1.10-LR tags/ORCHIDEE_2_0/ORCHIDEE                       6268        14 ORCHIDEE       modeles
+#-C- IPSLCM6.1.10-LR CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.1.10-LR LMDZ6/branches/IPSLCM6.0.15                      3608        20 LMDZ           modeles
+#-C- IPSLCM6.1.10-LR trunk/INCA6                                      825          9 INCA           modeles
+#-C- IPSLCM6.1.10-LR CONFIG/UNIFORM/v6/IPSLCM6                        4816         8 IPSLCM6        config
+#-C- IPSLCM6.1.10-LR trunk/libIGCM                                    1517        10 libIGCM        .
+#-C- IPSLCM6.1.10-LR branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7 .              modeles
+#-C- IPSLCM6.1.10-LR trunk/ORCA1_LIM3_PISCES                           278        17 .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.1.10-LR XIOS/branchs/xios-2.5                            1786        12 XIOS           modeles
+
+#-H- IPSLCM6.1.11-LR IPSLCM6.1.11-LR coupled configuration
+#-H- IPSLCM6.1.11-LR 12th IPSLCM6.1-LR version
+#-H- IPSLCM6.1.11-LR https://forge.ipsl.jussieu.fr/igcmg/ticket/120
+#-H- IPSLCM6.1.11-LR NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.1.11-LR SHACONEMO revision 278
+#-H- IPSLCM6.1.11-LR XIOS2 branch xios-2.5 rev 1903
+#-H- IPSLCM6.1.11-LR IOIPSL src tags 2_2_4
+#-H- IPSLCM6.1.11-LR LMDZ6 LMDZ6/branches/IPSLCM6.0.15 rev 3643
+#-H- IPSLCM6.1.11-LR ORCHIDEE version tags/ORCHIDEE_2_0/ORCHIDEE revision 6592
+#-H- IPSLCM6.1.11-LR OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.1.11-LR IPSLCM6 svn 5095
+#-H- IPSLCM6.1.11-LR libIGCM trunk rev 1534
+#-C- IPSLCM6.1.11-LR IOIPSL/tags/v2_2_4/src                           HEAD         8 IOIPSL/src     modeles
+#-C- IPSLCM6.1.11-LR tags/ORCHIDEE_2_0/ORCHIDEE                       6592        14 ORCHIDEE       modeles
+#-C- IPSLCM6.1.11-LR CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.1.11-LR LMDZ6/branches/IPSLCM6.0.15                      3643        20 LMDZ           modeles
+#-C- IPSLCM6.1.11-LR tags/INCA6_CMIP                                   928          9 INCA           modeles
+#-C- IPSLCM6.1.11-LR CONFIG/UNIFORM/v6/IPSLCM6                        5095         8 IPSLCM6        config
+#-C- IPSLCM6.1.11-LR trunk/libIGCM                                    1534        10 libIGCM        .
+#-C- IPSLCM6.1.11-LR branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7 .              modeles
+#-C- IPSLCM6.1.11-LR trunk/ORCA1_LIM3_PISCES                           278        17 .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.1.11-LR XIOS/branchs/xios-2.5                            1903        12 XIOS           modeles
+
+#-H- IPSLCM6.1.12_LANDN-LR IPSLCM6.1.12_LANDN-LR coupled configuration
+#-H- IPSLCM6.1.12_LANDN-LR 1st IPSLCM6 LANDN version
+#-H- IPSLCM6.1.12_LANDN-LR https://forge.ipsl.jussieu.fr/igcmg/ticket/120
+#-H- IPSLCM6.1.12_LANDN-LR NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.1.12_LANDN-LR SHACONEMO revision 278
+#-H- IPSLCM6.1.12_LANDN-LR XIOS2 branch xios-2.5 rev 1903
+#-H- IPSLCM6.1.12_LANDN-LR IOIPSL src tags 2_2_4
+#-H- IPSLCM6.1.12_LANDN-LR LMDZ6 LMDZ6/branches/IPSLCM6.0.15 rev 3886
+#-H- IPSLCM6.1.12_LANDN-LR ORCHIDEE version branches/ORCHIDEE_3_CMIP6 revision 7629
+#-H- IPSLCM6.1.12_LANDN-LR OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.1.12_LANDN-LR IPSLCM6 svn 5095
+#-H- IPSLCM6.1.12_LANDN-LR libIGCM trunk rev 1534
+#-C- IPSLCM6.1.12_LANDN-LR IOIPSL/tags/v2_2_4/src                           HEAD         8 IOIPSL/src     modeles
+#-C- IPSLCM6.1.12_LANDN-LR branches/ORCHIDEE_3_CMIP6/ORCHIDEE               7629        14 ORCHIDEE       modeles
+#-C- IPSLCM6.1.12_LANDN-LR branches/ORCHIDEE_3_CMIP6/ORCHIDEE_OL            7629        14 ORCHIDEE_OL    config
+#-C- IPSLCM6.1.12_LANDN-LR CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.1.12_LANDN-LR LMDZ6/branches/IPSLCM6.0.15                      3886        20 LMDZ           modeles
+#-C- IPSLCM6.1.12_LANDN-LR tags/INCA6_CMIP                                   928          9 INCA           modeles
+#-C- IPSLCM6.1.12_LANDN-LR CONFIG/UNIFORM/v6/IPSLCM6_LANDN                  6157         8 IPSLCM6        config
+#-C- IPSLCM6.1.12_LANDN-LR trunk/libIGCM                                    1534        10 libIGCM        .
+#-C- IPSLCM6.1.12_LANDN-LR branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7 .              modeles
+#-C- IPSLCM6.1.12_LANDN-LR trunk/ORCA1_LIM3_PISCES                           278        17 .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.1.12_LANDN-LR XIOS/branchs/xios-2.5                            1903        12 XIOS           modeles
+
+
+#-H- IPSLCM6.2_work  IPSLCM6.2_work coupled configuration
+#-H- IPSLCM6.2_work  This configuration is under construction
+#-H- IPSLCM6.2_work  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.2_work  SHACONEMO revision 307
+#-H- IPSLCM6.2_work  XIOS trunk revision 2331
+#-H- IPSLCM6.2_work  IOIPSL tags v2_2_5
+#-H- IPSLCM6.2_work  LMDZ6 trunk revision 4144
+#-H- IPSLCM6.2_work  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 7613
+#-H- IPSLCM6.2_work  INCA6 trunk revison 1034
+#-H- IPSLCM6.2_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.2_work  CONFIG/IPSLCM6.2 rev 6299
+#-H- IPSLCM6.2_work  libIGCM trunk rev 1552
+#-C- IPSLCM6.2_work  IOIPSL/tags/v2_2_5                               6273         8   IOIPSL         modeles
+#-C- IPSLCM6.2_work  branches/ORCHIDEE_2_2/ORCHIDEE                   7820        14   ORCHIDEE       modeles
+#-C- IPSLCM6.2_work  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.2_work  LMDZ6/trunk                                      4305        20   LMDZ           modeles
+#-C- IPSLCM6.2_work  CONFIG/UNIFORM/v6/IPSLCM6.2                      6299         8   IPSLCM6        config
+#-C- IPSLCM6.2_work  trunk/libIGCM                                    1572        10   libIGCM        .
+#-C- IPSLCM6.2_work  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM6.2_work  trunk/ORCA1_LIM3_PISCES                           307        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2_work  trunk/ORCA025_LIM3_PISCES                         307        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2_work  trunk/INCA6                                      1057     	   9   INCA           modeles
+#-C- IPSLCM6.2_work  XIOS2/trunk                                      2439        12   XIOS           modeles
+
+#-H- IPSLCM6.3_work  IPSLCM6.3_work coupled configuration (using ORCHIDEE_3(containing nitrogen cycle))
+#-H- IPSLCM6.3_work  This configuration is under construction
+#-H- IPSLCM6.3_work  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.3_work  SHACONEMO revision 279
+#-H- IPSLCM6.3_work  XIOS trunk revision 1866
+#-H- IPSLCM6.3_work  IOIPSL tags v2_2_5
+#-H- IPSLCM6.3_work  LMDZ6 trunk revision 3651
+#-H- IPSLCM6.3_work  ORCHIDEE version branches/ORCHIDEE_3/ORCHIDEE
+#-H- IPSLCM6.3_work  INCA6 trunk revison  915
+#-H- IPSLCM6.3_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.3_work  CONFIG/IPSLCM6.3
+#-H- IPSLCM6.3_work  libIGCM trunk rev 1552
+#-C- IPSLCM6.3_work  IOIPSL/tags/v2_2_5                               6058         8   IOIPSL         modeles
+#-C- IPSLCM6.3_work  branches/ORCHIDEE_3/ORCHIDEE                     6611        14   ORCHIDEE       modeles
+#-C- IPSLCM6.3_work  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8   oasis3-mct     .
+#-C- IPSLCM6.3_work  LMDZ6/trunk                                      3721        20   LMDZ           modeles
+#-C- IPSLCM6.3_work  CONFIG/UNIFORM/v6/IPSLCM6.3                      HEAD         8   IPSLCM6        config
+#-C- IPSLCM6.3_work  trunk/libIGCM                                    1572        10   libIGCM        .
+#-C- IPSLCM6.3_work  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM6.3_work  trunk/ORCA1_LIM3_PISCES                           295        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.3_work  trunk/ORCA025_LIM3_PISCES                         295        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.3_work  trunk/INCA6                                       915         9   INCA           modeles
+#-C- IPSLCM6.3_work  XIOS/trunk                                       1866        12   XIOS           modeles
+
+#-H- IPSLCM6.5_work  IPSLCM6.5_work coupled configuration ( under construction )
+#-H- IPSLCM6.5_work  NEMO v4.2 release candidate
+#-H- IPSLCM6.5_work  XIOS trunk revision 1862
+#-H- IPSLCM6.5_work  IOIPSL tags v2_2_5
+#-H- IPSLCM6.5_work  LMDZ6 trunk revision 3651
+#-H- IPSLCM6.5_work  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 6594
+#-H- IPSLCM6.5_work  INCA6 trunk revison  915
+#-H- IPSLCM6.5_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.5_work  CONFIG/IPSLCM6.2 rev 5030
+#-H- IPSLCM6.5_work  libIGCM trunk rev 1552
+#-C- IPSLCM6.5_work  IOIPSL/tags/v2_2_5                                  6058         8   IOIPSL         modeles
+#-C- IPSLCM6.5_work  branches/ORCHIDEE_2_2/ORCHIDEE                      7613        14   ORCHIDEE       modeles
+#-C- IPSLCM6.5_work  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch       4775         8   oasis3-mct     .
+#-C- IPSLCM6.5_work  LMDZ6/trunk                                         4144        20   LMDZ           modeles
+#-C- IPSLCM6.5_work  CONFIG/UNIFORM/v6/IPSLCM6.5.1                       6173         8   IPSLCM6        config
+#-C- IPSLCM6.5_work  4.2.0                                               HEAD         22  NEMO           modeles
+#-C- IPSLCM6.5_work  trunk/INCA6                                          915         9   INCA           modeles
+#-C- IPSLCM6.5_work  trunk/libIGCM                                       1572        10   libIGCM        .
+#-C- IPSLCM6.5_work  XIOS2/trunk                                         2439        12   XIOS           modeles
+
+#-H- IPSLCM6.5.1  IPSLCM6.5_work coupled configuration
+#-H- IPSLCM6.5.1  This configuration is almost the same than IPSLCM6.2, except for NEMO which swiches in versions 4 
+#-H- IPSLCM6.5.1  NEMO branch v4.0.7
+#-H- IPSLCM6.5.1  XIOS trunk revision 1862
+#-H- IPSLCM6.5.1  IOIPSL tags v2_2_5
+#-H- IPSLCM6.5.1  LMDZ6 trunk revision 3651
+#-H- IPSLCM6.5.1  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 6594
+#-H- IPSLCM6.5.1  INCA6 trunk revison  915
+#-H- IPSLCM6.5.1  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.5.1  CONFIG/IPSLCM6.2 rev 5030
+#-H- IPSLCM6.5.1  libIGCM trunk rev 1534
+#-C- IPSLCM6.5.1  IOIPSL/tags/v2_2_5                                  6058         8   IOIPSL         modeles
+#-C- IPSLCM6.5.1  branches/ORCHIDEE_2_2/ORCHIDEE                      7613        14   ORCHIDEE       modeles
+#-C- IPSLCM6.5.1  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch       4775         8   oasis3-mct     .
+#-C- IPSLCM6.5.1  LMDZ6/trunk                                         4144        20   LMDZ           modeles
+#-C- IPSLCM6.5.1  CONFIG/UNIFORM/v6/IPSLCM6.5                         6137         8   IPSLCM6        config
+#-C- IPSLCM6.5.1  NEMO/releases/r4.0/r4.0.7                           HEAD         7   NEMO           modeles
+#-C- IPSLCM6.5.1  trunk/INCA6                                          915         9   INCA           modeles
+#-C- IPSLCM6.5.1  trunk/libIGCM                                       1545        10   libIGCM        .
+#-C- IPSLCM6.5.1  XIOS/trunk                                          1866        12   XIOS           modeles
+
+
+#-H- IPSLCM6.2.1  IPSLCM6.2.1 coupled configuration
+#-H- IPSLCM6.2.1  This configuration has been used to perform MR025 simulations on IRENE under QUEST project ( PRACE ) 
+#-H- IPSLCM6.2.1  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.2.1  SHACONEMO revision 279
+#-H- IPSLCM6.2.1  XIOS trunk revision 1659
+#-H- IPSLCM6.2.1  IOIPSL src trunk 4432
+#-H- IPSLCM6.2.1  LMDZ6 trunk rev 3489
+#-H- IPSLCM6.2.1  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 6189
+#-H- IPSLCM6.2.1  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.2.1  IPSLCM6.2 latest revision
+#-H- IPSLCM6.2.1  libIGCM trunk rev 1488
+#-C- IPSLCM6.2.1  IOIPSL/trunk                                     4432         8   IOIPSL         modeles
+#-C- IPSLCM6.2.1  branches/ORCHIDEE_2_2/ORCHIDEE                   6189        14   ORCHIDEE       modeles
+#-C- IPSLCM6.2.1  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.2.1  LMDZ6/trunk                                      3559        20   LMDZ           modeles
+#-C- IPSLCM6.2.1  CONFIG/UNIFORM/v6/IPSLCM6.2                      4740         8   IPSLCM6        config
+#-C- IPSLCM6.2.1  trunk/libIGCM                                    1488        10   libIGCM        .
+#-C- IPSLCM6.2.1  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM6.2.1  trunk/ORCA1_LIM3_PISCES                           287        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2.1  trunk/ORCA025_LIM3_PISCES                         287        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2.1  trunk/INCA6                                       873         9   INCA           modeles
+#-C- IPSLCM6.2.1  XIOS/trunk                                       1659        12   XIOS           modeles
+
+#-H- IPSLCM6.2.2  IPSLCM6.2.2 coupled configuration
+#-H- IPSLCM6.2.2  This configuration is dedicated to QUEST CMIP6 simulations
+#-H- IPSLCM6.2.2  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM6.2.2  SHACONEMO revision 299
+#-H- IPSLCM6.2.2  XIOS trunk revision 1866
+#-H- IPSLCM6.2.2  IOIPSL tags v2_2_5
+#-H- IPSLCM6.2.2  LMDZ6 branch IPSL-CM6A-MR revision 3855
+#-H- IPSLCM6.2.2  ORCHIDEE version branches/ORCHIDEE_Quest/ORCHIDEE revision 7086
+#-H- IPSLCM6.2.2  INCA6 trunk revison  915
+#-H- IPSLCM6.2.2  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM6.2.2  CONFIG/IPSLCM6.2 rev 5615
+#-H- IPSLCM6.2.2  libIGCM trunk rev 1545
+#-C- IPSLCM6.2.2  IOIPSL/tags/v2_2_5                               6058         8   IOIPSL         modeles
+#-C- IPSLCM6.2.2  branches/ORCHIDEE_Quest/ORCHIDEE                 7086        14   ORCHIDEE       modeles
+#-C- IPSLCM6.2.2  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch    4775         8  oasis3-mct     .
+#-C- IPSLCM6.2.2  LMDZ6/branches/IPSL-CM6A-MR                      3855        20   LMDZ           modeles
+#-C- IPSLCM6.2.2  CONFIG/UNIFORM/v6/IPSLCM6.2                      5645         8   IPSLCM6        config
+#-C- IPSLCM6.2.2  CONFIG/UNIFORM/v6/IPSLCM6.2/ARCH                 6129         8   ARCH           config/IPSLCM6
+#-C- IPSLCM6.2.2  trunk/libIGCM                                    1572        10   libIGCM        .
+#-C- IPSLCM6.2.2  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM6.2.2  trunk/ORCA1_LIM3_PISCES                           303        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2.2  trunk/ORCA025_LIM3_PISCES                         303        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM6.2.2  trunk/INCA6                                       915     	   9   INCA           modeles
+#-C- IPSLCM6.2.2  XIOS/trunk                                       2029        12   XIOS           modeles
+
+
+#-H- IPSLCM7_work  IPSLCM7_work 1st coupled configuration
+#-H- IPSLCM7_work  This configuration is under construction
+#-H- IPSLCM7_work  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM7_work  SHACONEMO revision 287
+#-H- IPSLCM7_work  XIOS trunk revision 1866
+#-H- IPSLCM7_work  IOIPSL tags v2_2_5
+#-H- IPSLCM7_work  LMDZ6 trunk revision 3721
+#-H- IPSLCM7_work  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 6594
+#-H- IPSLCM7_work  INCA6 trunk revison  915
+#-H- IPSLCM7_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM7_work  CONFIG/IPSLCM7 rev HEAD
+#-H- IPSLCM7_work  libIGCM trunk rev 1552
+#-C- IPSLCM7_work  master                		        34d2c048        21   DYNAMICO       modeles
+#-C- IPSLCM7_work  aquaplanet/ICOSA_LMDZ                             457         19   ICOSA_LMDZ     modeles
+#-C- IPSLCM7_work  IOIPSL/tags/v2_2_5                               6058         8   IOIPSL         modeles
+#-C- IPSLCM7_work  branches/ORCHIDEE_2_2/ORCHIDEE                   7820        14   ORCHIDEE       modeles
+#-C- IPSLCM7_work  CPL/oasis3-mct/branches/OASIS3-MCT_5.0_branch    6331         8   oasis3-mct     .
+#-C- IPSLCM7_work  LMDZ6/trunk          		            4305        20   LMDZ           modeles
+#-C- IPSLCM7_work  CONFIG/UNIFORM/v7/IPSLCM7                        HEAD         8   IPSLCM7        config
+#-C- IPSLCM7_work  trunk/libIGCM                                    1572        10   libIGCM        .
+#-C- IPSLCM7_work  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM7_work  trunk/ORCA1_LIM3_PISCES                           287        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM7_work  trunk/INCA6                                       915     	   9   INCA           modeles
+#-C- IPSLCM7_work  XIOS2/trunk                                       2439        12   XIOS           modeles
+
+#-H- IPSLCM7.0  IPSLCM7.0 1st coupled configuration
+#-H- IPSLCM7.0  This configuration is under construction
+#-H- IPSLCM7.0  NEMOGCM branch nemo_v3_6_STABLE revision 9455
+#-H- IPSLCM7.0  SHACONEMO revision 287
+#-H- IPSLCM7.0  XIOS trunk revision 1866
+#-H- IPSLCM7.0  IOIPSL tags v2_2_5
+#-H- IPSLCM7.0  LMDZ6 trunk revision 3721
+#-H- IPSLCM7.0  ORCHIDEE version branches/ORCHIDEE_2_2/ORCHIDEE revision 6594
+#-H- IPSLCM7.0  INCA6 trunk revison  915
+#-H- IPSLCM7.0  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM7.0  CONFIG/IPSLCM7 rev HEAD
+#-H- IPSLCM7.0  libIGCM trunk rev 1552
+#-C- IPSLCM7.0  master                		        34d2c048        21   DYNAMICO       modeles
+#-C- IPSLCM7.0  aquaplanet/ICOSA_LMDZ                             457         19   ICOSA_LMDZ     modeles
+#-C- IPSLCM7.0  IOIPSL/tags/v2_2_5                               6058         8   IOIPSL         modeles
+#-C- IPSLCM7.0  branches/ORCHIDEE_2_2/ORCHIDEE                   7820        14   ORCHIDEE       modeles
+#-C- IPSLCM7.0  CPL/oasis3-mct/branches/OASIS3-MCT_5.0_branch    6331         8   oasis3-mct     .
+#-C- IPSLCM7.0  LMDZ6/trunk          		            4305        20   LMDZ           modeles
+#-C- IPSLCM7.0  CONFIG/UNIFORM/v7/IPSLCM7.0                      HEAD         8   IPSLCM7        config
+#-C- IPSLCM7.0  trunk/libIGCM                                    1572        10   libIGCM        .
+#-C- IPSLCM7.0  branches/2015/nemo_v3_6_STABLE/NEMOGCM           9455         7   .              modeles
+#-C- IPSLCM7.0  trunk/ORCA1_LIM3_PISCES                           287        17   .              modeles/NEMOGCM/CONFIG
+#-C- IPSLCM7.0  trunk/INCA6                                       915     	   9   INCA           modeles
+#-C- IPSLCM7.0  XIOS2/trunk                                       2439        12   XIOS           modeles
+
+#---- Configurations with DYNAMICO
+
+#-H- ICOLMDZOR_v7_work  Working version of DYNAMICO-LMDZ-ORCHIDEE configuration
+#-H- ICOLMDZOR_v7_work  This is a configuration under work.
+#-H- ICOLMDZOR_v7_work  All components can change revision following IPSLCM6.2_work configuration.
+#-C- ICOLMDZOR_v7_work  master                		    34d2c048    21   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7_work  LMDZ6/trunk          		    4305    	20   LMDZ           modeles
+#-C- ICOLMDZOR_v7_work  branches/ORCHIDEE_2_2/ORCHIDEE      7820  	14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7_work  IOIPSL/tags/v2_2_5                  6058    	8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7_work  aquaplanet/ICOSA_LMDZ                457    	19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7_work  XIOS2/trunk                          2439    	12   XIOS           modeles
+#-C- ICOLMDZOR_v7_work  CONFIG/UNIFORM/v7/ICOLMDZOR_v7      6303    	8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7_work  trunk/libIGCM                       1572    	10   libIGCM        .
+
+
+#-H- ICOLMDZOR_v7_TP  Working version of DYNAMICO-LMDZ-ORCHIDEE configuration
+#-H- ICOLMDZOR_v7_TP  This is a configuration under work.
+#-H- ICOLMDZOR_v7_TP  All components can change revision following IPSLCM6.2_work configuration.
+#-C- ICOLMDZOR_v7_TP  master                		    34d2c048    21   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7_TP  LMDZ6/trunk          		    4305    	20   LMDZ           modeles
+#-C- ICOLMDZOR_v7_TP  branches/ORCHIDEE_2_2/ORCHIDEE      7820  	14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7_TP  IOIPSL/tags/v2_2_5                  6058    	8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7_TP  aquaplanet/ICOSA_LMDZ                457    	19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7_TP  XIOS2/trunk                          2439    	12   XIOS           modeles
+#-C- ICOLMDZOR_v7_TP  CONFIG/UNIFORM/v7/ICOLMDZOR_v7      6303    	8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7_TP  trunk/libIGCM                       1572    	10   libIGCM        .
+
+#-H- ICOLMDZOR_v7.1  CMIP6 HighResMIP beta version of DYNAMICO-LMDZ-ORCHIDEE configuration
+#-C- ICOLMDZOR_v7.1  icosagcm/trunk                      1006    18   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7.1  LMDZ6/trunk                         3615    20   LMDZ           modeles
+#-C- ICOLMDZOR_v7.1  branches/ORCHIDEE_2_2/ORCHIDEE      6372    14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7.1  IOIPSL/trunk                        4745    8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7.1  aquaplanet/ICOSA_LMDZ                404    19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7.1  XIOS/trunk                          1778    12   XIOS           modeles
+#-C- ICOLMDZOR_v7.1  CONFIG/UNIFORM/v7/ICOLMDZOR_v7      4959    8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7.1  trunk/libIGCM                       1509    10   libIGCM        .
+
+#-H- ICOLMDZOR_v7.2  CMIP6 HighResMIP version of DYNAMICO-LMDZ-ORCHIDEE configuration
+#-C- ICOLMDZOR_v7.2  icosagcm/trunk                      1028    18   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7.2  LMDZ6/branches/IPSL-CM6A-MR         3855    20   LMDZ           modeles
+#-C- ICOLMDZOR_v7.2  branches/ORCHIDEE_Quest/ORCHIDEE    7086    14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7.2  IOIPSL/tags/v2_2_5                  6058    8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7.2  aquaplanet/ICOSA_LMDZ                433    19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7.2  XIOS/trunk                          2331    12   XIOS           modeles
+#-C- ICOLMDZOR_v7.2  CONFIG/UNIFORM/v7/ICOLMDZOR_v7      6155    8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7.2  trunk/libIGCM                       1572    10   libIGCM        .
+
+#-H- ICOLMDZORINCA_v7_work  DYNAMICO - LMDZ - ORCHIDEE - INCA working version 
+#-H- ICOLMDZORINCA_v7_work  specific version of dynamico to dev nudging 
+#-C- ICOLMDZORINCA_v7_work  aquaplanet/ICOSA_LMDZ		456          19   ICOSA_LMDZ	modeles
+#-C- ICOLMDZORINCA_v7_work  IOIPSL/tags/v2_2_5			6058	     8    IOIPSL	modeles
+#-C- ICOLMDZORINCA_v7_work  master                		4fbd393a     21   DYNAMICO      modeles
+#-C- ICOLMDZORINCA_v7_work  branches/ORCHIDEE_2_2/ORCHIDEE     	7613         14   ORCHIDEE	modeles
+#-C- ICOLMDZORINCA_v7_work  LMDZ6/trunk        			4227         20   LMDZ		modeles
+#-C- ICOLMDZORINCA_v7_work  trunk/INCA6	      			1042	     9	  INCA		modeles
+#-C- ICOLMDZORINCA_v7_work  XIOS2/trunk                         2439         12   XIOS		modeles
+#-C- ICOLMDZORINCA_v7_work  CONFIG/UNIFORM/v7/ICOLMDZORINCA_v7 	HEAD         8    ICOLMDZORINCA_v7	config
+#-C- ICOLMDZORINCA_v7_work  trunk/libIGCM                      	1572   	     10   libIGCM      	.
+
+
+#-H- ICOLMDZORINCA_v7.1  DYNAMICO- LMDZ - ORCHIDEE - INCA  configuration version (without nudging in DYNAMICO) 
+#-C- ICOLMDZORINCA_v7.1  aquaplanet/ICOSA_LMDZ               449          19   ICOSA_LMDZ	modeles
+#-C- ICOLMDZORINCA_v7.1  IOIPSL/tags/v2_2_5			6058	     8    IOIPSL	modeles
+#-C- ICOLMDZORINCA_v7.1  trunk2master                        21f9cdf4     21   DYNAMICO      modeles
+#-C- ICOLMDZORINCA_v7.1  branches/ORCHIDEE_2_2/ORCHIDEE     	6594         14   ORCHIDEE	modeles
+#-C- ICOLMDZORINCA_v7.1  LMDZ6/branches/LMDZ-INCA-Dyn        3965         20   LMDZ		modeles
+#-C- ICOLMDZORINCA_v7.1  branches/INCA_DYNAMICOXIOS	      	995	     9	  INCA		modeles
+#-C- ICOLMDZORINCA_v7.1  XIOS/trunk                         	2106         12   XIOS		modeles
+#-C- ICOLMDZORINCA_v7.1  CONFIG/UNIFORM/v7/ICOLMDZORINCA_v7 	5909         8    ICOLMDZORINCA_v7	config
+#-C- ICOLMDZORINCA_v7.1  trunk/libIGCM                      	1545   	     10   libIGCM      	.
+
+#-H- ICOLMDZORINCA_v7.2  DYNAMICO - LMDZ - ORCHIDEE - INCA configuration version close to v7.1 with nudging
+#-C- ICOLMDZORINCA_v7.2  aquaplanet/ICOSA_LMDZ_LAM		HEAD          19   ICOSA_LMDZ	modeles
+#-C- ICOLMDZORINCA_v7.2  IOIPSL/tags/v2_2_5			6058	     8    IOIPSL	modeles
+#-C- ICOLMDZORINCA_v7.2  rebase/trunk/nudging                	f1b2f3fe      21   DYNAMICO      modeles
+#-C- ICOLMDZORINCA_v7.2  branches/ORCHIDEE_2_2/ORCHIDEE     	6594         14   ORCHIDEE	modeles
+#-C- ICOLMDZORINCA_v7.2  LMDZ6/branches/LMDZ-INCA-Dyn        	3965         20   LMDZ		modeles
+#-C- ICOLMDZORINCA_v7.2  branches/INCA_DYNAMICOXIOS          	995	     9	  INCA		modeles
+#-C- ICOLMDZORINCA_v7.2  XIOS/trunk                         	2285         12   XIOS		modeles
+#-C- ICOLMDZORINCA_v7.2  CONFIG/UNIFORM/v7/ICOLMDZORINCA_v7 	6060         8    ICOLMDZORINCA_v7	config
+#-C- ICOLMDZORINCA_v7.2  trunk/libIGCM                      	1572   	     10   libIGCM      	.
+
+#-H- ICOLMDZOR_v7_LAM_work  Working version of DYNAMICO-LMDZ-ORCHIDEE LAM configuration
+#-H- ICOLMDZOR_v7_LAM_work  This is a configuration under work.
+#-H- ICOLMDZOR_v7_LAM_work  All components can change revision following IPSLCM6.2_work configuration.
+#-C- ICOLMDZOR_v7_LAM_work  master                         34d2c048     21   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7_LAM_work  LMDZ6/trunk          		4305    20   LMDZ           modeles
+#-C- ICOLMDZOR_v7_LAM_work  branches/ORCHIDEE_2_2/ORCHIDEE      7820    14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7_LAM_work  IOIPSL/tags/v2_2_5                  6058    8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7_LAM_work  aquaplanet/ICOSA_LMDZ                457    19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7_LAM_work  XIOS2/trunk                         2439    12   XIOS           modeles
+#-C- ICOLMDZOR_v7_LAM_work  CONFIG/UNIFORM/v7/ICOLMDZOR_LAM_v7  HEAD    8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7_LAM_work  trunk/libIGCM                       1574    10   libIGCM        .
+
+#-H- ICOLMDZOR_v7_LAM.1  1st version of DYNAMICO-LMDZ-ORCHIDEE LAM configuration
+#-H- ICOLMDZOR_v7_LAM.1  This is a frozen configuration.
+#-C- ICOLMDZOR_v7_LAM.1  trunk2master                        b18ad822     21   DYNAMICO       modeles
+#-C- ICOLMDZOR_v7_LAM.1  LMDZ6/branches/IPSL-CM6A-MR         3855    20   LMDZ           modeles
+#-C- ICOLMDZOR_v7_LAM.1  branches/ORCHIDEE_Quest/ORCHIDEE    7086    14   ORCHIDEE       modeles
+#-C- ICOLMDZOR_v7_LAM.1  IOIPSL/tags/v2_2_5                  6058    8    IOIPSL         modeles
+#-C- ICOLMDZOR_v7_LAM.1  aquaplanet/ICOSA_LMDZ                455    19   ICOSA_LMDZ     modeles
+#-C- ICOLMDZOR_v7_LAM.1  XIOS/trunk                          2331    12   XIOS           modeles
+#-C- ICOLMDZOR_v7_LAM.1  CONFIG/UNIFORM/v7/ICOLMDZOR_LAM_v7  6260    8    ICOLMDZOR_v7   config
+#-C- ICOLMDZOR_v7_LAM.1  trunk/libIGCM                       1572    10   libIGCM        .
+
+#---- LMDZOR configurations
+
+#-H- LMDZOR_v6.1.11  LMDZ and ORCHIDEE model configuration
+#-H- LMDZOR_v6.1.11  Configuration corresponding to the coupled modele IPSLCM6.1.11-LR
+#-C- LMDZOR_v6.1.11  IOIPSL/tags/v2_2_4/src             HEAD 8    IOIPSL/src   modeles
+#-C- LMDZOR_v6.1.11  tags/ORCHIDEE_2_0/ORCHIDEE         6592 14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.1.11  LMDZ6/branches/IPSLCM6.0.15        3643 20   LMDZ         modeles
+#-C- LMDZOR_v6.1.11  XIOS/branchs/xios-2.5              1903 12   XIOS         modeles
+#-C- LMDZOR_v6.1.11  CONFIG/UNIFORM/v6/LMDZOR_v6        4914 8    LMDZOR_v6    config
+#-C- LMDZOR_v6.1.11  tags/ORCHIDEE_2_0/ORCHIDEE_OL      6592 14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.1.11  trunk/libIGCM                      1534 10   libIGCM      .
+
+#-H- LMDZOR_v6.1.10  LMDZ and ORCHIDEE model configuration
+#-H- LMDZOR_v6.1.10  Configuration corresponding to the coupled modele IPSLCM6.1.10-LR
+#-H- LMDZOR_v6.1.10  The configuration has been updated to be useable at Jean-Zay/Idris.
+#-C- LMDZOR_v6.1.10  IOIPSL/tags/v2_2_4/src             HEAD    8    IOIPSL/src   modeles
+#-C- LMDZOR_v6.1.10  tags/ORCHIDEE_2_0/ORCHIDEE         6268    14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.1.10  LMDZ6/branches/IPSLCM6.0.15        3608    20   LMDZ         modeles
+#-C- LMDZOR_v6.1.10  XIOS/branchs/xios-2.5              1786    12   XIOS         modeles
+#-C- LMDZOR_v6.1.10  CONFIG/UNIFORM/v6/LMDZOR_v6        4691    8    LMDZOR_v6    config
+#-C- LMDZOR_v6.1.10  tags/ORCHIDEE_2_0/ORCHIDEE_OL      5626    14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.1.10  trunk/libIGCM                      1517    10   libIGCM      .
+
+
+
+#-H- LMDZOR_v6.2.2  LMDZ and ORCHIDEE configuration corresponding to IPSLCM6.2.2 frozen configuration 
+#-H- LMDZOR_v6.2.2  All components(LMDZ, ORCHIDEE, XIOS) have the same revisions as in IPSLCM6.2.2
+#-C- LMDZOR_v6.2.2  IOIPSL/tags/v2_2_5			6058    8    IOIPSL       modeles
+#-C- LMDZOR_v6.2.2  branches/ORCHIDEE_Quest/ORCHIDEE	7086    14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.2.2  LMDZ6/branches/IPSL-CM6A-MR		3855    20   LMDZ         modeles
+#-C- LMDZOR_v6.2.2  XIOS/trunk				2029    12   XIOS         modeles
+#-C- LMDZOR_v6.2.2  CONFIG/UNIFORM/v6/LMDZOR_v6.2	5717    8    LMDZOR_v6    config
+#-C- LMDZOR_v6.2.2  CONFIG/UNIFORM/v6/LMDZOR_v6.2/ARCH	6129    8    ARCH    config/LMDZOR_v6
+#-C- LMDZOR_v6.2.2  branches/ORCHIDEE_Quest/ORCHIDEE_OL	7086    14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.2.2  trunk/libIGCM			1572    10   libIGCM      .
+
+
+
+#-H- LMDZOR_v6.2_work  LMDZ and ORCHIDEE working configuration 
+#-H- LMDZOR_v6.2_work  Configuration close to LMDZOR_v6.1 with updated versions of components: LMDZ, ORCHIDEE, XIOS
+#-H- LMDZOR_v6.2_work  All components can change revision following IPSLCM6.2_work configuration.
+#-C- LMDZOR_v6.2_work  IOIPSL/tags/v2_2_5                 6273    8    IOIPSL       modeles
+#-C- LMDZOR_v6.2_work  branches/ORCHIDEE_2_2/ORCHIDEE     7849    14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.2_work  LMDZ6/trunk                        4305    20   LMDZ         modeles
+#-C- LMDZOR_v6.2_work  LMDZ6/trunk/arch                   4362    20   LMDZ/arch    modeles
+#-C- LMDZOR_v6.2_work  XIOS2/trunk                        2439    12   XIOS         modeles
+#-C- LMDZOR_v6.2_work  CONFIG/UNIFORM/v6/LMDZOR_v6.2      6299    8    LMDZOR_v6    config
+#-C- LMDZOR_v6.2_work  branches/ORCHIDEE_2_2/ORCHIDEE_OL  7849    14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.2_work  trunk/libIGCM                      1572    10   libIGCM      .
+
+
+#-H- LMDZOR_v6.3_work  LMDZ and ORCHIDEE working configuration
+#-H- LMDZOR_v6.3_work  Configuration corresponding to the coupled model IPSLCM6.2 and LMDZOR_v6.2 but using ORCHIDEE_3(containing nitrogen cycle)
+#-H- LMDZOR_v6.3_work  The revision of ORCHIDEE_3 can change in this working configuration. The other components can change following IPSLCM6.2_work configuration.
+#-C- LMDZOR_v6.3_work  IOIPSL/tags/v2_2_5                 6273    8    IOIPSL       modeles
+#-C- LMDZOR_v6.3_work  branches/ORCHIDEE_3/ORCHIDEE       7850    14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.3_work  LMDZ6/trunk                        4305    20   LMDZ         modeles
+#-C- LMDZOR_v6.3_work  LMDZ6/trunk/arch                   4362    20   LMDZ/arch    modeles
+#-C- LMDZOR_v6.3_work  XIOS2/trunk                        2439    12   XIOS         modeles
+#-C- LMDZOR_v6.3_work  CONFIG/UNIFORM/v6/LMDZOR_v6.3      6299    8    LMDZOR_v6    config
+#-C- LMDZOR_v6.3_work  branches/ORCHIDEE_3/ORCHIDEE_OL    7850    14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.3_work  trunk/libIGCM                      1572    10   libIGCM      .
+
+
+#-H- LMDZOR_v6.4_work  LMDZ and ORCHIDEE working configuration
+#-H- LMDZOR_v6.4_work  Configuration corresponding to the coupled model IPSLCM6.2 and LMDZOR_v6.2 but using the trunk of ORCHIDEE
+#-H- LMDZOR_v6.4_work  This configuration is compatible with the trunk/ORCHIDEE from revision 6614 when CAN features were included
+#-H- LMDZOR_v6.4_work  Current revision 7701 on trunk/ORCHIDEE corresponds to the tag ORCHIDEE_4_1
+#-H- LMDZOR_v6.4_work  The head of the configuration files are used in this configuration
+#-H- LMDZOR_v6.4_work  All components can change revision following IPSLCM6.2_work configuration.
+#-C- LMDZOR_v6.4_work  IOIPSL/tags/v2_2_5                 6273    8    IOIPSL       modeles
+#-C- LMDZOR_v6.4_work  trunk/ORCHIDEE                     7851    14   ORCHIDEE     modeles
+#-C- LMDZOR_v6.4_work  LMDZ6/trunk                        4305    20   LMDZ         modeles
+#-C- LMDZOR_v6.4_work  LMDZ6/trunk/arch                   4362    20   LMDZ/arch    modeles
+#-C- LMDZOR_v6.4_work  XIOS2/trunk                        2439    12   XIOS         modeles
+#-C- LMDZOR_v6.4_work  CONFIG/UNIFORM/v6/LMDZOR_v6.4      6299    8    LMDZOR_v6    config
+#-C- LMDZOR_v6.4_work  trunk/ORCHIDEE_OL                  7851    14   ORCHIDEE_OL  config
+#-C- LMDZOR_v6.4_work  trunk/libIGCM                      1572    10   libIGCM      .
+
+
+
+
+#-H- LMDZORSTRATAER_v6  LMDZ with interactive stratospheric aerosol and ORCHIDEE
+#-H- LMDZORSTRATAER_v6  Configuration in developement and test phase
+#-H- LMDZORSTRATAER_v6  Configuration files corresponds to IPSLCM6.0.7 but the source code for LMDZ correspond to IPSLCM6.0.8
+#-C- LMDZORSTRATAER_v6  IOIPSL/tags/v2_2_2/src              HEAD    8    IOIPSL/src         modeles
+#-C- LMDZORSTRATAER_v6  trunk/ORCHIDEE                      3934    14   ORCHIDEE           modeles
+#-C- LMDZORSTRATAER_v6  LMDZ5/branches/IPSLCM6.0.8          2791    20   LMDZ               modeles
+#-C- LMDZORSTRATAER_v6  XIOS/trunk                          1043    12   XIOS               modeles
+#-C- LMDZORSTRATAER_v6  CONFIG/UNIFORM/v6/LMDZORSTRATAER_v6 HEAD    8    LMDZORSTRATAER_v6  config
+#-C- LMDZORSTRATAER_v6  trunk/libIGCM                       1517    10   libIGCM            .
+
+
+
+
+#---- Configurations with INCA
+
+#-H- LMDZORINCA_v6.1.11  LMDZ, ORCHIDEE and INCA working version 
+#-H- LMDZORINCA_v6.1.11  configuration corresponding to IPSLCM6.1.11 
+#-C- LMDZORINCA_v6.1.11  IOIPSL/tags/v2_2_4/src			HEAD 	8	IOIPSL/src	modeles
+#-C- LMDZORINCA_v6.1.11  tags/ORCHIDEE_2_0/ORCHIDEE		6592	14	ORCHIDEE	modeles
+#-C- LMDZORINCA_v6.1.11  LMDZ6/branches/IPSLCM6.0.15		3643   	20	LMDZ		modeles
+#-C- LMDZORINCA_v6.1.11  tags/INCA6_CMIP			928	9	INCA		modeles
+#-C- LMDZORINCA_v6.1.11  XIOS/branchs/xios-2.5			1903 	12	XIOS		modeles
+#-C- LMDZORINCA_v6.1.11  CONFIG/UNIFORM/v6/LMDZORINCA_v6.1.10	5039	8	LMDZORINCA_v6	config
+#-C- LMDZORINCA_v6.1.11  trunk/libIGCM				1534    10	libIGCM		.
+
+#-H- LMDZORINCA_v6.2.2  LMDZ - ORCHIDEE - INCA working configuration 
+#-H- LMDZORINCA_v6.2.2  Configuration close to IPSLCM6.2.2
+#-H- LMDZORINCA_v6.2.2  use LMDZ trunk 
+#-C- LMDZORINCA_v6.2.2  IOIPSL/tags/v2_2_5			6058	8    IOIPSL		modeles
+#-C- LMDZORINCA_v6.2.2  branches/ORCHIDEE_Quest/ORCHIDEE	7086	14   ORCHIDEE		modeles
+#-C- LMDZORINCA_v6.2.2  LMDZ6/branches/IPSL-CM6A-MR		3855	20   LMDZ		modeles
+#-C- LMDZORINCA_v6.2.2  tags/INCA6.2			      	980     9    INCA		modeles
+#-C- LMDZORINCA_v6.2.2  XIOS/trunk                         	2029    12   XIOS		modeles
+#-C- LMDZORINCA_v6.2.2  CONFIG/UNIFORM/v6/LMDZORINCA_v6.2  	5702    8    LMDZORINCA_v6	config
+#-C- LMDZORINCA_v6.2.2  CONFIG/UNIFORM/v6/LMDZORINCA_v6.2/ARCH 	6129    8    ARCH       	config/LMDZORINCA_v6
+#-C- LMDZORINCA_v6.2.2  trunk/libIGCM                      	1572   	10   libIGCM      	.
+
+
+#-H- LMDZORINCA_v6.2_work  LMDZ - ORCHIDEE - INCA working configuration 
+#-H- LMDZORINCA_v6.2_work  Configuration close to IPSLESM_v6.2
+#-H- LMDZORINCA_v6.2_work  use LMDZ trunk rev 1034
+#-C- LMDZORINCA_v6.2_work  IOIPSL/tags/v2_2_5			6273	8    IOIPSL		modeles
+#-C- LMDZORINCA_v6.2_work  branches/ORCHIDEE_2_2/ORCHIDEE     	7820    14   ORCHIDEE		modeles
+#-C- LMDZORINCA_v6.2_work  LMDZ6/trunk                        	4305    20   LMDZ		modeles
+#-C- LMDZORINCA_v6.2_work  trunk/INCA6			      	1057    9    INCA		modeles
+#-C- LMDZORINCA_v6.2_work  XIOS2/trunk                         	2439    12   XIOS		modeles
+#-C- LMDZORINCA_v6.2_work  CONFIG/UNIFORM/v6/LMDZORINCA_v6.2  	6268    8    LMDZORINCA_v6	config
+#-C- LMDZORINCA_v6.2_work  trunk/libIGCM                      	1572   	10   libIGCM      	.
+
+#-H- LMDZORINCA_v6.3_beta  LMDZ - ORCHIDEE - INCA working configuration 
+#-H- LMDZORINCA_v6.3_beta  Configuration close to LMDZOR_v6.3_work
+#-H- LMDZORINCA_v6.3_beta  use LMDZ trunk  - ORCHIDEE branche from Maureen Beaudor create from ORCHIDEE_3 
+#-C- LMDZORINCA_v6.3_beta   IOIPSL/tags/v2_2_5					6058	8    IOIPSL		modeles
+#-C- LMDZORINCA_v6.3_beta  perso/maureen.beaudor/ORCHIDEE_N_MANURE/ORCHIDEE     HEAD    14   ORCHIDEE		modeles
+#-C- LMDZORINCA_v6.3_beta  LMDZ6/trunk                        			3998    20   LMDZ		modeles
+#-C- LMDZORINCA_v6.3_beta  users/MaureenB/INCA6.2	      			HEAD     9   INCA		modeles
+#-C- LMDZORINCA_v6.3_beta  XIOS/trunk                         			2029    12   XIOS		modeles
+#-C- LMDZORINCA_v6.3_beta  CONFIG/UNIFORM/v6/LMDZORINCA_v6.3  			HEAD    8    LMDZORINCA_v6	config
+#-C- LMDZORINCA_v6.3_beta  trunk/libIGCM                      			1572   	10   libIGCM      	.
+
+
+
+#-H- IPSLCM5A2CHT.1  IPSLCM5A2CHT.1 coupled configuration  (closest version to IPSLCM5A2.1) :
+#-H- IPSLCM5A2CHT.1  2nd frozen IPSLCM5A2 version
+#-H- IPSLCM5A2CHT.1  NEMOGCM branch nemo_v3_6_STABLE revision 6665
+#-H- IPSLCM5A2CHT.1  XIOS2 trunk revision 1551
+#-H- IPSLCM5A2CHT.1  IOIPSL/src svn tags/v2_2_2
+#-H- IPSLCM5A2CHT.1  LMDZ5 branches/IPSLCM5A2.1 
+#-H- IPSLCM5A2CHT.1  ORCHIDEE branches/ORCHIDEE-IPSLCM5A2.1 
+#-H- IPSLCM5A2CHT.1  INCA tags/INCA6_CMIP
+#-H- IPSLCM5A2CHT.1  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM5A2CHT.1  IPSLCM5A2CHT svn
+#-H- IPSLCM5A2CHT.1  libIGCM trunk rev 1534
+#-C- IPSLCM5A2CHT.1  IOIPSL/tags/v2_2_2/src                         HEAD         8  IOIPSL/src     modeles
+#-C- IPSLCM5A2CHT.1  branches/ORCHIDEE-IPSLCM5A2.1/ORCHIDEE         6596        14  ORCHIDEE       modeles
+#-C- IPSLCM5A2CHT.1  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch  4775         8  oasis3-mct     . 
+#-C- IPSLCM5A2CHT.1  LMDZ5/branches/IPSLCM5A2.1                     3674        20  LMDZ           modeles
+#-C- IPSLCM5A2CHT.1  CONFIG/UNIFORM/v6/IPSLCM5A2CHT                 6015         8  IPSLCM5A2CHT   config
+#-C- IPSLCM5A2CHT.1  tags/INCA6_CMIP				    928		 9  INCA	   modeles
+#-C- IPSLCM5A2CHT.1  trunk/libIGCM                                  1534        10  libIGCM        .
+#-C- IPSLCM5A2CHT.1  branches/2015/nemo_v3_6_STABLE/NEMOGCM         6665         7  .              modeles
+#-C- IPSLCM5A2CHT.1  XIOS/branchs/xios-2.5			    1903	12  XIOS           modeles
+
+#-H- IPSLCM5A2CHT_work  IPSLCM5A2CHT.1 coupled configuration  (closest version to IPSLCM5A2.1) :
+#-H- IPSLCM5A2CHT_work  2nd frozen IPSLCM5A2 version
+#-H- IPSLCM5A2CHT_work  NEMOGCM branch nemo_v3_6_STABLE revision 6665
+#-H- IPSLCM5A2CHT_work  XIOS2 trunk revision 1551
+#-H- IPSLCM5A2CHT_work  IOIPSL/src svn tags/v2_2_2
+#-H- IPSLCM5A2CHT_work  LMDZ5 branches/IPSLCM5A2.1 
+#-H- IPSLCM5A2CHT_work  ORCHIDEE branches/ORCHIDEE-IPSLCM5A2.1 
+#-H- IPSLCM5A2CHT_work  INCA tags/INCA6_CMIP
+#-H- IPSLCM5A2CHT_work  OASIS3-MCT 2.0_branch (rev 1818 Cerfacs server, rev 4775 IPSL server)
+#-H- IPSLCM5A2CHT_work  IPSLCM5A2CHT svn
+#-H- IPSLCM5A2CHT_work  libIGCM trunk rev 1552
+#-C- IPSLCM5A2CHT_work  IOIPSL/tags/v2_2_5				6058	8	IOIPSL		modeles
+#-C- IPSLCM5A2CHT_work  branches/ORCHIDEE-IPSLCM5A2.1/ORCHIDEE		7400	14	ORCHIDEE	modeles
+#-C- IPSLCM5A2CHT_work  CPL/oasis3-mct/branches/OASIS3-MCT_2.0_branch	4775	8	oasis3-mct	. 
+#-C- IPSLCM5A2CHT_work  LMDZ5/branches/IPSLCM5A2.1			4053	20	LMDZ		modeles
+#-C- IPSLCM5A2CHT_work  CONFIG/UNIFORM/v6/IPSLCM5A2CHT.2		HEAD	8	IPSLCM5A2CHT	config
+#-C- IPSLCM5A2CHT_work  tags/INCA6_CMIP					928	9	INCA		modeles
+#-C- IPSLCM5A2CHT_work  trunk/libIGCM					1572	10	libIGCM		.
+#-C- IPSLCM5A2CHT_work  branches/2015/nemo_v3_6_STABLE/NEMOGCM		6665	7	.		modeles
+#-C- IPSLCM5A2CHT_work  XIOS/branchs/xios-2.5				1903	12	XIOS		modeles
+
+
+
+#---- Configurations with REPROBUS
+
+#-H- LMDZREPR_v6.2  LMDZ and REPROBUS working configuration
+#-H- LMDZREPR_v6.2  Configuration close to IPSLESM_v6.2
+#-C- LMDZREPR_v6.2  IOIPSL/tags/v2_2_5                   6058               8  IOIPSL      modeles
+#-C- LMDZREPR_v6.2  CONFIG/UNIFORM/v6/LMDZREPR_v6        6017               8  LMDZREPR_v6 config
+#-C- LMDZREPR_v6.2  CONFIG/UNIFORM/v6/LMDZREPR_v6/ARCH   6129               8  ARCH        config/LMDZREPR_v6
+#-C- LMDZREPR_v6.2  trunk/libIGCM                        1547               10 libIGCM     .
+#-C- LMDZREPR_v6.2  LMDZ6/branches/IPSL-CM6A-MR          4044               20 LMDZ        modeles
+#-C- LMDZREPR_v6.2  XIOS/trunk                           2109               12 XIOS        modeles
+#-C- LMDZREPR_v6.2  trunk                                48                 16 REPROBUS    modeles
+
+#-H- LMDZREPR_v6.2_work  LMDZ and REPROBUS working configuration
+#-C- LMDZREPR_v6.2_work  IOIPSL/tags/v2_2_5                   6198               8  IOIPSL      modeles
+#-C- LMDZREPR_v6.2_work  CONFIG/UNIFORM/v6/LMDZREPR_v6        6323               8  LMDZREPR_v6 config
+#-C- LMDZREPR_v6.2_work  CONFIG/UNIFORM/v6/LMDZREPR_v6/ARCH   6313               8  ARCH        config/LMDZREPR_v6
+#-C- LMDZREPR_v6.2_work  trunk/libIGCM                        1572               10 libIGCM     .
+#-C- LMDZREPR_v6.2_work  LMDZ6/trunk                          4436               20 LMDZ        modeles
+#-C- LMDZREPR_v6.2_work  XIOS/trunk                           2331               12 XIOS        modeles
+#-C- LMDZREPR_v6.2_work  trunk                                62                 16 REPROBUS    modeles
+
+
+
+#---- Offline configurations with ORCHIDEE
+
+#-H- ORCHIDEE_trunk  ORCHIDEE offline configuration
+#-H- ORCHIDEE_trunk  This is a working configuration using the latest revision of ORCHIDEE trunk
+#-C- ORCHIDEE_trunk  IOIPSL/tags/v2_2_5                       6273     8 IOIPSL             modeles
+#-C- ORCHIDEE_trunk  trunk/libIGCM                            1573    10 libIGCM            .
+#-C- ORCHIDEE_trunk  trunk/ORCHIDEE                           HEAD    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_trunk  trunk/ORCHIDEE_OL                        HEAD    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_trunk  XIOS2/trunk                              2439    12 XIOS               modeles
+
+
+#-H- ORCHIDEE_4_1  ORCHIDEE offline configuration using tag ORCHIDEE_4_1
+#-C- ORCHIDEE_4_1  IOIPSL/tags/v2_2_5                       6249     8 IOIPSL             modeles
+#-C- ORCHIDEE_4_1  trunk/libIGCM                            1572    10 libIGCM            .
+#-C- ORCHIDEE_4_1  tags/ORCHIDEE_4_1/ORCHIDEE               7761    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_4_1  tags/ORCHIDEE_4_1/ORCHIDEE_OL            7857    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_4_1  XIOS2/trunk                              2439    12 XIOS               modeles
+
+#-H- ORCHIDEE_3_head  ORCHIDEE offline configuration
+#-H- ORCHIDEE_3_head  This is a working configuration using the latest revision of ORCHIDEE_3 containing the nitrogen cycle
+#-C- ORCHIDEE_3_head  IOIPSL/tags/v2_2_5                       6273     8 IOIPSL             modeles
+#-C- ORCHIDEE_3_head  trunk/libIGCM                            1572    10 libIGCM            .
+#-C- ORCHIDEE_3_head  branches/ORCHIDEE_3/ORCHIDEE             HEAD    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_3_head  branches/ORCHIDEE_3/ORCHIDEE_OL          HEAD    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_3_head  XIOS2/trunk                              2439    12 XIOS               modeles
+
+#-H- ORCHIDEE_2_2  ORCHIDEE offline configuration using the branch ORCHIDEE_2_2
+#-H- ORCHIDEE_2_2  The latest revision of the branch is extracted (HEAD)
+#-H- ORCHIDEE_2_2  This version is derived from ORCHIDEE_2_1 but contains some more bug corrections and some added developpements as option
+#-C- ORCHIDEE_2_2  IOIPSL/tags/v2_2_5                       6273    8  IOIPSL             modeles
+#-C- ORCHIDEE_2_2  trunk/libIGCM                            1572    10 libIGCM            .
+#-C- ORCHIDEE_2_2  branches/ORCHIDEE_2_2/ORCHIDEE           HEAD    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_2_2  branches/ORCHIDEE_2_2/ORCHIDEE_OL        HEAD    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_2_2  XIOS2/trunk                              2439    12 XIOS               modeles
+
+#-H- ORCHIDEE_2_1  ORCHIDEE offline configuration using the tag ORCHIDEE_2_1
+#-H- ORCHIDEE_2_1  The latest revision of the tag is extracted (HEAD)
+#-H- ORCHIDEE_2_1  This version is close to the version used for CMIP6 but contains some bug corrections and enhancements
+#-C- ORCHIDEE_2_1  IOIPSL/tags/v2_2_4/src                   HEAD    8  IOIPSL/src         modeles
+#-C- ORCHIDEE_2_1  trunk/libIGCM                            1572    10 libIGCM            .
+#-C- ORCHIDEE_2_1  tags/ORCHIDEE_2_1/ORCHIDEE               HEAD    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_2_1  tags/ORCHIDEE_2_1/ORCHIDEE_OL            HEAD    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_2_1  XIOS/branchs/xios-2.5                    1903    12 XIOS               modeles
+
+#-H- ORCHIDEE_2_0  ORCHIDEE offline configuration using the tag ORCHIDEE_2_0
+#-H- ORCHIDEE_2_0  The latest revision of the tag is extracted (HEAD)
+#-H- ORCHIDEE_2_0  This version is used for CMIP6 and included in IPSLCM6.1-LR coupled configuration
+#-C- ORCHIDEE_2_0  IOIPSL/tags/v2_2_4/src                   HEAD    8  IOIPSL/src         modeles
+#-C- ORCHIDEE_2_0  trunk/libIGCM                            1572    10 libIGCM            .
+#-C- ORCHIDEE_2_0  tags/ORCHIDEE_2_0/ORCHIDEE               HEAD    14 ORCHIDEE           modeles
+#-C- ORCHIDEE_2_0  tags/ORCHIDEE_2_0/ORCHIDEE_OL            HEAD    14 ORCHIDEE_OL        config
+#-C- ORCHIDEE_2_0  XIOS/branchs/xios-2.5                    1903    12 XIOS               modeles
+
+
+#-H- ORCHIDEE_AR5 ORCHIDEE offline configuration the version used for AR5 simulations (CMIP5)
+#-H- ORCHIDEE_AR5 Configuration only containing source code for ORCHIDEE and IOIPSL. 
+#-H- ORCHIDEE_AR5 ORCHIDEE tag ORCHIDEE_1_9_5_2
+#-H- ORCHIDEE_AR5 IOIPSL tag 2.2.2
+#-C- ORCHIDEE_AR5 IOIPSL/tags/v2_2_2/src   	     HEAD        8  IOIPSL/src	   modeles
+#-C- ORCHIDEE_AR5 tags/ORCHIDEE_1_9_5_2/ORCHIDEE     HEAD       14  ORCHIDEE	   modeles
+#-C- ORCHIDEE_AR5 tags/ORCHIDEE_1_9_5_2/ORCHIDEE_OL  HEAD       14  ORCHIDEE_OL	   modeles
+
+
+#---- NEMO  configurations
+
+#-H- NEMO_v6.1  NEMOGCM for CMIP6 exercise
+#-H- NEMO_v6.1  libIGCM trunk rev 1534
+#-H- NEMO_v6.1  XIOS branch xios-2.5 rev 1903
+#-C- NEMO_v6.1  trunk/libIGCM                                                               1572  10 libIGCM         .
+#-C- NEMO_v6.1  branches/2015/nemo_v3_6_STABLE/NEMOGCM                                      9455   7  .              modeles
+#-C- NEMO_v6.1  trunk/ORCA1_LIM3_PISCES                                                      275  17  .              modeles/NEMOGCM/CONFIG
+#-C- NEMO_v6.1  trunk/eORCA025_LIM3                                                          275  17  .              modeles/NEMOGCM/CONFIG
+#-C- NEMO_v6.1  trunk/eORCA025_LIM3_PISCES                                                   275  17  .              modeles/NEMOGCM/CONFIG
+#-C- NEMO_v6.1  trunk/ORCA1_OFF_PISCES                                                       275  17  .              modeles/NEMOGCM/CONFIG
+#-C- NEMO_v6.1  CONFIG/UNIFORM/v6/NEMO_v6                                                   6137   8  NEMO_v6        config
+#-C- NEMO_v6.1  XIOS/branchs/xios-2.5                                                       1903  12  XIOS           modeles
+
+
+#-H- NEMO_v6.5  NEMOGCM v4.0.6  HEAD
+#-H- NEMO_v6.5  libIGCM trunk rev 1534
+#-H- NEMO_v6.5  XIOS branch xios-2.5 rev 1882
+#-C- NEMO_v6.5  trunk/libIGCM                                                               1572  10  libIGCM         .
+#-C- NEMO_v6.5  NEMO/releases/r4.0/r4.0.7                                                   HEAD   7  NEMO           modeles
+#-C- NEMO_v6.5  CONFIG/UNIFORM/v6/NEMO_v6.5                                                 6230   8  NEMO_v6        config
+#-C- NEMO_v6.5  XIOS/trunk                                                                  1866  12  XIOS           modeles
+
+
+#-H- NEMO_v6.5_work  NEMOGCM v4.2.0 official release 
+#-H- NEMO_v6.5_work  This is a working configuration using the 4.2.0 NEMO on gitlab server of MERCATOR-OCEAN
+#-H- NEMO_v6.5_work  libIGCM trunk rev 1548
+#-H- NEMO_v6.5_work  XIOS trunk rev 2134
+#-C- NEMO_v6.5_work  trunk/libIGCM                                                          1572  10  libIGCM         .
+#-C- NEMO_v6.5_work  4.2.0                                                                  HEAD  22  NEMO           modeles
+#-C- NEMO_v6.5_work  CONFIG/UNIFORM/v6/NEMO_v6.5.1                                          6177   8  NEMO_v6        config
+#-C- NEMO_v6.5_work  XIOS2/trunk                                                            2439  12  XIOS           modeles

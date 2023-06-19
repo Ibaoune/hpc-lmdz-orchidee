@@ -1,0 +1,404 @@
+#!/bin/ksh
+
+# $Date: 2010/06/25 18:48:26 $
+# $Author: ssipsl $
+# $Revision: 1.5 $
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see ORCHIDEE/ORCHIDEE_CeCILL.LIC
+
+#D--------------------------------------------------------------------==
+#D--------------------------------------------------------------------==
+#D-
+#D-                      Job to launch FLUXNET spinup simulations
+#D-
+#D--------------------------------------------------------------------==
+#D--------------------------------------------------------------------==
+#D-
+#                       Job inspired from Sönke Zaehle "site_new.def" job
+#                       #################################################
+
+if [ $# -lt 1 ] ; then
+   echo ""
+   echo "ERROR: Bad usage. You must give the name of the card as argument."
+   echo "Note that this script is only supposed to be used with fluxnet simulation."
+   echo "Do as follow for fluxnet simulation with fluxnet.card:"
+   echo "   ./Job_Post_FLUXNET fluxnet  > out_Job_Post_FLUXNET 2>&1" 
+   echo ""
+   exit
+fi
+
+
+
+SUBMIT_DIR=$( pwd )
+MODIPSL=$(cd ${SUBMIT_DIR}'/../../..';pwd;)
+libIGCM=${MODIPSL}/libIGCM
+
+
+
+# CleanSmallFiles : option to remove small output files before saving
+CleanSmallFiles=yes
+export CleanSmallFiles
+
+# All SubJobs in SPINUP in ONE OR MORE YEARS run (must be used with libIGCM branches/AllPostFred). 
+
+
+
+#D--------------------------------------------------------------------==
+#D-                   -1. User modification place
+#D--------------------------------------------------------------------==
+
+#D- Increased verbosity (1, 2, 3)
+#Verbosity=3
+
+#D-
+# --------------------------------------------------------------------
+#D- ! Optionnal features /!\ Use with care !
+# --------------------------------------------------------------------
+
+#D- Low level debug : to bypass lib test checks and stack construction
+#D- Default=true
+DEBUG_debug=false
+
+#D- Set DEBUG_sys to false to disable output calls of function
+#D- Default=true
+#DEBUG_sys=false
+
+#D- Turn in dry run mode ? (0,1,2,3)
+#D- Default=0
+#DRYRUN=3
+# YOU MUST COMPILE YOUR EXE FILES FOR DRYRUN MODE !
+# -------------------------------------------------------------------------------------
+# | DRYRUN=  |  Date computations, | sys_Get    |  Exe    | sys_Put_Out; sys_Put_Rest |
+# |          |  Cp/Exe param files |            |  Chmod  |                           |
+# |          |      Qsub           |            |         |                           |
+# -------------------------------------------------------------------------------------
+# |    0     |       yes           |    yes     |  yes    |      yes                  |
+# -------------------------------------------------------------------------------------
+# |    1     |       yes           |    yes     |  yes    |      no                   |
+# -------------------------------------------------------------------------------------
+# |    2     |       yes           |    yes     |  no     |      no                   |
+# -------------------------------------------------------------------------------------
+# |    3     |       yes           |    no      |  no     |      no                   |
+# -------------------------------------------------------------------------------------
+
+
+#D-
+#D--------------------------------------------------------------------==
+#D-                   0. System Environment 
+#D-                      - Define variables for Number of processors
+#D-                      - Define MPI variables
+#D-                      - Define batch scheduler variables
+#D-                      - Source IGCM Library
+#D-                      - Get RESOLution in .resol file (temporary)
+#D--------------------------------------------------------------------==
+
+#D--------------------------------------------------------------------==
+. ${libIGCM}/libIGCM_debug/libIGCM_debug.ksh
+. ${libIGCM}/libIGCM_card/libIGCM_card.ksh
+. ${libIGCM}/libIGCM_date/libIGCM_date.ksh
+#-------
+. ${libIGCM}/libIGCM_sys/libIGCM_sys.ksh
+. ${libIGCM}/libIGCM_config/libIGCM_config.ksh
+. ${libIGCM}/libIGCM_comp/libIGCM_comp.ksh
+. ${libIGCM}/libIGCM_post/libIGCM_post.ksh
+#-------
+( ${DEBUG_debug} ) && IGCM_debug_Check
+( ${DEBUG_debug} ) && IGCM_card_Check
+( ${DEBUG_debug} ) && IGCM_date_Check
+
+#D--------------------------------------------------------------------==
+#D- 0.1 COMMON ENVIRONMENT
+#D-     - Read libIGCM compatibility version in config.card
+#D-     - Read UserChoices section
+#D-     - Read Ensemble section
+#D-     - Read Post section
+#D-     - Define all netcdf output directories
+#D--------------------------------------------------------------------==
+IGCM_config_CommonConfiguration ${SUBMIT_DIR}/config.card
+
+#D--------------------------------------------------------------------==
+#D- 1. INITIALIZE CONFIGURATION
+#D-    - Simulation configuration
+#D-    - Simulation parameters
+#D-    - Execution parameter
+#D-    - Define input files directory
+#D-    - Read or initialize CumulPeriod
+#D-    - run.card
+#D---------------------------------------------------------------------==
+IGCM_config_Initialize
+
+
+IGCM_sys_Cp -p ensemble.card ref.card
+IGCM_sys_Cp -p $1.card ensemble.card
+
+IGCM_sys_Rm -f ${SUBMIT_DIR}/liste_glost.list
+IGCM_sys_Rm -f ${SUBMIT_DIR}/job_output_
+
+
+#set -vx
+R_BC=${R_IN}/BC
+
+. ${SUBMIT_DIR}/ensemble.ksh
+
+ENSEMBLE_initialize
+
+# Launch ATLAS syncho : we have to wait for the last job !
+
+# ATLAS fix parameters :
+# Atlas Name : 
+AtlasCfg=${ensemble_SPINUP_AtlasCfg}
+#atlas_FLUXNET.cfg
+
+# observation_file
+observation_file_path=${ensemble_SPINUP_observation_base_path}/'${Site}_${FYEAR}-${LYEAR}.nc'
+
+
+# old history file
+
+reference_base_path=${ensemble_SPINUP_reference_base_path}
+if [ X${reference_base_path} == X"" ] || [ X${reference_base_path} == XNONE ] ; then
+    flag_reference=0
+    reference_config="_"
+    reference_file_path=NONE
+else
+    flag_reference=1
+    reference_config=${ensemble_SPINUP_reference_config}
+    reference_file_path=${reference_base_path}/${reference_config}/'${Site}${reference_config}HIST/SRF/Output/MO/${Site}${reference_config}HIST_${FYEAR}0101_${LYEAR}1231_1M_sechiba_history.nc'
+
+fi
+export reference_config
+
+
+
+# Modulo for SpinUp years
+Modulo=${ensemble_SPINUP_Modulo}
+
+
+
+# Create RUN_DIR
+echo RUN_DIR_PATH=${RUN_DIR_PATH}
+IGCM_sys_MkdirWork ${RUN_DIR_PATH}
+cp *jnl ${RUN_DIR_PATH}/.
+cp *cfg ${RUN_DIR_PATH}/.  
+cd ${RUN_DIR_PATH}
+
+
+echo  ${ensemble_CONFIG_Groups[*]}
+for group in  ${ensemble_CONFIG_Groups[*]} ; do
+   isite=1
+   index=0
+
+   eval temp=\${ensemble_CONFIG_${group}[*]}
+   set -A group_site -- $temp
+
+   # Number of sites :
+   NumSites=$(( ${#group_site[*]} / NumInfosBySite ))
+
+   R_SAVE=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}
+
+   IGCM_sys_Rm -Rf ${R_SAVE}/fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+   IGCM_sys_Mkdir ${R_SAVE}/fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+
+   while [ ${isite} -le ${NumSites} ] ; do
+   
+       site=${group_site[$index]}
+       echo $site
+   
+       TIME_YEAR=${group_site[ $(( index + ColumnLength )) ]}
+       YEAR=${group_site[ $(( index + ColumnYear )) ]}
+   
+       Site=$site
+       echo $YEAR
+       DUREE=${TIME_YEAR}
+       FYEAR=${YEAR}
+       (( LYEAR=FYEAR+DUREE-1 ))
+       echo $site
+       SpinUpJob=${site}${config_UserChoices_JobName}
+       TIME_YEAR=${group_site[ $(( index + ColumnLength )) ]}
+       YEAR=${group_site[ $(( index + ColumnYear )) ]}
+   
+       
+       fichier_with_path=$( \ls -rt ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}/${SpinUpJob}HIST/SRF/Output/MO/*_sechiba_history.nc )
+
+
+
+       eval observation_file=${observation_file_path}
+       eval reference_file=${reference_file_path}
+
+       echo "reference_config=" ${reference_config}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl GPP GPP/1800 hour ${flag_reference} GPP ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl GPP GPP/1800 day ${flag_reference} GPP ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl GPP GPP/1800 month ${flag_reference} GPP ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl GPP GPP/1800 year ${flag_reference} GPP ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+
+       ferret -script taylor_arrow_fluxnet_final_1.jnl \(maint_resp+hetero_resp+growth_resp\) Reco/1800 hour ${flag_reference} TER ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl \(maint_resp+hetero_resp+growth_resp\) Reco/1800 day ${flag_reference} TER ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl \(maint_resp+hetero_resp+growth_resp\) Reco/1800 month ${flag_reference} TER ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl \(maint_resp+hetero_resp+growth_resp\) Reco/1800 year ${flag_reference} TER ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+
+       ferret -script taylor_arrow_fluxnet_final_1.jnl NEE NEE/1800 hour ${flag_reference} NEE ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl NEE NEE/1800 day ${flag_reference} NEE ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl NEE NEE/1800 month ${flag_reference} NEE ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl NEE NEE/1800 year ${flag_reference} NEE ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qh H_F hour ${flag_reference} SH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qh H_F day ${flag_reference} SH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qh H_F month ${flag_reference} SH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qh H_F year ${flag_reference} SH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qle LE_F hour ${flag_reference} LH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qle LE_F day ${flag_reference} LH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qle LE_F month ${flag_reference} LH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+       ferret -script taylor_arrow_fluxnet_final_1.jnl Qle LE_F year ${flag_reference} LH ${config_UserChoices_JobName} ${reference_config} ${group} ${site} ${fichier_with_path} ${observation_file} ${reference_file}
+
+
+       # We test if the END step was moved in SpinUp/SPIN/Output directory.
+       # Then we are sure the last historical SpinUp step has finished (HIST)...
+   
+       # Define name of the END SubJob (FIN) in SpinUp
+       if [ ${ensemble_SPINUP_duree_final} -gt 0 ] ; then
+   	BeforeLastJob=${site}${config_UserChoices_JobName}FIN
+       else
+   	echo "We must have an \"duree_final\" non zero to get historical run and post-treatment"
+   	exit 1
+       fi
+   
+       TIME_YEAR=${group_site[ $(( index + ColumnLength )) ]}
+       YEAR=${group_site[ $(( index + ColumnYear )) ]}
+
+       ATLAS_ARGS=${AtlasCfg}\ ${observation_file}\ ${reference_file}\ ${reference_config}\ ${Modulo}
+       
+       echo "ATLAS_ARGS:" ${ATLAS_ARGS}
+
+   
+       # Launch post-treatment for SPINUP !
+       echo "****"
+       echo "Launch post-treatment for SPINUP for site ${site} !"
+       echo  "call to post_FLUXNET:" ${MODIPSL} ${group} ${site} ${TIME_YEAR} ${YEAR} ${ATLAS_ARGS}
+#       nohup ${SUBMIT_DIR}/post_FLUXNET ${MODIPSL} ${group} ${site} ${TIME_YEAR} ${YEAR} ${ATLAS_ARGS} > ${SUBMIT_DIR}/out_post_${site} 2>&1 & 
+       echo ${SUBMIT_DIR}/post_FLUXNET ${MODIPSL} ${group} ${site} ${ATLAS_ARGS} \> ${SUBMIT_DIR}/out_post_${site} >> ${SUBMIT_DIR}/liste_glost.list
+       echo "****"
+   
+      (( isite=isite+1 ))
+      (( index=index+NumInfosBySite ))
+  done
+  
+       
+
+  if [ ${#ensemble_CONFIG_Groups[*]} -ne 1 ] ; then
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_GPP_hour.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_GPP_hour.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_GPP_day.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_GPP_day.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_GPP_month.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_GPP_month.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_GPP_year.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_GPP_year.csv
+   
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_TER_hour.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_TER_hour.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_TER_day.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_TER_day.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_TER_month.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_TER_month.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_TER_year.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_TER_year.csv
+   
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_NEE_hour.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_NEE_hour.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_NEE_day.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_NEE_day.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_NEE_month.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_NEE_month.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_NEE_year.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_NEE_year.csv
+   
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_SH_hour.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_SH_hour.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_SH_day.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_SH_day.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_SH_month.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_SH_month.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_SH_year.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_SH_year.csv
+   
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_LH_hour.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_LH_hour.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_LH_day.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_LH_day.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_LH_month.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_LH_month.csv
+     cat stat_${config_UserChoices_JobName}_${reference_config}_${group}_LH_year.csv >> stat_${config_UserChoices_JobName}_${reference_config}_ALL_LH_year.csv
+   
+  fi
+
+
+  sed -e "s,\(flag_reference_file=\)\(.*\),\1${flag_reference},g" -e "s,\(group=\)\(.*\),\1\"${group}\",g" -e "s,\(config_eval=\)\(.*\),\1\"${config_UserChoices_JobName}\",g" -e "s,\(config_ref=\)\(.*\),\1\"${reference_config}\",g" atlas_FLUXNET_taylor.cfg > atlas_FLUXNET_taylor_${group}.cfg
+   
+   atlas -o fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group} atlas_FLUXNET_taylor_${group}.cfg toto
+
+   # Remove small files before saving
+   if [ X$CleanSmallFiles = Xyes ] ; then
+     tmpdir=fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+     # Remove .info .tex .jnl .stdout .jpg .pdf 
+     echo "Remove small files before saving : "
+     sumfilestoremove=$(( $( find $tmpdir -name "*.info" | wc -l ) +  $( find $tmpdir -name "*.jnl" | wc -l ) +  $( find $tmpdir -name "*.stdout" | wc -l ) + $( find $tmpdir -name "*.tex" | wc -l ) + $( ls $tmpdir/*.pdf | wc -l ) ))
+     echo "Following $sumfilestoremove files listed below will be removed:"
+     find ${tmpdir} -name "*.info"
+     find ${tmpdir} -name "*.jnl"
+     find ${tmpdir} -name "*.stdout"
+     find ${tmpdir} -name "*.tex"
+     ls ${tmpdir}/*pdf ${tmpdir}/*/*pdf
+
+     # Now remove them
+     find ${tmpdir} -name "*.info" -print -exec rm -f '{}' \;
+     find ${tmpdir} -name "*.jnl" -print -exec rm -f '{}' \;
+     find ${tmpdir} -name "*.stdout" -print -exec rm -f '{}' \;
+     find ${tmpdir} -name "*.tex" -print -exec rm -f '{}' \;
+#     rm -f ${tmpdir}/*/*pdf
+   else
+     echo "No clean of small files will be done"
+   fi
+
+   # Save files
+   R_SAVE=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}
+   echo "Before IGCM_sys_Put_Dir : destination= ${R_SAVE}"
+
+   IGCM_sys_Put_Dir fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group} ${R_SAVE}
+   IGCM_sys_Rm -Rf fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+
+
+done
+
+nlignes=`less ${SUBMIT_DIR}/liste_glost.list | wc -l `
+nproc=`echo "$nlignes/4+1" | bc`
+sed -e "s/#MSUB\ \-n.*/#MSUB\ \-n\ ${nproc}/" ${SUBMIT_DIR}/job_output > ${SUBMIT_DIR}/job_output_
+echo ccc_mprun ./glost_launch ${SUBMIT_DIR}/liste_glost.list >> ${SUBMIT_DIR}/job_output_ 
+ccc_msub ${SUBMIT_DIR}/job_output_
+
+
+
+if [ ${#ensemble_CONFIG_Groups[*]} -ne 1 ] ; then
+   group="ALL"
+   IGCM_sys_Rm -Rf ${R_SAVE}/fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+   
+   sed -e "s,\(flag_reference_file=\)\(.*\),\1${flag_reference},g" -e "s,\(group=\)\(.*\),\1\"${group}\",g" -e "s,\(config_eval=\)\(.*\),\1\"${config_UserChoices_JobName}\",g" -e "s,\(config_ref=\)\(.*\),\1\"${reference_config}\",g" atlas_FLUXNET_taylor.cfg > atlas_FLUXNET_taylor_${group}.cfg
+   
+   atlas -o fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group} atlas_FLUXNET_taylor_${group}.cfg toto
+  
+
+   # Remove small files before saving
+   if [ X$CleanSmallFiles = Xyes ] ; then
+     tmpdir=fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+     # Remove .info .tex .jnl .stdout .jpg .pdf 
+     echo "Remove small files before saving : "
+     sumfilestoremove=$(( $( find $tmpdir -name "*.info" | wc -l ) +  $( find $tmpdir -name "*.jnl" | wc -l ) +  $( find $tmpdir -name "*.stdout" | wc -l ) + $( find $tmpdir -name "*.tex" | wc -l ) + $( ls $tmpdir/*.pdf | wc -l ) ))
+     echo "Following $sumfilestoremove files listed below will be removed:"
+     find ${tmpdir} -name "*.info"
+     find ${tmpdir} -name "*.jnl"
+     find ${tmpdir} -name "*.stdout"
+#     find ${tmpdir} -name "*.jpg"
+     find ${tmpdir} -name "*.tex"
+     ls ${tmpdir}/*pdf
+
+     # Now remove them
+#     find ${tmpdir} -name "*.info" -print -exec rm -f '{}' \;
+#     find ${tmpdir} -name "*.jnl" -print -exec rm -f '{}' \;
+#     find ${tmpdir} -name "*.stdout" -print -exec rm -f '{}' \;
+##     find ${tmpdir} -name "*.jpg" -print -exec rm -f '{}' \;
+#     find ${tmpdir} -name "*.tex" -print -exec rm -f '{}' \;
+#     rm -f ${tmpdir}/*/*pdf
+   else
+     echo "No clean of small files will be done"
+   fi
+
+   # Save files
+   R_SAVE=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}
+   IGCM_sys_Put_Dir fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group} ${R_SAVE}
+   IGCM_sys_Rm -Rf fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${group}
+fi
+
+cd ${SUBMIT_DIR}
+IGCM_sys_Mv ref.card ensemble.card
+IGCM_sys_RmRunDir -Rf ${RUN_DIR_PATH}

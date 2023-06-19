@@ -1,0 +1,1 @@
+../../dyn3d/conf_gcm.F90

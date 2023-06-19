@@ -1,0 +1,215 @@
+!
+! $Id: cond_evap_tstep_mod.F90 3677 2020-05-06 15:18:32Z oboucher $
+!
+MODULE cond_evap_tstep_mod
+
+! based on UPMC aerosol model by Slimane Bekki
+! adapted for stratospheric sulfate aerosol in LMDZ by Christoph Kleinschmitt 
+
+CONTAINS
+
+      SUBROUTINE condens_evapor_rate(R2SO4G,t_seri,pplay,ACTSO4,R2SO4, &
+                   & DENSO4,f_r_wet,RRSI,Vbin,FL,ASO4,DNDR)
+!
+!     INPUT: 
+!     R2SO4: aerosol H2SO4 weight fraction (percent)
+!     ACTSO4: H2SO4 activity
+!     R2SO4G: number density of gaseous H2SO4 [molecules/cm3]
+!     t_seri: temperature (K)
+!     DENSO4: aerosol density (gr/cm3)
+
+      USE aerophys
+      USE infotrac_phy
+      USE YOMCST, ONLY : RPI
+
+      IMPLICIT NONE
+
+      ! input variables
+      REAL R2SO4G !H2SO4 number density [molecules/cm3]
+      REAL t_seri
+      REAL pplay
+      REAL ACTSO4
+      REAL R2SO4
+      REAL DENSO4
+      REAL f_r_wet
+      REAL RRSI(nbtr_bin)
+      REAL Vbin(nbtr_bin)
+
+      ! output variables
+      REAL FL(nbtr_bin)
+      REAL ASO4(nbtr_bin)
+      REAL DNDR(nbtr_bin)
+
+      ! local variables
+      INTEGER IK
+      REAL ALPHA,CST
+      REAL WH2,RP,VTK,AA,FL1,RKNUD
+      REAL DND
+      REAL ATOT,AH2O
+      REAL RRSI_wet(nbtr_bin)
+      REAL Vbin_wet(nbtr_bin)
+      REAL MH2SO4,MH2O,BOLZ,FPATH
+
+! ///    MOLEC CONDENSATION GROWTH (DUE TO CHANGES IN H2SO4 AND SO H2O)
+!    ------------------------------------------------------------------
+!                                  EXCEPT CN
+!       RK:H2SO4 WEIGHT PERCENT DOESN'T CHANGE
+!     BE CAREFUL,H2SO4 WEIGHT PERCENTAGE
+
+!                   WEIGHT OF 1 MOLEC IN G
+      MH2O  =1000.*mH2Omol !18.016*1.66E-24
+      MH2SO4=1000.*mH2SO4mol !98.082*1.66E-24
+!                   BOLTZMANN CONSTANTE IN DYN.CM/K
+      BOLZ  =1.381E-16
+!                   MOLECULAR ACCOMODATION OF H2SO4
+!     raes and van dingen
+      ALPHA =0.1    
+!      FPLAIR=(2.281238E-5)*TAIR/PAIR
+!     1.E2 (m to cm), 
+      CST=1.E2*2.281238E-5
+
+      ! compute local wet particle radius and volume
+      RRSI_wet(:)=RRSI(:)*f_r_wet
+      Vbin_wet(:)=Vbin(:)*f_r_wet**3
+
+!     Pruppa and Klett
+      FPATH=CST*t_seri/pplay
+
+      
+!     H2SO4 mass fraction in aerosol
+      WH2=R2SO4*1.0E-2
+      IF(WH2.EQ.0.0) RETURN
+!                               ACTIVITY COEFFICIENT(SEE GIAUQUE,1951)
+!                               AYERS ET AL (1980)
+!                                  (MU-MU0)
+      RP=-10156.0/t_seri +16.259-(ACTSO4*4.184)/(8.31441*t_seri)
+!                                  DROPLET H2SO4 PRESSURE IN DYN.CM-2
+      RP=EXP(RP)*1.01325E6/0.086
+!      RP=EXP(RP)*1.01325E6
+!                                  H2SO4 NUMBER DENSITY NEAR DROPLET
+!     R=8.31E7 DYN.CM.MOL-1*K-1
+!                               R/AVOGADRO NUMBER=DYN.CM.MOLEC-1*K-1
+      DND=RP*6.02E23/(8.31E7*t_seri)
+!                                  MEAN KINETIC VELOCITY
+!     DYN*CM*K/(K*GR)=(CM/SEC2)*CM
+!                                  IN CM/SEC
+      VTK=SQRT(8.0*BOLZ*t_seri/(RPI*MH2SO4))
+!                                 KELVIN EFFECT FACTOR
+!CK 20160613: bug fix, removed factor 250 (from original code by S. Bekki)
+!      AA =2.0*MH2O*72.0/(DENSO4*BOLZ*t_seri*250.0)
+      AA =2.0*MH2O*72.0/(DENSO4*BOLZ*t_seri)
+
+!     Loop on bin radius (RRSI in cm)
+      DO IK=1,nbtr_bin
+!                                 KELVIN EFFECT
+        DNDR(IK) =DND*EXP(AA/RRSI_wet(IK))
+
+        FL1=RPI*ALPHA*VTK*(R2SO4G-DNDR(IK))
+
+!       TURCO(1979) FOR HNO3:ALH2SO4 CONDENSATION= ALH2SO4 EVAPORATION
+!       RPI*R2*VTK IS EQUIVALENT TO DIFFUSION COEFFICIENT
+!       EXTENSION OF THE RELATION FOR DIFFUSION KINETICS
+!       KNUDSEN NUMBER FPATH/RRSI
+!       NEW VERSION (SEE NOTES)
+        RKNUD=FPATH/RRSI_wet(IK)
+!       SENFELD
+        FL(IK)=FL1*RRSI_wet(IK)**2*( 1.0 +RKNUD ) & 
+     &     /( 1.0 +ALPHA/(2.0*RKNUD) +RKNUD )
+!       TURCO
+!        RL= (4.0/3.0 +0.71/RKNUD)/(1.0+1.0/RKNUD)
+!     *         +4.0*(1.0-ALPHA)/(3.0*ALPHA)
+!        FL=FL1*RRSI(IK)*RRSI(IK)
+!     *         /( (3.0*ALPHA/4.0)*(1.0/RKNUD+RL*ALPHA) )
+
+!                         INITIAL NUMBER OF H2SO4 MOLEC OF 1 DROPLET
+        ATOT=4.0*RPI*DENSO4*(RRSI_wet(IK)**3)/3.0 !attention: g and cm
+        ASO4(IK)=WH2*ATOT/MH2SO4 !attention: g
+!        ATOT=4.0*RPI*dens_aer(I,J)/1000.*(RRSI(IK)**3)/3.0
+!        ASO4=mfrac_H2SO4*ATOT/MH2SO4
+!                        INITIAL NUMBER OF H2O MOLEC OF 1 DROPLET
+        AH2O=(1.0-WH2)*ATOT/MH2O !attention: g
+
+!       CHANGE OF THE NUMBER OF H2SO4 MOLEC OF 1 DROPLET DURING DT
+!       IT IS FOR KEM BUT THERE ARE OTHER WAYS
+
+      ENDDO !loop over bins
+
+      END SUBROUTINE condens_evapor_rate
+
+!********************************************************************
+      SUBROUTINE cond_evap_part(dt,FL,ASO4,f_r_wet,RRSI,Vbin,tr_seri)
+
+      USE aerophys
+      USE infotrac_phy
+      USE YOMCST, ONLY : RPI
+
+      IMPLICIT NONE
+
+      ! input variables
+      REAL dt
+      REAL FL(nbtr_bin)
+      REAL ASO4(nbtr_bin)
+      REAL f_r_wet
+      REAL RRSI(nbtr_bin)
+      REAL Vbin(nbtr_bin)
+
+      ! output variables
+      REAL tr_seri(nbtr)
+
+      ! local variables
+      REAL tr_seri_new(nbtr)
+      INTEGER IK,JK,k
+      REAL Vnew
+      REAL RRSI_wet(nbtr_bin)
+      REAL Vbin_wet(nbtr_bin)
+      REAL sum_IK(nbtr_bin)
+      REAL ff(nbtr_bin,nbtr_bin)
+
+      tr_seri_new(:)=tr_seri(:)
+
+      ! compute local wet particle radius and volume
+      RRSI_wet(:)=RRSI(:)*f_r_wet
+      Vbin_wet(:)=Vbin(:)*f_r_wet**3 *1.e6 !Vbin_wet in cm3 (as Vnew)
+
+      ! compute distribution factor for particles of intermediate size (from Jacobson 1994, equation 13)
+      DO IK=1,nbtr_bin
+        Vnew=4.0*RPI*(RRSI_wet(IK)**3)/3.0*(1.+FL(IK)*dt/ASO4(IK))
+        ff(IK,:)=0.0 
+        DO k=1, nbtr_bin 
+          IF (k.LE.(nbtr_bin-1)) THEN 
+            IF (Vbin_wet(k).LE.Vnew.AND.Vnew.LT.Vbin_wet(k+1)) THEN
+              ff(IK,k)= Vbin_wet(k)/Vnew*(Vbin_wet(k+1)-Vnew)/(Vbin_wet(k+1)-Vbin_wet(k))
+            ENDIF
+          ENDIF
+          IF (k.EQ.1.AND.Vnew.LE.Vbin_wet(k)) THEN
+            ff(IK,k)= 1.
+          ENDIF
+          IF (k.GT.1) THEN 
+            IF (Vbin_wet(k-1).LT.Vnew.AND.Vnew.LT.Vbin_wet(k)) THEN
+              ff(IK,k)= 1.-ff(IK,k-1)
+            ENDIF
+          ENDIF
+          IF (k.EQ.nbtr_bin.AND.Vnew.GE.Vbin_wet(k)) THEN
+            ff(IK,k)= 1.
+          ENDIF
+        ENDDO
+        ! correction of ff for volume conservation
+        DO k=1, nbtr_bin         
+          ff(IK,k)=ff(IK,k)*Vnew/Vbin_wet(k)
+        ENDDO
+      ENDDO !loop over bins
+
+      DO IK=1, nbtr_bin
+        sum_IK(IK)=0.0
+        DO JK=1, nbtr_bin
+          sum_IK(IK)=sum_IK(IK)+tr_seri(JK+nbtr_sulgas)*ff(JK,IK)
+        ENDDO
+        ! compute new particle concentrations
+        tr_seri_new(IK+nbtr_sulgas)=sum_IK(IK)
+      ENDDO
+
+      tr_seri(:)=tr_seri_new(:)
+
+      END SUBROUTINE cond_evap_part
+
+END MODULE cond_evap_tstep_mod

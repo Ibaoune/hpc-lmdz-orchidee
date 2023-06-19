@@ -1,0 +1,63 @@
+<!-- Context LMDZ -->
+<context id="LMDZ" calendar_type="D360" start_date="1980-01-01 00:00:00">
+  
+  <!-- Define available variables -->
+  <field_definition src="./field_def_lmdz.xml"/> 
+  
+  <!-- Define output files
+       Each file contains the list of variables and their output levels -->
+  
+  <file_definition src="./file_def_histday_lmdz.xml"/>
+  <file_definition src="./file_def_histhf_lmdz.xml"/>
+  <file_definition src="./file_def_histins_lmdz.xml"/>
+  <file_definition src="./file_def_histLES_lmdz.xml"/>
+  <file_definition src="./file_def_histmth_lmdz.xml"/> 
+  <file_definition src="./file_def_histstn_lmdz.xml"/>
+  <file_definition src="./file_def_histmthNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histdayNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histhfNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histmthCOSP_lmdz.xml"/>
+  <file_definition src="./file_def_histdayCOSP_lmdz.xml"/>
+  <file_definition src="./file_def_histhfCOSP_lmdz.xml"/>
+  
+  <!-- Define domains and groups of domains -->
+  <domain_definition>
+    <domain id="dom_glo" data_dim="2" />
+  </domain_definition>
+  
+  <!-- Need to define a grid? Do it here -->
+  <grid_definition>
+    <grid_group id="vertical" axis_ref="presnivs" />
+  </grid_definition>
+  
+  <!-- Define groups of vertical axes -->
+  <axis_definition>
+    <axis id="presnivs" standard_name="Vertical levels" unit="Pa">
+    </axis>
+    <axis id="Ahyb" standard_name="Ahyb comp of Hyb Cord" unit="Pa">
+    </axis> 
+    <axis id="Bhyb" standard_name="Bhyb comp of Hyb Cord" unit="">
+    </axis>
+    <axis id="Alt" standard_name="Height approx for scale heigh of 8km at levels" unit="km">
+    </axis>
+    <axis id="plev" standard_name="model_level_number" unit="Pa">
+    </axis>
+
+<!-- Cosp axis definitions--> 
+<!--    <axis id="height" standard_name="Cosp levels" unit="m"> -->
+<!--    </axis> -->
+<!--    <axis id="height_mlev" standard_name="height_mlev" unit="m"> -->
+<!--    </axis> -->
+<!--    <axis id="sza" standard_name="solar_zenith_angle" unit="degrees"> -->
+<!--    </axis> -->
+<!--    <axis id="pressure2" standard_name="pressure" unit="mb"> -->
+<!--    </axis> -->
+<!--    <axis id="column" standard_name="column" unit="count"> -->
+<!--    </axis> -->
+<!--    <axis id="temp" standard_name="temperature" unit="K"> -->
+<!--    </axis> -->
+<!--    <axis id="cth16" name="cth" standard_name="altitude" unit="m"> -->
+<!--    </axis> -->
+
+  </axis_definition>
+</context>

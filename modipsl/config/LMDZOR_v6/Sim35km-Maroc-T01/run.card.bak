@@ -1,0 +1,38 @@
+# $Revision:: 1052                                     $ Revision of last commit
+# $Author:: sdipsl                                     $ Author of last commit
+# $Date:: 2014-09-11 15:23:32 +0100 (خ, 11 شتنبر#$ Date of last commit
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see libIGCM/libIGCM_CeCILL.LIC
+
+#========================================================================
+[Configuration]
+#Compute date of loop
+PeriodDateBegin= 1980-01-04
+PeriodDateEnd= 1980-01-04
+CumulPeriod= 4
+# State of Job "Start", "Running", "OnQueue", "Completed"
+PeriodState= Running
+
+SubmitPath= /srv/data/mohammad.elaabaribao/Model/Adapted_versions_to_Toubkal/LMDZOR_v6.2.2/modipsl/config/LMDZOR_v6/Sim35km-Maroc-T01
+simuid=
+#========================================================================
+[PostProcessing]
+
+#RebuildRunning=y/n
+#RebuildToComplete=number of dir to rebuild
+#RebuildDateID=PeriodDateEnd correspondant au dernier flag de RebuildFrequency=true
+
+TimeSeriesRunning=n
+TimeSeriesCompleted=
+
+#========================================================================
+[Log]
+# Executables Size
+LastExeSize= ( du, 0, 0, du )
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# CumulPeriod | PeriodDateBegin |   PeriodDateEnd |        RunDateBegin |          RunDateEnd |     RealCpuTime |     UserCpuTime |      SysCpuTime | ExeDate
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#           1 |        19800101 |        19800101 | 2023-06-16T16:39:50 | 2023-06-16T17:08:10 |      1700.03000 |     10888.33000 |     11119.70000 | ATM_domaine_55879688_May-IOS_domaine_11979096_May
+#           2 |        19800102 |        19800102 | 2023-06-16T17:10:37 | 2023-06-16T17:15:17 |       280.18000 |      8801.66000 |      1189.47000 | ATM_domaine_55879688_May-IOS_domaine_11979096_May
+#           3 |        19800103 |        19800103 | 2023-06-16T17:17:49 | 2023-06-16T17:22:34 |       284.32000 |      8917.62000 |      1223.18000 | ATM_domaine_55879688_May-IOS_domaine_11979096_May

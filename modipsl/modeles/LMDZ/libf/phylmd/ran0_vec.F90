@@ -1,0 +1,34 @@
+
+! $Header$
+
+SUBROUTINE ran0_vec(npoints, idum, ran0)
+
+  ! $Id: ran0_vec.F90 1992 2014-03-05 13:19:12Z lguez $
+  ! Platform independent random number generator from
+  ! Numerical Recipies
+  ! Mark Webb July 1999
+
+  IMPLICIT NONE
+
+  INTEGER j, npoints, idum(npoints), ia, im, iq, ir, k(npoints)
+  REAL ran0(npoints), am
+
+  PARAMETER (ia=16807, im=2147483647, am=1.0/im, iq=127773, ir=2836)
+
+  ! do j=1,npoints
+  ! if (idum(j).eq.0) then
+  ! write(6,*) 'idum=',idum
+  ! write(6,*) 'ZERO seed not allowed'
+  ! stop
+  ! endif
+  ! enddo
+
+  DO j = 1, npoints
+    k(j) = idum(j)/iq
+    idum(j) = ia*(idum(j)-k(j)*iq) - ir*k(j)
+    IF (idum(j)<0) idum(j) = idum(j) + im
+    ran0(j) = am*idum(j)
+  END DO
+
+END SUBROUTINE ran0_vec
+

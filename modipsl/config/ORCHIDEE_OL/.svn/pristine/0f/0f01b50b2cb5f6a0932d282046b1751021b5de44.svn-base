@@ -1,0 +1,68 @@
+#**************************************************************
+# Author: Patrick Brockmann
+# Contact: Patrick.Brockmann@cea.fr
+# $Date$
+# $Name$
+# $Revision$
+# History:
+# Modification:
+#**************************************************************
+
+##################################################################################################################
+#-----------------------------------------------------------------------------------------------------------------
+#  field | files patterns | files additionnal | operations | title | units | calcul of area
+#-----------------------------------------------------------------------------------------------------------------
+#
+#   field = name of the field to monitore 
+#   files patterns = pattern of the files used to monitore the field (must be discriminant) 
+#   files additionnal = additionnal files accessible by $FER_DATA
+#   operations = operations to calculate the field 
+#   title = variable title
+#   units = variable units
+#   calcul of area = expression to use for the weight average
+#
+# Notes:
+#   - Comment lines begin by # character.
+#   - Separator between fields is | character.
+#   - Operations must use the ferret syntax, if several files are used precise with the syntax d=x to refer to the x dataset.
+#     They must be enclosed by parenthesis if more than one variable is used.
+#   - files patterns,files additionnal,operations,title,units must be enclosed with character ". 
+#     Use "" if empty.
+#   - Fields will be presented through an html page with thumbnails global, north, south, land, ocean.
+#     Use a field name with one of these pattern to display it under the corresponding thumbnail.
+#
+##################################################################################################################
+
+color=E7FFAB
+smooth=12
+#------------------------------------------------------------------------------------------------------------------------------------------------------
+#  field | files patterns | files additionnal | operations | title | units | calcul of area
+#------------------------------------------------------------------------------------------------------------------------------------------------------
+evap_lands     | "evap"            |  ""               | "evap[d=1]"                      | "Evaporation (LANDS)"          | "mm/d"   | "Areas[d=1]*Contfrac[d=1]"
+temp_sol_lands | "temp_sol"        |  ""               | "temp_sol[d=1]"                  | "TSOL (LANDS)"                 | "K/d"    | "Areas[d=1]*Contfrac[d=1]"
+humidity_lands | "bqsb gqsb"       |  ""               | "(bqsb[d=1]+gqsb[d=2])"            | "Total Soil Moisture  (LANDS)" | "1"      | "Areas[d=1]*Contfrac[d=1]"
+fluxsens_lands | "fluxsens"        |  ""               | "fluxsens[d=1]"                  | "Sensible Flux (LANDS)"        | "W/m^2"  | "Areas[d=1]*Contfrac[d=1]"
+albedo_lands   | "alb_vis alb_nir" |  ""               | "((alb_vis[d=1]+alb_nir[d=2])*0.5)"| "Mean Albedo (LANDS)"          | "1"      | "Areas[d=1]*Contfrac[d=1]"
+subli_lands    | "subli"           |  ""               | "subli[d=1]"                     | "Sublimation (LANDS)"          | "mm/d"   | "Areas[d=1]*Contfrac[d=1]"
+snow_lands     | "snow"            |  ""               | "snow[d=1]"                      | "Snow Mass (LANDS)"            | "kg/m^2" | "Areas[d=1]*Contfrac[d=1]"
+snownobio_lands | "snownobio"      |  ""               | "snownobio[d=1]"                 | "Snow Other Surfaces (LANDS)"  | "kg/m^2" | "Areas[d=1]*Contfrac[d=1]"
+snowf_lands    | "snowf"           |  ""               | "snowf[d=1]"                     | "Snowfall (LANDS)"             | "mm/d"   | "Areas[d=1]*Contfrac[d=1]"
+vegetn_lands   | "vegetfrac"       |  ""               | "vegetfrac[d=1,K=2:9]"           | "veget natural (LANDS)"        | "1"      | "2"
+vegetg_lands   | "vegetfrac"       |  ""               | "vegetfrac[d=1,K=10:11]"         | "veget natural grass (LANDS)"  | "1"      | "2"
+vegeta_lands   | "vegetfrac"       |  ""               | "vegetfrac[d=1,K=12:13]"         | "veget agriculture (LANDS)"    | "1"      | "2"
+maxveget_lands | "maxvegetfrac"   |  ""              | "((maxvegetfrac[d=1,K=12]+maxvegetfrac[d=1,K=13])*Areas[d=1]*Contfrac[d=1]/1e12)" | "maxveget surface[pft=12+13] "  | "Mkm^2"  | "2"
+nee_lands      | "nee maxvegetfrac" |  ""              | "(nee[d=1]*365*86400*maxvegetfrac[d=2]*Areas[d=1]*Contfrac[d=1]/1e15)"  | "Net Ecosystem Exchange"    | "PgC/yr" | "2"
+lai_lands      | "lai"              |  ""              | "(lai[d=1,K=2:13])"                      | "lai (LANDS)"      | "1"      | "2"
+# lai2_lands     | "lai"              |  ""              | "(lai[d=1,K=2])" | "lai (LANDS)"      | "1"      | "2"
+# lai3_lands     | "lai"              |  ""              | "(lai[d=1,K=3])" | "lai (LANDS)"      | "1"      | "2"
+# lai4_lands     | "lai"              |  ""              | "(lai[d=1,K=4])" | "lai (LANDS)"      | "1"      | "2"
+# lai5_lands     | "lai"              |  ""              | "(lai[d=1,K=5])" | "lai (LANDS)"      | "1"      | "2"
+# lai6_lands     | "lai"              |  ""              | "(lai[d=1,K=6])" | "lai (LANDS)"      | "1"      | "2"
+# lai7_lands     | "lai"              |  ""              | "(lai[d=1,K=7])" | "lai (LANDS)"      | "1"      | "2"
+# lai8_lands     | "lai"              |  ""              | "(lai[d=1,K=8])" | "lai (LANDS)"      | "1"      | "2"
+# lai9_lands     | "lai"              |  ""              | "(lai[d=1,K=9])" | "lai (LANDS)"      | "1"      | "2"
+# lai10_lands    | "lai"              |  ""              | "(lai[d=1,K=10])" | "lai (LANDS)"     | "1"      | "2"
+# lai11_lands    | "lai"              |  ""              | "(lai[d=1,K=11])" | "lai (LANDS)"     | "1"      | "2"
+# lai12_lands    | "lai"              |  ""              | "(lai[d=1,K=12])" | "lai (LANDS)"     | "1"      | "2"
+# lai13_lands    | "lai"              |  ""              | "(lai[d=1,K=13])" | "lai (LANDS)"     | "1"      | "2"
+#------------------------------------------------------------------------------------------------------------------------------------------------------

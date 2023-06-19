@@ -1,0 +1,116 @@
+# $HeadURL: svn://forge.ipsl.jussieu.fr/orchidee/branches/ORCHIDEE_Quest/ORCHIDEE_OL/OOL_SEC/config.card $
+# $Date: 2018-02-02 10:19:39 +0000 (ج, 02 فبراير 2018) $
+# $Revision: 4947 $
+#
+#========================================================================
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+#========================================================================
+#D-- UserChoices -
+[UserChoices]
+#============================
+#-- Output will be stored in IGCM_OUT/TagName/SpaceName/ExperimentName/JobName
+JobName=SECHIBA01
+#----- LongName : Some words describing the experiment. LongName will be added in all output files produced by XIOS.
+LongName=""
+TagName=OL2
+#------ SpaceName = DEVT/TEST/PROD
+SpaceName=PROD
+#----- ExperimentName : Short Name of Experiment
+ExperimentName=sechiba
+#============================
+#-- leap(gregorian), noleap, 360d
+CalendarType=noleap
+#-- Start and End of Job
+#-- "YYYY-MM-DD"
+DateBegin=1901-01-01
+DateEnd=1901-12-31
+#============================
+#-- 1Y, 1M, 5D, 1D
+PeriodLength=1Y
+
+#========================================================================
+#D-- ListOfComponents -
+[ListOfComponents]
+#D- For each component: (Component name, tag/version name)
+SRF= (sechiba, orchidee)
+OOL= (orchidee_ol, orchidee)
+IOS= (xios, XIOS)
+
+#========================================================================
+#D-- Executable -
+[Executable]
+#D- For each component: 
+#D  (Real executable name, temorary name during run, number of process MPI)
+SRF= ("", "")
+OOL= (orchidee_ol, orchidee_ol, 31MPI)
+IOS= (xios_server.exe, xios.x, 1MPI)
+
+#========================================================================
+#D-- Restarts -
+[Restarts]
+#D- OverRule=y : All component will restart from the same simulation
+OverRule=n
+#D- Date of restart file to be used
+RestartDate=1981-12-31
+#D- JobName for the restart file
+RestartJobName=CD1
+#D- Path to directory where the RestartJobName directory is stored
+#D- NB! ${ARCHIVE} depend on login. The full path can also be set
+RestartPath=${ARCHIVE}/IGCM_OUT/OL2/PROD/secsto
+
+#========================================================================
+#D-- Post -
+[Post]
+#D- Do we archive the output text files and restart files?
+#D- frequency to create the archives (by default RebuildFrequency)
+PackFrequency=5Y
+#D- Frequency of rebuild submission. Only set NONE if running with 1 XIOS server
+RebuildFrequency=NONE
+#D- If you want to produce time series, this flag determines
+#D- frequency of post-processing submission
+TimeSeriesFrequency=10Y
+#D- Activate IgnoreNonMonotonic only when cycling over the same forcing files as for a spin up. 
+IgnoreNonMonotonic=FALSE
+#D- If you want to produce seasonal average, this flag determines
+#D- the period of this average
+SeasonalFrequency=10Y
+#D- Offset for seasonal average first start dates ; same unit as SeasonalFrequency
+#D- Usefull if you do not want to consider the first X simulation's years
+SeasonalFrequencyOffset= 0
+#D- If you want to produce compute PCMDI metrics from seasonal average
+#D- Set TRUE or FALSE to activate/deactivate the metrics computation.
+MetricsPCMDI=FALSE
+
+#========================================================================
+#D-- SRF - SECHIBA
+# Use this section to start from restart file for SRF if OverRule=n
+# WriteFrequency is not used any more for ORCHIDEE 
+# Output files are now managed in sechiba.card 
+[SRF]
+WriteFrequency=""
+Restart=n
+RestartDate=...
+RestartJobName=...
+RestartPath=...
+#========================================================================
+#D-- OOL - Offline driver
+# There is no need to change this section
+[OOL]
+WriteFrequency=""
+Restart=n
+RestartDate=...
+RestartJobName=...
+RestartPath=...
+#========================================================================
+#D-- IOS - XIOS
+# There is no need to change this section
+[IOS]
+WriteFrequency=""
+Restart=n
+RestartDate=...
+RestartJobName=...
+RestartPath=...
+#========================================================================

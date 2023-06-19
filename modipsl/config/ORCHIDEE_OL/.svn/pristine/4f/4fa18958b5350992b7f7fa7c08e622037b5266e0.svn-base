@@ -1,0 +1,43 @@
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+LAIMAP=n
+IMPOSE_VEG=n
+# if IMPOSE_VEG = n
+LAND_USE=n
+# if LAND_USE=y
+VEGET_UPDATE=1Y
+# if LAND_USE=n and we want to use carteveg5km.nc for maxvegetfrac map.
+# (instead of default PFTmap_1850to2005_AR5_LUHa.rc2 below)
+OLD_VEGET=n
+
+[InitialStateFiles]
+List=	(${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2/PFTmap_IPCC_${year}.nc, PFTmap.nc)
+	
+[BoundaryFiles]
+#List=	(${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2/PFTmap_IPCC_${year_p1}.nc, .)
+List=	()
+ListNonDel= (${config_SBG_RestartPath}/${config_SBG_RestartJobName}/SBG/Restart/${config_SBG_RestartJobName}_${Date_Restarts}_stomate_forcing.nc, stomate_forcing.nc)
+#If you want to come back to old BIG LAND USE file (to run on multipple years, just one time with LAND USE activated), you must 
+# 1) empty BC list and INIT first PFTmap lines
+# 2) and suppress previous ListNonDel line and ucomment next one :
+#ListNonDel= (${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2.nc, PFTmap.nc) \
+#            (${config_SBG_RestartPath}/${config_SBG_RestartJobName}/SBG/Restart/${config_SBG_RestartJobName}_${Date_Restarts}_stomate_forcing.nc, stomate_forcing.nc)
+# See also same comment in sechiba.driver.
+
+[SmoothFiles]
+List=()
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/run.def, .)
+
+[RestartFiles]
+# List restart that have to be saved/restored each loop (file out, saved, and in) :
+List=	(sechiba_rest_out.nc, sechiba_rest.nc, sechiba_rest_in.nc)
+
+[OutputText]
+List=   (run.def, used_run.def, out_teststomate, out_orchidee)
+
+[OutputFiles]
+List=	()

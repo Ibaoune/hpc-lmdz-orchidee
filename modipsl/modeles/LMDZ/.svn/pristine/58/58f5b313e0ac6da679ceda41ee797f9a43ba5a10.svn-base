@@ -1,0 +1,10 @@
+NETCDF_LIBDIR="-L ${NETCDF_SX_LIBDIR:-/usr/local/SX8/soft/netcdf/lib} -lnetcdf"
+NETCDF_INCDIR=-I${NETCDF_SX_INCLUDEDIR:-/usr/local/SX8/soft/netcdf/include}
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../prism/SX/build/lib/psmile.$couple
+OASIS_LIBDIR=$LMDGCM/../../prism/SX/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/lib

@@ -1,0 +1,477 @@
+<!--- $Id$ -->
+<!-- Context LMDZ -->
+<context id="LMDZ">
+
+<!------------------------------------------------------------------------------------->
+                     <!--  create etat0_limit --> 
+<!------------------------------------------------------------------------------------->
+  <field_definition>
+
+    <field_group id="etat0_limit_read" read_access="false" enabled="false" operation="instant">
+       <field id="ts"           field_ref="ts_reg"      domain_ref="from_ecphy"     />
+       <field id="qs"           field_ref="qs_reg"      domain_ref="from_ecphy"     />
+       <field id="landice"      field_ref="landice_reg" domain_ref="from_landiceref"  />
+       <field id="mask"         field_ref="mask_reg"    domain_ref="from_relief" />
+       <field id="sic_limit"    field_ref="sic_reg"     domain_ref="from_limit_amip"  />
+       <field id="sst_limit"    field_ref="sst_reg"     domain_ref="from_limit_amip" />
+       <field id="rugos_limit"  field_ref="rugos_reg"   domain_ref="from_limit" > exp(this) </field>
+       <field id="albedo_limit" field_ref="albedo_reg"  domain_ref="from_limit"  />
+
+       <field id="zmea" field_ref="zmea_reg"  domain_ref="from_orography"  />
+       <field id="zstd" field_ref="zstd_reg"  domain_ref="from_orography"  />
+       <field id="zsig" field_ref="zsig_reg"  domain_ref="from_orography"  />
+       <field id="zgam" field_ref="zgam_reg"  domain_ref="from_orography"  />
+       <field id="zthe" field_ref="zthe_reg"  domain_ref="from_orography"  />
+
+    </field_group>
+   
+
+
+  </field_definition>
+  
+  
+   <file_definition>
+    
+    <file_group id="etat0_limit_read" type="one_file" mode="read" enabled=".FALSE." output_level="10" output_freq="1y" >
+      
+      <file id="frac_ocean" name="ocean_fraction" enabled=".FALSE.">
+        <field id="frac_ocean_read" name="OceFrac" domain_ref="dom_glo" operation="instant" freq_offset="1ts" />
+      </file>
+
+      <file id="land_water" enabled=".FALSE.">
+        <field id="land_water" name="MASK" domain_ref="domain_land_water" operation="instant" freq_offset="1ts" />
+      </file>
+      
+      <file id="ECPHY"  name="ECPHY" >
+        <field id="ts_reg"   name="ST"      domain_ref="domain_ecphy" operation="instant"  freq_offset="1ts"/>
+        <field id="qs_reg"   name="CDSW"    domain_ref="domain_ecphy" operation="instant"  freq_offset="1ts"/>
+      </file>
+
+      <file id="landiceref"  name="landiceref" >
+        <field id="landice_reg"   name="landice"   domain_ref="domain_landiceref" operation="instant" freq_offset="1ts"/>
+      </file>
+
+      <file id="relief" name="Relief" >
+        <field id="mask_reg" name="RELIEF" domain_ref="domain_relief" operation="instant" freq_offset="1ts"> this &gt; 1e-5 </field>
+      </file>
+
+
+<!-- Case with amip files --> 
+      <file id="amipbc_sic_1x1" name="amipbc_sic_1x1" >
+        <field id="sic_reg" name="sicbcs" domain_ref="domain_limit_amip" axis_ref="time_sic" operation="instant" freq_offset="1ts"/>
+      </file>
+ 
+      <file id="amipbc_sst_1x1" name="amipbc_sst_1x1" >
+         <field id="sst_reg" name="tosbcs" domain_ref="domain_limit_amip" axis_ref="time_sst" operation="instant" freq_offset="1ts">this+273.15</field> 
+      </file>
+
+<!-- Case with HadISST files --> 
+<!--  
+      <file id="siconc" name="hadisst_siconc" >
+        <field id="sic_reg" name="sicbcs" domain_ref="domain_limit_amip" axis_ref="time_sic" operation="instant" freq_offset="1ts"/>
+      </file>
+ 
+      <file id="tos" name="hadisst_tos" >
+         <field id="sst_reg" name="tosbcs" domain_ref="domain_limit_amip" axis_ref="time_sst" operation="instant" freq_offset="1ts">this+273.15</field> 
+      </file>
+-->
+
+
+      <file id="rugos" name="Rugos" >
+        <field id="rugos_reg" name="RUGOS" domain_ref="domain_limit" axis_ref="time_month" operation="instant" freq_offset="1ts"> log(this) </field> 
+      </file>
+
+      <file id="albedo" name="Albedo" >
+        <field id="albedo_reg" name="ALBEDO" domain_ref="domain_limit" axis_ref="time_month" operation="instant" freq_offset="1ts"/> 
+      </file>
+     
+      <file id="orography" name="orography" >
+
+         <field_group domain_ref="domain_orography" operation="instant" freq_offset="1ts"> 
+            <field id="zmea_reg" name="phi" />
+            <field id="zstd_reg" name="mu" />
+            <field id="zsig_reg" name="sigma" />
+            <field id="zgam_reg" name="gama" />
+            <field id="zthe_reg" name="theta" />
+         </field_group >
+
+      </file>
+
+
+     <file id="grid_atm" type="one_file" output_freq="1y" mode="write" sync_freq="1ts"  >         
+       <field_group domain_ref="dom_glo_p8"  operation="once" prec="8">
+          <field id="area_ce0l"           name="area" long_name="atm cell area" />
+          <field id="fract_oce_ce0l"      name="fract_oce" long_name="ocean fraction" />
+          <field id="fract_sic_ce0l"      name="fract_sic" long_name="sea ice fraction" />
+
+          <field id="fract_oce_sic_ce0l"  name="fract_oce_plus_sic_p8" long_name="ocean + sea ice fraction" > fract_oce_ce0l + fract_sic_ce0l </field>
+          <field field_ref="fract_oce_sic_ce0l"  name="mask_oce_plus_sic" long_name="ocean + sea ice mask" > this &gt; 0  ? 1 : 0 </field>
+       </field_group>
+     </file>
+
+
+     </file_group>
+     
+
+     <file id="limit_write" name="limit" type="one_file" output_freq="1ts" sync_freq="1ts" enabled="false">         
+       <field_group domain_ref="dom_glo" axis_ref="time_year" operation="once">
+          <field id="foce_limout"  name="FOCE" long_name="Fraction ocean"/>
+          <field id="fsic_limout"  name="FSIC" long_name="Fraction glace de mer"/>
+          <field id="fter_limout"  name="FTER" long_name="Fraction terre"/>
+          <field id="flic_limout"  name="FLIC" long_name="Fraction land ice"/>
+          <field id="sst_limout"   name="SST"  long_name="Temperature superficielle de la mer"/>
+          <field id="bils_limout"  name="BILS" long_name="Reference flux de chaleur au sol"/> 
+          <field id="alb_limout"   name="ALB"  long_name="Albedo a la surface"/>
+          <field id="rug_limout"   name="RUG"  long_name="Rugosite" />
+       </field_group>
+     </file>
+
+     <file id="limit_read" name="limit" time_counter_name="time_year" type="one_file" output_freq="1d" mode="read" cyclic="true" enabled="false">         
+       <field_group domain_ref="dom_glo" freq_offset="1ts" operation="instant">
+          <field id="foce_limin"  name="FOCE" long_name="Fraction ocean"/>
+          <field id="fsic_limin"  name="FSIC" long_name="Fraction glace de mer"/>
+          <field id="fter_limin"  name="FTER" long_name="Fraction terre"/>
+          <field id="flic_limin"  name="FLIC" long_name="Fraction land ice"/>
+          <field id="sst_limin"   name="SST"  long_name="Temperature superficielle de la mer"/>
+          <field id="bils_limin"  name="BILS" long_name="Reference flux de chaleur au sol" enabled="false"/> 
+          <field id="alb_limin"   name="ALB"  long_name="Albedo a la surface"/>
+          <field id="rug_limin"   name="RUG"  long_name="Rugosite" />
+       </field_group>
+     </file>
+
+
+  </file_definition> 
+
+  <axis_definition>
+    <axis id="time_sic"/>
+    <axis id="time_sst"/>
+  </axis_definition>
+
+  <!-- Define domains and groups of domains -->
+  <domain_definition>
+
+      <domain id="from_ecphy" domain_ref="dom_glo">
+        <interpolate_domain write_weight="true" mode="read_or_compute"/>
+      </domain>  
+
+      <domain id="from_landiceref" domain_ref="dom_glo">
+        <interpolate_domain write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+      <domain id="from_relief" domain_ref="dom_glo">
+       <interpolate_domain order="1" write_weight="true" mode="read_or_compute" />
+      </domain>
+
+      <domain id="from_orography" domain_ref="dom_glo">
+        <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+      <domain id="from_limit" domain_ref="dom_glo">
+        <interpolate_domain write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+      <domain id="from_limit_amip"domain_ref="dom_glo" >
+        <interpolate_domain write_weight="true" mode="read_or_compute"/>
+      </domain>
+      
+      <domain id="from_land_water"domain_ref="dom_glo" >
+        <interpolate_domain write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+  
+    <domain id="domain_ecphy"  type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>
+
+    <domain id="domain_landiceref"  type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>
+
+    <domain id="domain_relief"  type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>
+ 
+    <domain id="domain_limit"  type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>
+
+    <domain id="domain_limit_amip"  type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>
+
+    <domain id="domain_orography" type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>  
+
+    <domain id="domain_land_water" type="rectilinear" >
+       <generate_rectilinear_domain /> 
+    </domain>  
+
+    <domain id="dom_glo_p8" domain_ref="dom_glo" prec="8"/>
+
+  </domain_definition>
+
+
+<!------------------------------------------------------------------------------------->
+                     <!--  etat0 ozone --> 
+<!------------------------------------------------------------------------------------->
+
+ <field_definition>
+
+    <field id="tro3_in"   grid_ref="grid_climoz" enabled="false"/>
+    <field id="tro3_out"  read_access="true"   field_ref="tro3_in"  grid_ref="grid_from_climoz" enabled="false"/>
+
+ </field_definition> 
+
+
+ <file_definition> 
+
+    <file id="test_o3" output_freq="1ts" type="one_file" enabled="false">
+      <field id="o3_out" grid_ref="grid_from_climoz" operation="instant" />
+     </file>
+
+  </file_definition> 
+
+
+  <domain_definition>
+
+    <domain id="domain_climoz" type="rectilinear" />
+
+    <domain id="from_climoz" domain_ref="dom_glo">
+      <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+    </domain>
+  
+  </domain_definition>
+
+  <axis_definition>
+    <axis id="axis_climoz"  unit="millibar" axis_type="Z"/>
+    <axis id="tr_climoz"  />
+    <axis id="time_axis_climoz" />
+  </axis_definition>
+
+
+  <grid_definition>
+
+       <grid id="grid_climoz">
+         <domain domain_ref="domain_climoz" />
+         <axis axis_ref="axis_climoz" />
+         <axis axis_ref="time_axis_climoz" />
+         <axis axis_ref="tr_climoz" />
+       </grid >
+       
+       <grid id="grid_from_climoz">
+         <domain domain_ref="from_climoz" />
+         <axis axis_ref="axis_climoz" />
+         <axis axis_ref="time_axis_climoz" />
+         <axis axis_ref="tr_climoz" />
+       </grid>
+
+  </grid_definition>
+
+
+
+<!------------------------------------------------------------------------------------->
+                     <!--  read aerosol --> 
+<!------------------------------------------------------------------------------------->
+
+  <field_definition>
+
+    <field_group id="aerosols" enabled="false">
+    
+       <field_group id="aerosol_in" grid_ref="grid_aerosol" >
+         <field id="AIPOMM_in"/>
+         <field id="ASBCM_in"/>
+         <field id="AIBCM_in"/>
+         <field id="ASPOMM_in"/>
+         <field id="CSSSM_in"/>
+         <field id="ASSSM_in"/>
+         <field id="CIDUSTM_in"/>
+         <field id="SO4_in"/>
+         <field id="CSSO4M_in"/>
+         <field id="SSSSM_in"/>
+         <field id="ASNO3M_in"/>
+         <field id="CSNO3M_in"/>
+         <field id="CINO3M_in"/>
+         <field id="ASSO4M_in"/>
+         <field id="CSSO4M_in"/>
+       </field_group>
+
+       <field_group id="load_aerosol_in" domain_ref="domain_aerosol" axis_ref="time_month" >
+         <field id="load_AIPOMM_in"/>
+         <field id="load_ASBCM_in"/>
+         <field id="load_AIBCM_in"/>
+         <field id="load_ASPOMM_in"/>
+         <field id="load_CSSSM_in"/>
+         <field id="load_ASSSM_in"/>
+         <field id="load_CIDUSTM_in"/>
+         <field id="load_SO4_in"/>
+         <field id="load_CSSO4M_in"/>
+         <field id="load_SSSSM_in"/>
+         <field id="load_ASNO3M_in"/>
+         <field id="load_CSNO3M_in"/>
+         <field id="load_CINO3M_in"/>
+         <field id="load_ASSO4M_in"/>
+         <field id="load_CSSO4M_in"/>
+       </field_group>
+       
+       <field_group id="aerosol_out" grid_ref="grid_from_aerosol" read_access="true" >
+         <field id="AIPOMM_out" field_ref="AIPOMM_in" />
+         <field id="ASBCM_out"  field_ref="ASBCM_in"  />
+         <field id="AIBCM_out"  field_ref="AIBCM_in"  />
+         <field id="ASPOMM_out" field_ref="ASPOMM_in" />
+         <field id="CSSSM_out"  field_ref="CSSSM_in"  />
+         <field id="ASSSM_out"  field_ref="ASSSM_in"  />
+         <field id="CIDUSTM_out"field_ref="CIDUSTM_in"/>
+         <field id="SO4_out"    field_ref="SO4_in"    />
+         <field id="CSSO4M_out" field_ref="CSSO4M_in" />
+         <field id="SSSSM_out"  field_ref="SSSSM_in"  />
+         <field id="ASNO3M_out" field_ref="ASNO3M_in" />
+         <field id="CSNO3M_out" field_ref="CSNO3M_in" />
+         <field id="CINO3M_out" field_ref="CINO3M_in" />
+         <field id="ASSO4M_out" field_ref="ASSO4M_in" />
+         <field id="CSSO4M_out" field_ref="CSSO4M_in" />
+       </field_group>
+
+       <field_group id="load_aerosol_out" domain_ref="from_aerosol" axis_ref="time_month" read_access="true">
+         <field id="load_AIPOMM_out" field_ref="load_AIPOMM_in" />
+         <field id="load_ASBCM_out"  field_ref="load_ASBCM_in"  />
+         <field id="load_AIBCM_out"  field_ref="load_AIBCM_in"  />
+         <field id="load_ASPOMM_out" field_ref="load_ASPOMM_in" />
+         <field id="load_CSSSM_out"  field_ref="load_CSSSM_in"  />
+         <field id="load_ASSSM_out"  field_ref="load_ASSSM_in"  />
+         <field id="load_CIDUSTM_out"field_ref="load_CIDUSTM_in"/>
+         <field id="load_SO4_out"    field_ref="load_SO4_in"    />
+         <field id="load_CSSO4M_out" field_ref="load_CSSO4M_in" />
+         <field id="load_SSSSM_out"  field_ref="load_SSSSM_in"  />
+         <field id="load_ASNO3M_out" field_ref="load_ASNO3M_in" />
+         <field id="load_CSNO3M_out" field_ref="load_CSNO3M_in" />
+         <field id="load_CINO3M_out" field_ref="load_CINO3M_in" />
+         <field id="load_ASSO4M_out" field_ref="load_ASSO4M_in" />
+         <field id="load_CSSO4M_out" field_ref="load_CSSO4M_in" />
+       </field_group>
+
+     
+       <field id="psurf_aerosol_in"   domain_ref="domain_aerosol" axis_ref="time_month" />
+       <field id="psurf_aerosol_out"  read_access="true"   field_ref="psurf_aerosol_in"  domain_ref="from_aerosol" axis_ref="time_month" />
+
+  </field_group>
+
+</field_definition>
+
+ <domain_definition>
+    
+    <domain id="domain_aerosol" type="rectilinear" />
+    
+    <domain id="from_aerosol" domain_ref="dom_glo">
+       <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+    </domain>
+
+ </domain_definition>
+
+  <axis_definition>
+    <axis id="axis_aerosol"  unit="millibar" axis_type="Z"/>
+  </axis_definition>
+
+  <grid_definition>
+
+       <grid id="grid_aerosol">
+         <domain domain_ref="domain_aerosol" />
+         <axis axis_ref="axis_aerosol" />
+         <axis axis_ref="time_month" />
+       </grid >
+       
+
+       <grid id="grid_from_aerosol">
+         <domain domain_ref="from_aerosol" />
+         <axis axis_ref="axis_aerosol" />
+         <axis axis_ref="time_month" />
+       </grid>
+       
+  </grid_definition>
+
+
+
+
+<!------------------------------------------------------------------------------------->
+                     <!--  read aerosol strato  --> 
+<!------------------------------------------------------------------------------------->
+
+<field_definition>
+
+    <field_group id="aerosol_strato2" enabled="false" >
+       <field id="tauaerstrat_in"   grid_ref="grid_tauswstrat" />
+       <field id="tauaerstrat_out"  read_access="true"   field_ref="tauaerstrat_in"  grid_ref="grid_from_tauswstrat" />
+
+       <field id="pizaerstrat_in"   grid_ref="grid_tauswstrat" />
+       <field id="pizaerstrat_out"  read_access="true"   field_ref="pizaerstrat_in"  grid_ref="grid_from_tauswstrat" />
+
+       <field id="cgaerstrat_in"   grid_ref="grid_tauswstrat" />
+       <field id="cgaerstrat_out"  read_access="true"   field_ref="cgaerstrat_in"  grid_ref="grid_from_tauswstrat" />
+
+       <field id="taulwaerstrat_in"   grid_ref="grid_taulwstrat" />
+       <field id="taulwaerstrat_out"  read_access="true"   field_ref="taulwaerstrat_in"  grid_ref="grid_from_taulwstrat" />
+    </field_group>
+    
+    <field_group id="aerosol_strato1" enabled="false" >
+      <field id="taustrat_in"   domain_ref="domain_taustrat" axis_ref="klev" />
+      <field id="taustrat_out"  read_access="true"   field_ref="taustrat_in"  domain_ref="from_taustrat" axis_ref="klev" />
+    </field_group>
+
+</field_definition>
+
+
+ <domain_definition>
+
+    <domain id="domain_tauswstrat" type="rectilinear" />
+    <domain id="domain_taulwstrat" type="rectilinear" />
+    <domain id="domain_taustrat" type="rectilinear" />
+
+
+      <domain id="from_tauswstrat" domain_ref="dom_glo">
+        <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+      <domain id="from_taulwstrat" domain_ref="dom_glo">
+        <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+      </domain>
+
+      <domain id="from_taustrat" domain_ref="dom_glo">
+        <interpolate_domain order="1" write_weight="true" mode="read_or_compute"/>
+      </domain> 
+
+ </domain_definition>
+
+  <axis_definition>
+    <axis id="nsw"  />
+    <axis id="nlw"  />
+  </axis_definition>
+
+  <grid_definition>
+
+       <grid id="grid_tauswstrat">
+         <domain domain_ref="domain_tauswstrat" />
+         <axis axis_ref="klev" />
+         <axis axis_ref="nsw" />
+       </grid >
+
+       <grid id="grid_from_tauswstrat">
+         <domain domain_ref="from_tauswstrat" />
+         <axis axis_ref="klev" />
+         <axis axis_ref="nsw" />
+       </grid >
+
+       <grid id="grid_taulwstrat">
+         <domain domain_ref="domain_taulwstrat" />
+         <axis axis_ref="klev" />
+         <axis axis_ref="nlw" />
+       </grid >
+
+       <grid id="grid_from_taulwstrat">
+         <domain domain_ref="from_taulwstrat" />
+         <axis axis_ref="klev" />
+         <axis axis_ref="nlw" />
+       </grid >
+
+  </grid_definition>
+
+</context>

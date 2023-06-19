@@ -1,0 +1,85 @@
+!***************************************************************************
+SUBROUTINE RRTM_CMBGB6
+!***************************************************************************
+
+!     BAND 6:  820-980 cm-1 (low - H2O; high - nothing)
+!***************************************************************************
+
+! Parameters
+USE PARKIND1  ,ONLY : JPIM     ,JPRB
+USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
+
+USE YOERRTO6 , ONLY : KAO     ,SELFREFO   ,FRACREFAO  ,&
+ & ABSCO2O ,CFC11ADJO,CFC12O  
+USE YOERRTA6 , ONLY : KA      ,SELFREF    ,FRACREFA   ,&
+ & ABSCO2  ,CFC11ADJ ,CFC12  
+USE YOERRTRWT, ONLY : FREFA    ,FREFB    ,RWGT
+USE YOERRTFTR, ONLY : NGC      ,NGS      ,NGN      
+
+IMPLICIT NONE
+
+INTEGER(KIND=JPIM) :: IGC, IPR, IPRSM, JP, JT
+
+REAL(KIND=JPRB) :: Z_SUMF, Z_SUMK, Z_SUMK1, Z_SUMK2, Z_SUMK3
+REAL(KIND=JPRB) :: ZHOOK_HANDLE
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB6',0,ZHOOK_HANDLE)
+DO JT = 1,5
+  DO JP = 1,13
+    IPRSM = 0
+    DO IGC = 1,NGC(6)
+      Z_SUMK = 0.0_JPRB
+      DO IPR = 1, NGN(NGS(5)+IGC)
+        IPRSM = IPRSM + 1
+
+        Z_SUMK = Z_SUMK + KAO(JT,JP,IPRSM)*RWGT(IPRSM+80)
+      ENDDO
+
+      KA(JT,JP,IGC) = Z_SUMK
+    ENDDO
+  ENDDO
+ENDDO
+
+DO JT = 1,10
+  IPRSM = 0
+  DO IGC = 1,NGC(6)
+    Z_SUMK = 0.0_JPRB
+    DO IPR = 1, NGN(NGS(5)+IGC)
+      IPRSM = IPRSM + 1
+
+      Z_SUMK = Z_SUMK + SELFREFO(JT,IPRSM)*RWGT(IPRSM+80)
+    ENDDO
+
+    SELFREF(JT,IGC) = Z_SUMK
+  ENDDO
+ENDDO
+
+IPRSM = 0
+DO IGC = 1,NGC(6)
+  Z_SUMF = 0.0_JPRB
+  Z_SUMK1= 0.0_JPRB
+  Z_SUMK2= 0.0_JPRB
+  Z_SUMK3= 0.0_JPRB
+  DO IPR = 1, NGN(NGS(5)+IGC)
+    IPRSM = IPRSM + 1
+
+    Z_SUMF = Z_SUMF + FRACREFAO(IPRSM)
+    Z_SUMK1= Z_SUMK1+ ABSCO2O(IPRSM)*RWGT(IPRSM+80)
+    Z_SUMK2= Z_SUMK2+ CFC11ADJO(IPRSM)*RWGT(IPRSM+80)
+    Z_SUMK3= Z_SUMK3+ CFC12O(IPRSM)*RWGT(IPRSM+80)
+  ENDDO
+
+  FRACREFA(IGC) = Z_SUMF
+  ABSCO2(IGC) = Z_SUMK1
+  CFC11ADJ(IGC) = Z_SUMK2
+  CFC12(IGC) = Z_SUMK3
+ENDDO
+
+DO IGC = 1,NGC(6)
+
+  FREFA(NGS(5)+IGC,1) = FRACREFA(IGC)
+  FREFB(NGS(5)+IGC,1) = FRACREFA(IGC)
+ENDDO
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB6',1,ZHOOK_HANDLE)
+END SUBROUTINE RRTM_CMBGB6

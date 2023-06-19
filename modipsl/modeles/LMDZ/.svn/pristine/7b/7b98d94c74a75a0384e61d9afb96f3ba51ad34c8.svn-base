@@ -1,0 +1,16 @@
+%COMPILER            $MPI_BIN/mpif90
+%LINK                $MPI_BIN/mpif90
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE BLAS SGEMV=DGEMV SGEMM=DGEMM 
+%BASE_FFLAGS         -i4 -r8 -Mdalign 
+%PROD_FFLAGS         -O2 -Munroll -Mnoframe -Mautoinline -Mcache_align
+%DEV_FFLAGS          -O2 -traceback -Mbounds
+%DEBUG_FFLAGS        -O2 -g -traceback -Mbounds -Mchkfpstk -Mchkstk -Ktrap=denorm,divz,ovf,unf
+%MPI_FFLAGS
+%OMP_FFLAGS          -mp
+%BASE_LD             -L${PGI_HOME}/lib -lblas -Wl,-rpath=$NETCDF_HOME/lib
+%MPI_LD              -L${MPI_LIB}
+%OMP_LD              -mp

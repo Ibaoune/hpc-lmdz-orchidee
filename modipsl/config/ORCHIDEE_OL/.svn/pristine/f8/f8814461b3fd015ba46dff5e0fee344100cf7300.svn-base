@@ -1,0 +1,426 @@
+#!/bin/ksh
+
+# $Date: 2010/06/25 19:03:52 $
+# $Author: ssipsl $
+# $Revision: 1.13 $
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see ORCHIDEE/ORCHIDEE_CeCILL.LIC
+
+#D--------------------------------------------------------------------==
+#D--------------------------------------------------------------------==
+#D-
+#D-                      Job to launch ENSEMBLE spinup simulations
+#D-
+#D--------------------------------------------------------------------==
+#D--------------------------------------------------------------------==
+#D-
+#                       Job inspired from Sonke Zaehle "site_new.def" job
+#                       #################################################
+
+export BRIDGE_MSUB_PROJECT=gen6328
+
+if [ $# -lt 1 ] ; then
+   echo ""
+   echo "ERROR: Bad usage. You must give the name of the card as argument."
+   echo ""
+   echo "Do as follow for fluxnet simulation with fluxnet.card:"
+   echo "   ./Job_ENSEMBLE fluxnet  > out_Job_ENSEMBLE"
+   echo "Do as follow for ensemble simulation with ensemble.card:"
+   echo "   ./Job_ENSEMBLE ensemble > out_Job_ENSMEBLE"
+   echo ""
+   exit
+fi
+
+SUBMIT_DIR=$( pwd )
+MODIPSL=$(cd ${SUBMIT_DIR}'/../../..';pwd;)
+libIGCM=${MODIPSL}/libIGCM
+
+
+# All SubJobs in SPINUP in ONE OR MORE YEARS run (must be used with libIGCM branches/AllPostFred). 
+
+#D--------------------------------------------------------------------==
+#D-                   -1. User modification place
+#D--------------------------------------------------------------------==
+
+#D- Increased verbosity (1, 2, 3)
+#Verbosity=3
+
+#D-
+# --------------------------------------------------------------------
+#D- ! Optionnal features /!\ Use with care !
+# --------------------------------------------------------------------
+
+#D- Low level debug : to bypass lib test checks and stack construction
+#D- Default=true
+DEBUG_debug=false
+
+#D- Set DEBUG_sys to false to disable output calls of function
+#D- Default=true
+#DEBUG_sys=false
+
+#D- Turn in dry run mode ? (0,1,2,3)
+#D- Default=0
+#DRYRUN=3
+# YOU MUST COMPILE YOUR EXE FILES FOR DRYRUN MODE !
+# -------------------------------------------------------------------------------------
+# | DRYRUN=  |  Date computations, | sys_Get    |  Exe    | sys_Put_Out; sys_Put_Rest |
+# |          |  Cp/Exe param files |            |  Chmod  |                           |
+# |          |      Qsub           |            |         |                           |
+# -------------------------------------------------------------------------------------
+# |    0     |       yes           |    yes     |  yes    |      yes                  |
+# -------------------------------------------------------------------------------------
+# |    1     |       yes           |    yes     |  yes    |      no                   |
+# -------------------------------------------------------------------------------------
+# |    2     |       yes           |    yes     |  no     |      no                   |
+# -------------------------------------------------------------------------------------
+# |    3     |       yes           |    no      |  no     |      no                   |
+# -------------------------------------------------------------------------------------
+
+
+#D-
+#D--------------------------------------------------------------------==
+#D-                   0. System Environment 
+#D-                      - Define variables for Number of processors
+#D-                      - Define MPI variables
+#D-                      - Define batch scheduler variables
+#D-                      - Source IGCM Library
+#D-                      - Get RESOLution in .resol file (temporary)
+#D--------------------------------------------------------------------==
+
+#D--------------------------------------------------------------------==
+#TaskType=post-processing
+
+. ${libIGCM}/libIGCM_debug/libIGCM_debug.ksh
+. ${libIGCM}/libIGCM_card/libIGCM_card.ksh
+. ${libIGCM}/libIGCM_date/libIGCM_date.ksh
+#-------
+. ${libIGCM}/libIGCM_sys/libIGCM_sys.ksh
+. ${libIGCM}/libIGCM_config/libIGCM_config.ksh
+. ${libIGCM}/libIGCM_comp/libIGCM_comp.ksh
+. ${libIGCM}/libIGCM_post/libIGCM_post.ksh
+#-------
+( ${DEBUG_debug} ) && IGCM_debug_Check
+( ${DEBUG_debug} ) && IGCM_card_Check
+( ${DEBUG_debug} ) && IGCM_date_Check
+
+#D--------------------------------------------------------------------==
+#D- 0.1 COMMON ENVIRONMENT
+#D-     - Read libIGCM compatibility version in config.card
+#D-     - Read UserChoices section
+#D-     - Read Ensemble section
+#D-     - Read Post section
+#D-     - Define all netcdf output directories
+#D--------------------------------------------------------------------==
+IGCM_config_CommonConfiguration ${SUBMIT_DIR}/config.card
+
+
+
+#D--------------------------------------------------------------------==
+#D- 1. INITIALIZE CONFIGURATION
+#D-    - Simulation configuration
+#D-    - Simulation parameters
+#D-    - Execution parameter
+#D-    - Define input files directory
+#D-    - Read or initialize CumulPeriod
+#D-    - run.card
+#D---------------------------------------------------------------------==
+IGCM_config_Initialize
+
+
+
+IGCM_sys_Cp -p ensemble.card ref.card
+IGCM_sys_Cp -p $1.card ensemble.card
+
+
+#set -vx
+R_BC=${R_IN}/BC
+
+IGCM_sys_MkdirWork ${RUN_DIR_PATH}
+
+. ${SUBMIT_DIR}/ensemble.ksh
+
+ENSEMBLE_initialize
+
+
+IGCM_sys_MkdirWork ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}
+
+
+function correct_duree
+{
+    # Ths function compute the nearest multiple of dyear near duree
+    typeset duree dyear
+    duree=$1
+    dyear=$2
+    if [ $(( duree % dyear )) -gt 0 ] ; then
+	echo $(( ( duree / dyear + 1 ) * dyear ))
+    else
+	echo ${duree}
+    fi
+}
+
+# Path for all skeleton SubJob scripts to SPINUP directory
+Skeleton_Path=$( cd ../SPINUP/SUBJOB/; pwd )
+
+
+for group in  ${ensemble_CONFIG_Groups[*]} ; do
+   isite=1
+   index=0
+
+   eval temp=\${ensemble_CONFIG_${group}[*]}
+   set -A group_site -- $temp
+
+   # Number of sites :
+   NumSites=$(( ${#group_site[*]} / NumInfosBySite ))
+   NumAllSites=$(( NumAllSites + NumSites ))
+
+   while [ ${isite} -le ${NumSites} ] ; do
+   
+    site=${group_site[$index]}
+
+    echo "   ------------------------"
+    echo "   SPINUP for Site : ${site}"
+
+    DATE0_YEAR=${group_site[ $(( index + ColumnYear )) ]}
+    TIME_YEAR=${group_site[ $(( index + ColumnLength )) ]}
+
+#######################################################
+# Script internal settings
+# nothing to be modified below this line
+######################################################?
+
+# Copy the SPINUP directory
+    SubJobName=${site}${config_UserChoices_JobName}
+    New_SUBMIT_DIR=${SUBMIT_DIR}/${SubJobName}
+    IGCM_sys_Cp -Rp ../SPINUP ${New_SUBMIT_DIR}
+#     ls -la ${New_SUBMIT_DIR}
+#     cat ${New_SUBMIT_DIR}/config.card
+#     echo "---"
+
+    # Install this directory
+    # modifications on config.card
+    MyJobName=${config_UserChoices_JobName}
+    IGCM_card_DefineVariableFromOption ${New_SUBMIT_DIR}/config.card UserChoices JobName
+    OldJobName=${config_UserChoices_JobName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices JobName ${SubJobName}
+    config_UserChoices_JobName=${MyJobName}
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card UserChoices TagName
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices TagName ${config_UserChoices_TagName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices CalendarType ${config_UserChoices_CalendarType}
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices JobNumProcTot ${config_UserChoices_JobNumProcTot}
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices JobNumProcTot ${config_UserChoices_JobNumProcTot}
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices SpaceName ${config_UserChoices_SpaceName}
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices ExperimentName ${config_UserChoices_ExperimentName}
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices ARCHIVE ${config_UserChoices_ARCHIVE}
+
+    # Give path for all skeleton SubJob scripts to SPINUP directory
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices SubJobPath ${Skeleton_Path}
+
+    # All SubJobs in SPINUP in one or more years (must be used with libIGCM branches/AllPostFred). 
+    # It is the length of the forcing file.
+    if [ X"${config_UserChoices_CalendarType}" = X"360d" ] ; then
+    	This_Job_DateEnd=$(( DATE0_YEAR + TIME_YEAR - 1 ))1230
+    	This_Job_HumanDateEnd=$(( DATE0_YEAR + TIME_YEAR - 1 ))-12-30
+    else
+    	This_Job_DateEnd=$(( DATE0_YEAR + TIME_YEAR - 1 ))1231
+    	This_Job_HumanDateEnd=$(( DATE0_YEAR + TIME_YEAR - 1 ))-12-31
+    fi
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices DateBegin ${DATE0_YEAR}-01-01
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices PeriodLength ${TIME_YEAR}Y
+
+    # DateEnd is defined by SpinUp job itself (it will be modified in config.card).
+    # but to get all SpinUp Job loops, we have to add at least a number of years greater
+    # than those that will be modified in config.card. Default is 150.00.00 years more for SpinUp.
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices DateEnd $(( DATE0_YEAR + 150 ))-01-01
+
+    # Infinit SPINUP Job :
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices PeriodNb 99999
+
+    # SRF section : first restart and post-treatments 
+    typeset option
+    for option in ${config_SRF[*]} ; do
+	eval value=\${config_SRF_${option}}
+	eval echo ${option} ${value}
+	if [ X${value} != X ] ; then
+	    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF ${option} \${config_SRF_${option}}
+	fi
+    done
+    if [ X"${ensemble_UserChoices_ok_stomate}" = "Xy" ] ; then
+	for option in ${config_SBG[*]} ; do
+	    eval value=\${config_SBG_${option}}
+	    eval echo ${option} ${value}
+	    if [ X${value} != X ] ; then
+		eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG ${option} \${config_SBG_${option}}
+	    fi
+	done
+    fi
+
+    # modifications on spinup.card 
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card SubJobForcingFile List "(${ensemble_CONFIG_ForcingPath}/${group_site[$(( index + ColumnFilename ))]}, forcing_file.nc)"
+
+    typeset option
+    for option in ${ensemble_UserChoices[*]} ; do
+	eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices ${option} \${ensemble_UserChoices_${option}}
+    done
+
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices DRIVER_NORESTART y
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices DRIVER_TIMELENGTH n
+
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_nostomate $( correct_duree ${ensemble_SPINUP_duree_nostomate} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_inistomate $( correct_duree ${ensemble_SPINUP_duree_inistomate} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_offlineini $( correct_duree ${ensemble_SPINUP_duree_offlineini} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices n_iter ${ensemble_SPINUP_n_iter}
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_sechiba $( correct_duree ${ensemble_SPINUP_duree_sechiba} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_stomate $( correct_duree ${ensemble_SPINUP_duree_stomate} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_carbonsol $( correct_duree ${ensemble_SPINUP_duree_carbonsol} ${TIME_YEAR} )
+    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices duree_final $( correct_duree ${ensemble_SPINUP_duree_final} ${TIME_YEAR} )
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card UserChoices BoundaryFilesListNonDel y
+
+    # TimeSeries : ALMAOUTPUT for SECHIBA
+    typeset option
+    for option in ${config_SubJobPost[*]} ; do
+	eval value=\${config_SubJobPost_${option}}
+	eval echo ${option} ${value}
+	if [ X${value} != X ] ; then
+	    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SubJobPost ${option} \${config_SubJobPost_${option}}
+	fi
+    done
+
+    # modifications on Job script
+    rm ${New_SUBMIT_DIR}/Job_${OldJobName}
+    IGCM_sys_Cp ${SUBMIT_DIR}/Job_${MyJobName} ${New_SUBMIT_DIR}/Job_${SubJobName}
+
+    sed -e "s/ ${MyJobName}/ ${SubJobName}/" \
+	-e "s/Script_Output_${MyJobName}/Script_Output_${SubJobName}/" \
+	-e "s/\(IGCM_config_Finalize\)/\1\nif\ [\ \${config_UserChoices_JobName}\ =\ \"${SubJobName}\"\ ]\nthen\nIGCM_sys_Mv\ \${R_OUT}\/\${config_UserChoices_TagName}\/\${config_UserChoices_SpaceName}\/\${config_UserChoices_ExperimentName}\/\${config_UserChoices_JobName}\ \${R_OUT}\/\${config_UserChoices_TagName}\/\${config_UserChoices_SpaceName}\/\${config_UserChoices_ExperimentName}\/${config_UserChoices_JobName}\/\nIGCM_sys_Mv\ \${R_OUT}\/\${config_UserChoices_TagName}\/\${config_UserChoices_SpaceName}\/\${config_UserChoices_ExperimentName}\/\${config_UserChoices_JobName}HIST\ \${R_OUT}\/\${config_UserChoices_TagName}\/\${config_UserChoices_SpaceName}\/\${config_UserChoices_ExperimentName}\/${config_UserChoices_JobName}\/\nfi/" \
+	${New_SUBMIT_DIR}/Job_${SubJobName} > ${New_SUBMIT_DIR}/Job_${SubJobName}_
+    IGCM_sys_Mv ${New_SUBMIT_DIR}/Job_${SubJobName}_ ${New_SUBMIT_DIR}/Job_${SubJobName}
+    chmod u+x ${New_SUBMIT_DIR}/Job_${SubJobName}
+
+
+    # modification on parameter files
+    if [ ! -f ${SUBMIT_DIR}/PARAM/run.def ] ; then
+	echo "#ENSEMBLE add :" > ${New_SUBMIT_DIR}/PARAM/run.def
+    else
+	IGCM_sys_Cp ${SUBMIT_DIR}/PARAM/run.def ${New_SUBMIT_DIR}/PARAM/run.def
+	echo "#ENSEMBLE add :" >> ${New_SUBMIT_DIR}/PARAM/run.def
+    fi
+    echo "" >> ${New_SUBMIT_DIR}/PARAM/run.def
+
+    eval first_option=${ensemble_SubJobParams[0]} > /dev/null 2>&1
+    if [ X${first_option} != X"Error:" ] ; then
+	IGCM_card_DefineArrayFromSection ${New_SUBMIT_DIR}/COMP/spinup.card SubJobParams
+	eval first_option=${spinup_SubJobParams[0]} > /dev/null 2>&1
+
+	typeset option option_ 
+	for option in ${ensemble_SubJobParams[*]} ; do
+	    echo "For parameter file run.def"
+	    eval echo "${option}="\${ensemble_SubJobParams_${option}}
+	    eval ORCHIDEE_grep ${option}
+	    if [ ${SearchParam} == "undefined" ] ; then
+		echo "ERROR : parameter ${option} doesn't exist in run parameter file !"
+		echo "You must correct subjobparam option in your card file or add new parameter in run.def file"
+		echo "We must STOP here."
+		exit 1
+	    fi
+	    eval param=\${ensemble_SubJobParams_${option}}
+	    eval ORCHIDEE_def ${option} $param
+	    
+	    if [ X${first_option} != X"Error:" ] ; then
+		for option_ in ${spinup_SubJobParams[*]} ; do
+		    echo "option=" ${option} " option_=" ${option_}
+		    if [ X${option} == X${option_} ] ; then
+	                eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/spinup.card SubJobParams ${option} $param
+		    fi
+		done
+	    fi
+	done
+    fi
+
+    (( iphys = 0 ))
+    (( indext = index + 4 ))
+    while [ $iphys -lt ${ensemble_CONFIG_NbSitesParam} ] ; do
+	
+	# Detect if physical parameter has 
+        #  array description or line per PFT description in the parameter file
+	SearchParam=""
+	ORCHIDEE_grep ${ensemble_CONFIG_NameSitesParam[${iphys}]}
+
+	case ${SearchParam} in
+	    undefined)
+		echo "ERROR : parameter ${ensemble_CONFIG_NameSitesParam[${iphys}]} doesn't exist in run.def parameter file !"
+		echo "You must correct NameSiteParam option in your card file or add new parameter in run.def file"
+		echo "We must STOP here."
+		exit 1
+		;;
+	    value)
+		ORCHIDEE_def ${ensemble_CONFIG_NameSitesParam[${iphys}]} ${group_site[$(( indext )) ]}
+		(( indext = indext + 1 ))
+		;;
+	    line)
+		ipft=1
+		while [ $ipft -le ${NbPFTs} ] ; do
+		    if [ $ipft -lt 10 ] ; then
+			numpft=0${ipft}
+		    else
+			numpft=${ipft}
+		    fi
+	    
+		    ORCHIDEE_def ${ensemble_CONFIG_NameSitesParam[${iphys}]}__${numpft} ${group_site[$(( indext )) ]}
+		    (( indext = indext + 1 ))
+		    (( ipft = ipft + 1 ))
+		done
+		;;
+	    vector)
+		unset ValueSiteParams
+		ipft=0
+		while [ $ipft -lt ${NbPFTs} ] ; do
+		    ValueSiteParams[${ipft}]=${group_site[$(( indext )) ]}
+		    (( indext = indext + 1 ))
+		    (( ipft = ipft + 1 ))
+		done
+		ORCHIDEE_def ${ensemble_CONFIG_NameSitesParam[${iphys}]} "${ValueSiteParams[*]}"
+		;;
+	esac
+
+	(( iphys = iphys + 1 ))
+    done
+
+    IGCM_debug_Verif_Exit
+
+# Lauch the SPINUP Job :
+
+    echo "#!/bin/ksh" > ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "MODIPSL=${MODIPSL}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "libIGCM=${libIGCM}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "cd ${New_SUBMIT_DIR}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "export SUBMIT_DIR=${New_SUBMIT_DIR}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo ". ${libIGCM}/libIGCM_debug/libIGCM_debug.ksh" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo ". ${libIGCM}/libIGCM_sys/libIGCM_sys.ksh" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "export Script_Output=out_qsub_${SubJobName}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "export config_UserChoices_JobName=${SubJobName}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "export CumulPeriod=1" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+#    echo "nohup Job_${SubJobName}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+    echo "IGCM_sys_Qsub Job_${SubJobName}" >> ${RUN_DIR_PATH}/SubJob${site}.ksh
+
+    if [ ${DRYRUN} -le 1 ] ; then
+	chmod u+x ${RUN_DIR_PATH}/SubJob${site}.ksh
+	nohup ${RUN_DIR_PATH}/SubJob${site}.ksh 
+    fi
+
+    IGCM_debug_Verif_Exit
+
+    (( isite=isite+1 ))
+    (( index=index+NumInfosBySite ))
+done
+done 
+
+IGCM_sys_Mv ref.card ensemble.card
+IGCM_sys_RmRunDir -Rf ${RUN_DIR_PATH}

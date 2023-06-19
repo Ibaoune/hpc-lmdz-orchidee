@@ -1,0 +1,39 @@
+REMOTE_SHELL remsh
+CPPKEYS      
+GRAPHIC_DIFF xxdiff
+MAKE_SILENT  -s
+FC_DEFINE    -D
+FPPKEYS      CPP_NONE 
+CPP_INCLUDE  -I
+FFLAGS       -c -fdefault-real-8 -fcray-pointer -frecursive -ffree-line-length-0 -fno-align-commons -O3 -I/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/include -I/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include
+MAKE         make
+CC_INCLUDE   -I
+CC_OUTPUT    -o
+LD_LIBSEARCH -L
+FC_COMPILE   -c
+CPP          cpp
+FC           mpif90
+FC_INCLUDE   -I
+FPP          %FPP
+CFLAGS       
+LDFLAGS       -L/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/lib -L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdf -lnetcdff
+INTERFACE    file
+SHELL        /bin/bash
+AR           ar
+GENINTERFACE ECMWF
+LD_LIBLINK   -l
+LD           mpif90
+LD_OUTPUT    -o
+FPPFLAGS     -P
+MIRROR       rsync
+CC           cc
+ARFLAGS      rs
+CPPFLAGS     -C
+FC_OUTPUT    -o
+CPP_DEFINE   -D
+CC_COMPILE   -c
+FPP_DEFINE   -D
+MAKE_JOB     -j
+MAKEFLAGS    
+CC_DEFINE    -D
+FPP_INCLUDE  -I

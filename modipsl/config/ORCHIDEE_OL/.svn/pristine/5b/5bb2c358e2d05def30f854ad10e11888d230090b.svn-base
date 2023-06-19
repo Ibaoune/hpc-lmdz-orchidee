@@ -1,0 +1,260 @@
+[CONFIG]
+# - Fluxnet files path
+ForcingPath=${R_BC}/OOL/${config_UserChoices_TagName}/FLUXNET
+
+# - Number of PFTs :
+NbPFTs= 13
+
+#**** Information on the sites to be treated *************************
+#  Number of parameters to modify for each site
+NbSitesParam= 1
+#  Name of the parameters to modify for on each site
+NameSitesParam= ( SECHIBA_VEGMAX )
+
+Groups= ( TrEBF TeENF TeEBF TeDBF BoENF GRAc3 CROc3 CROc4 )
+
+# Sites descriptions
+# 4 first parameters are Name, Forcing file, Initial Year, Number of years in forcing file
+# following parameters are NameSitesParam
+
+# Tropical Evergreen Broadleaf Forests
+TrEBF =	   ( BR-Sa3 , BR-Sa3_2000-2003.nc , 2000 , 4 , 0,1,0,0,0,0,0,0,0,0,0,0,0 ) \
+      	   ( ID-Pag , ID-Pag_2002-2003.nc , 2002 , 2 , 0,1,0,0,0,0,0,0,0,0,0,0,0 )
+
+# Tropical Deciduous Broadleaf Forests
+# TrDBF = Empty
+
+# Temperate Evergreen Needleleaf Forest
+TeENF =     ( IL-Yat , IL-Yat_2001-2006.nc , 2001 , 6 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+      	    ( ES-ES1 , ES-ES1_1999-2006.nc , 1999 , 8 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( IT-SRo , IT-SRo_1999-2006.nc , 1999 , 8 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Blo , US-Blo_1997-2006.nc , 1997 , 10 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Me4 , US-Me4_1996-2000.nc , 1996 , 5 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-SP1 , US-SP1_2000-2005.nc , 2000 , 6 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-SP2 , US-SP2_1998-2004.nc , 1998 , 7 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-SP3 , US-SP3_1999-2004.nc , 1999 , 6 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-SP4 , US-SP4_1998-1998.nc , 1998 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( DE-Bay , DE-Bay_1996-1999.nc , 1996 , 4 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( DE-Tha , DE-Tha_1996-2006.nc , 1996 , 11 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( DE-Wet , DE-Wet_2002-2006.nc , 2002 , 5 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( FR-LBr , FR-LBr_1996-2006.nc , 1996 , 11 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( IT-Lav , IT-Lav_2000-2006.nc , 2000 , 7 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( IT-Ren , IT-Ren_1999-2006.nc , 1999 , 8 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( NL-Loo , NL-Loo_1996-2006.nc , 1996 , 11 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( UK-Gri , UK-Gri_1997-2006.nc , 1997 , 10 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( CZ-BK1 , CZ-BK1_2000-2006.nc , 2000 , 7 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( RU-Fyo , RU-Fyo_1998-2004.nc , 1998 , 7 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( SE-Nor , SE-Nor_1996-2005.nc , 1996 , 10 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( SE-Sk1 , SE-Sk1_2005-2005.nc , 2005 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( SE-Sk2 , SE-Sk2_2004-2005.nc , 2004 , 2 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( SK-Tat , SK-Tat_2005-2005.nc , 2005 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Ho1 , US-Ho1_1996-2004.nc , 1996 , 9 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Ho2 , US-Ho2_1999-2004.nc , 1999 , 6 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Wi0 , US-Wi0_2002-2002.nc , 2002 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Wi2 , US-Wi2_2003-2003.nc , 2003 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Wi4 , US-Wi4_2002-2005.nc , 2002 , 4 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Wi5 , US-Wi5_2004-2004.nc , 2004 , 1 , 0,0,0,1,0,0,0,0,0,0,0,0,0 ) \
+	    ( US-Wi9 , US-Wi9_2004-2005.nc , 2004 , 2 , 0,0,0,1,0,0,0,0,0,0,0,0,0 )
+
+# Temperate Evergreen Broadleaf Forest
+TeEBF =     ( FR-Pue , FR-Pue_2000-2006.nc , 2000 , 7 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+      	    ( IT-Cpz , IT-Cpz_1997-2006.nc , 1997 , 10 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+	    ( IT-Lec , IT-Lec_2005-2006.nc , 2005 , 2 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+	    ( PT-Esp , PT-Esp_2002-2006.nc , 2002 , 5 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+	    ( PT-Mi1 , PT-Mi1_2003-2005.nc , 2003 , 3 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+	    ( AU-Tum , AU-Tum_2001-2006.nc , 2001 , 6 , 0,0,0,0,1,0,0,0,0,0,0,0,0 ) \
+	    ( AU-Wac , AU-Wac_2005-2007.nc , 2005 , 3 , 0,0,0,0,1,0,0,0,0,0,0,0,0 )
+
+# Temperate Deciduous Broadleaf Forest
+TeDBF =     ( IT-Col , IT-Col_1996-2006.nc , 1996 , 11 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+      	    ( IT-Non , IT-Non_2001-2006.nc , 2001 , 6 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( IT-PT1 , IT-PT1_2002-2004.nc , 2002 , 3 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( IT-Ro1 , IT-Ro1_2000-2006.nc , 2000 , 7 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( IT-Ro2 , IT-Ro2_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-MMS , US-MMS_1999-2005.nc , 1999 , 7 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-MOz , US-MOz_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-WBW , US-WBW_1995-1999.nc , 1995 , 5 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( DE-Hai , DE-Hai_2000-2006.nc , 2000 , 7 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( DK-Sor , DK-Sor_1996-2006.nc , 1996 , 11 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( FR-Fon , FR-Fon_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( FR-Hes , FR-Hes_1997-2006.nc , 1997 , 10 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( IS-Gun , IS-Gun_1996-1998.nc , 1996 , 3 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( UK-Ham , UK-Ham_2004-2005.nc , 2004 , 2 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( UK-PL3 , UK-PL3_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-Bar , US-Bar_2004-2005.nc , 2004 , 2 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-Ha1 , US-Ha1_1991-2006.nc , 1991 , 16 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-Oho , US-Oho_2004-2005.nc , 2004 , 2 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-UMB , US-UMB_1999-2003.nc , 1999 , 5 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-WCr , US-WCr_1999-2006.nc , 1999 , 8 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-Wi1 , US-Wi1_2003-2003.nc , 2003 , 1 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) \
+	    ( US-Wi8 , US-Wi8_2002-2002.nc , 2002 , 1 , 0,0,0,0,0,1,0,0,0,0,0,0,0 ) 
+
+# Boreal Evergreen Needleleaf Forest
+BoENF =  ( CA-Man , CA-Man_1994-2003.nc , 1994 , 10 , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+      	 ( CA-NS1 , CA-NS1_2002-2005.nc , 2002 , 4  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-NS2 , CA-NS2_2001-2005.nc , 2001 , 5  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-NS3 , CA-NS3_2001-2005.nc , 2001 , 5  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-NS4 , CA-NS4_2002-2004.nc , 2002 , 3  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-NS5 , CA-NS5_2001-2005.nc , 2001 , 5  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-Qcu , CA-Qcu_2001-2006.nc , 2001 , 6  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-Qfo , CA-Qfo_2003-2006.nc , 2003 , 4  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-SF1 , CA-SF1_2003-2005.nc , 2003 , 3  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( CA-SF2 , CA-SF2_2003-2005.nc , 2003 , 3  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( FI-Hyy , FI-Hyy_1996-2006.nc , 1996 , 11 , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( FI-Sod , FI-Sod_2000-2006.nc , 2000 , 7  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( RU-Zot , RU-Zot_2002-2004.nc , 2002 , 3  , 0,0,0,0,0,0,1,0,0,0,0,0,0 ) \
+	 ( SE-Fla , SE-Fla_1996-2002.nc , 1996 , 7  , 0,0,0,0,0,0,1,0,0,0,0,0,0 )
+
+# Boreal Deciduous Broadleaf Forest 
+# BoDBF = empty
+
+# Bo Deciduous Needleleaf Forest
+# BoDNF = empty
+
+# Grasslands C3
+GRAc3 =	     ( RU-Ha1 , RU-Ha1_2002-2004.nc , 2002 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+      	     ( RU-Ha2 , RU-Ha2_2002-2003.nc , 2002 , 2 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( RU-Ha3 , RU-Ha3_2004-2004.nc , 2004 , 1 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( US-Aud , US-Aud_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( US-FPe , US-FPe_2000-2006.nc , 2000 , 7 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( IT-Amp , IT-Amp_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( PT-Mi2 , PT-Mi2_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( US-Goo , US-Goo_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( US-Var , US-Var_2001-2006.nc , 2001 , 6 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( AT-Neu , AT-Neu_2002-2004.nc , 2002 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( CH-Oe1 , CH-Oe1_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( DE-Gri , DE-Gri_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( DE-Meh , DE-Meh_2003-2006.nc , 2003 , 4 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( DK-Lva , DK-Lva_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( ES-VDA , ES-VDA_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( FR-Lq1 , FR-Lq1_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( FR-Lq2 , FR-Lq2_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( HU-Bug , HU-Bug_2002-2006.nc , 2002 , 5 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( HU-Mat , HU-Mat_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( IE-Dri , IE-Dri_2003-2005.nc , 2003 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( IT-LMa , IT-LMa_2003-2006.nc , 2003 , 4 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( IT-Mal , IT-Mal_2003-2006.nc , 2003 , 4 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( IT-MBo , IT-MBo_2003-2006.nc , 2003 , 4 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( NL-Ca1 , NL-Ca1_2003-2006.nc , 2003 , 4 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( NL-Haa , NL-Haa_2003-2004.nc , 2003 , 2 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( NL-Hor , NL-Hor_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( UK-EBu , UK-EBu_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( UK-Tad , UK-Tad_2001-2001.nc , 2001 , 1 , 0,0,0,0,0,0,0,0,0,1,0,0,0 ) \
+	     ( US-Bkg , US-Bkg_2004-2006.nc , 2004 , 3 , 0,0,0,0,0,0,0,0,0,1,0,0,0 )
+
+# Grasslands C4 
+# GRAc4 = empty
+
+# Croplands C3 - Winter Wheat or Winter Barley
+CROc3 =	    ( DK-Ris , DK-Ris_2004-2005.nc , 2004 , 2 , 0,0,0,0,0,0,0,0,0,0,0,1,0 ) \
+      	    ( FR-Gri , FR-Gri_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,0,0,0,0,0,0,1,0 ) \
+      	    ( NL-Lut , NL-Lut_2006-2006.nc , 2006 , 1 , 0,0,0,0,0,0,0,0,0,0,0,1,0 ) 
+
+# Croplands C4 - Maize
+CROc4 =     ( US-Bo1 , US-Bo1_1996-2007.nc , 1996 , 12 , 0,0,0,0,0,0,0,0,0,0,0,0,1 ) \
+      	    ( US-Ne1 , US-Ne1_2001-2005.nc , 2001 , 5 , 0,0,0,0,0,0,0,0,0,0,0,0,1 ) \
+	    ( US-Ne2 , US-Ne2_2001-2005.nc , 2001 , 5 , 0,0,0,0,0,0,0,0,0,0,0,0,1 ) \
+	    ( US-Ne3 , US-Ne3_2001-2005.nc , 2001 , 5 , 0,0,0,0,0,0,0,0,0,0,0,0,1 ) \
+	    ( NL-Lan , NL-Lan_2005-2006.nc , 2005 , 2 , 0,0,0,0,0,0,0,0,0,0,0,0,1 ) 
+
+# To fill the VEGMAX for each site
+# here below is the standard PFT list
+#
+#    1 - Bare soil
+#    2 - tropical  broad-leaved evergreen
+#    3 - tropical  broad-leaved raingreen
+#    4 - temperate needleleaf   evergreen
+#    5 - temperate broad-leaved evergreen
+#    6 - temperate broad-leaved summergreen
+#    7 - boreal    needleleaf   evergreen
+#    8 - boreal    broad-leaved summergreen
+#    9 - boreal    needleleaf   summergreen
+#   10 -           C3           grass
+#   11 -           C4           grass
+#   12 -           C3           agriculture
+#   13 -           C4           agriculture
+
+[SPINUP]
+# Initialisation for spin-up :
+# orchidee with sechiba alone (!!! if ok_stomate == n !!!)
+duree_nostomate=0
+# orchidee with stomate
+duree_inistomate=1
+# teststomate (only if duree_inistomate > 0)
+duree_offlineini=0
+
+# Loop over ORCHIDEE runs (used for spin-up)
+# The whole job is restarted n_iter times
+n_iter=1
+# orchidee with sechiba (and stomate if ok_stomate=y below)
+duree_sechiba=500
+# teststomate
+duree_stomate=0
+# forcesoil
+duree_carbonsol=0
+
+# Final run (full ORCHIDEE)
+# This last parameter must be non-zero.
+duree_final=1
+
+
+    # POST configuration : 
+    # --------------------
+# Atlas Name : 
+AtlasCfg=atlas_FLUXNET_V1.cfg
+
+# Observation_file
+observation_base_path=${R_BC}/OOL/${config_UserChoices_TagName}/FLUXNET
+
+
+# History file of former ORCHIDEE runs (Reference) to compare with the current simulations
+reference_base_path=/ccc/work/cont003/dsm/p86ghatt/IGCM_OUT/OL2/PROD/fluxnet.r2291
+reference_config=TFlux7
+
+# Modulo for SpinUp years
+# by default, only one ATLAS-DIFF will be created 
+# between the last step and the first one.
+#Modulo=15
+
+
+[UserChoices]
+# stomate activated or not ?
+ok_stomate=y
+# Photosynthesis activated or not ?
+ok_co2=y
+# New hydrology (deRosnay) activated or not ?
+ok_newhydrol=y
+# Impose the vegetation
+impose_veg=y
+# No routing
+ok_routing=n
+SPINUP_ANALYTIC=y
+land_use=n
+# level of the history files for each iteration of the SPINUP
+level_hist=0
+# level of the history files for the final iteration of the SPINUP
+level_hist_final=10
+
+# DEBUG mode for SPINUP 
+#
+# This mode keep all SPINUP directory in ARCHIVE
+# If disable, all ARCHIVE is automaticly cleaned.
+DEBUG_SPIN=n
+# If you don't want to keep old spinup steps, but last one
+CONSERVE=n 
+
+[SubJobParams]
+# You can specify here any parameters to be modified in run.def
+ALMA_OUTPUT=y
+SECHIBA_reset_time=y
+SPLIT_DT=1
+SPINUP_PERIOD='${TIME_YEAR}'
+SPINUP_ANALYTIC=y
+NBUFF=0
+STOMATE_FORCING_NAME=NONE
+STOMATE_CFORCING_NAME=NONE
+FIRE_DISABLE=y
+# ATM_CO2=368 : value for year 2000
+ATM_CO2=368
+XIOS_ORCHIDEE_OK=n
+

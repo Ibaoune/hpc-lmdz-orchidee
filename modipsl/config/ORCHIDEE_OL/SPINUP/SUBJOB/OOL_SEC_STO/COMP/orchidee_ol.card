@@ -1,0 +1,35 @@
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+# resolution of forcing file (not used yet)
+RESOL=OOL360180
+# If you want to use the same forcing file
+NORESTART=n
+# If you want use config.card PeriodLength for TIME_LENGTH
+TIMELENGTH=y
+
+[InitialStateFiles]
+List=	
+
+[BoundaryFiles]
+List=	(${R_IN}/SRF/METEO/NCC/ncc_for_${year}.nc, forcing_file.nc)
+ListNonDel= ()
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/run.def, .)
+
+[RestartFiles]
+# List restart that have to be saved/restored each loop (file out, saved, and in) :
+List=	(driver_rest_out.nc,  driver_rest.nc,  driver_rest_in.nc)
+# \
+#    (used_run.def, used_run.def, used_run_in.def)
+# Uncomment previous lines to be sure to STOP if something was wrong in ORCHIDEE.
+
+[OutputText]
+List=   (run.def, used_run.def, out_orchidee_ol)
+# avec la // : out_orchidee_*
+
+[OutputFiles]
+List=	

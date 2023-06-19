@@ -1,0 +1,12 @@
+physiq.def                 Couples model version
+
+physiq.def_L39_AR40.0      IPSL-CM5A
+physiq.def_L39_NPv3.1      IPSL-CM5B
+physiq.def_L39_NPv3.2      Stabilized version
+physiq.def_L59_NPv4.12     First L59 version of the new new physics
+physiq.def_L79_NPv5.17h    (5.17h=5.3) IPSL-CM6.0.1
+physiq.def_NPv5.4          IPSL-CM6.0.2
+physiq.def_NPv5.5          IPSL-CM6.0.3
+physiq.def_NPv5.65         IPSL-CM6.0.4
+physiq.def_NPv5.70         IPSL-CM6.0.5
+physiq.def_NPv5.67         IPSL-CM6.0.5 / THC1 (test de sensibilité)

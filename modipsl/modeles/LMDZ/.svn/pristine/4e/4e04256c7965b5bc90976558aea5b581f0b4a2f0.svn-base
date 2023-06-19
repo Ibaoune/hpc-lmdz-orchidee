@@ -1,0 +1,15 @@
+<!-- $Id$ -->
+<file_definition>
+    <file_group id="defile">
+        <file id="histstrataer" name="histstrataer" output_freq="1mo" output_level="_AUTO_" enabled="_AUTO_" compression_level="2">
+
+            <field_group group_ref="remap_1d">
+              <field_group group_ref="fields_strataer_3D" grid_ref="grid_out_presnivs" level="1" />
+              <field_group group_ref="fields_strataer_2D" grid_ref="grid_out"  level="1" />
+              <field_group group_ref="fields_strataer_trac_3D"  grid_ref="grid_out_presnivs" level="1" />
+              <field_group group_ref="fields_strataer_trac_2D" grid_ref="grid_out" level="1" />
+           </field_group> 
+           
+        </file>
+    </file_group>
+</file_definition>

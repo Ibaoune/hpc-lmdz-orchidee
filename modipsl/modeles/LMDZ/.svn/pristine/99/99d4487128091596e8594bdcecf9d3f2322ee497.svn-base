@@ -1,0 +1,106 @@
+!----------------------------------------------------------------------------
+SUBROUTINE RRTM_TAUMOL6 (KLEV,P_TAU,P_WX,&
+ & P_TAUAERL,P_FAC00,P_FAC01,P_FAC10,P_FAC11,K_JP,K_JT,K_JT1,&
+ & P_COLH2O,P_CO2MULT,K_LAYTROP,P_SELFFAC,P_SELFFRAC,K_INDSELF,PFRAC)  
+
+!     BAND 6:  820-980 cm-1 (low - H2O; high - nothing)
+
+! Modifications
+!        M.Hamrud      01-Oct-2003 CY28 Cleaning
+
+!     D Salmond   2000-05-15 speed-up
+!     JJMorcrette 2000-05-17 speed-up
+
+USE PARKIND1  ,ONLY : JPIM     ,JPRB
+USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
+
+USE PARRRTM  , ONLY : JPLAY  ,JPBAND ,JPGPT  ,JPXSEC ,NG6   ,NGS5
+USE YOERRTWN , ONLY :      NSPA   
+USE YOERRTA6 , ONLY : ABSA   ,ABSCO2 ,CFC11ADJ , CFC12  ,&
+ & FRACREFA,SELFREF  
+
+!  Input
+!#include "yoeratm.h"
+
+!      REAL TAUAER(JPLAY)
+
+IMPLICIT NONE
+
+INTEGER(KIND=JPIM),INTENT(IN)    :: KLEV 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: P_TAU(JPGPT,JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_WX(JPXSEC,JPLAY) ! Amount of trace gases
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_TAUAERL(JPLAY,JPBAND) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_FAC00(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_FAC01(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_FAC10(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_FAC11(JPLAY) 
+INTEGER(KIND=JPIM),INTENT(IN)    :: K_JP(JPLAY) 
+INTEGER(KIND=JPIM),INTENT(IN)    :: K_JT(JPLAY) 
+INTEGER(KIND=JPIM),INTENT(IN)    :: K_JT1(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_COLH2O(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_CO2MULT(JPLAY) 
+INTEGER(KIND=JPIM),INTENT(IN)    :: K_LAYTROP 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_SELFFAC(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: P_SELFFRAC(JPLAY) 
+INTEGER(KIND=JPIM),INTENT(IN)    :: K_INDSELF(JPLAY) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PFRAC(JPGPT,JPLAY) 
+!  Output
+!- from AER
+!- from INTFAC      
+!- from INTIND
+!- from PROFDATA             
+!- from SELF             
+!- from SP             
+INTEGER(KIND=JPIM) :: IND0(JPLAY),IND1(JPLAY),INDS(JPLAY)
+
+INTEGER(KIND=JPIM) :: IG, I_LAY
+REAL(KIND=JPRB) :: ZHOOK_HANDLE
+
+!      EQUIVALENCE (TAUAERL(1,6),TAUAER)
+
+!     Compute the optical depth by interpolating in ln(pressure) and
+!     temperature. The water vapor self-continuum is interpolated
+!     (in temperature) separately.  
+
+IF (LHOOK) CALL DR_HOOK('RRTM_TAUMOL6',0,ZHOOK_HANDLE)
+DO I_LAY = 1, K_LAYTROP
+  IND0(I_LAY) = ((K_JP(I_LAY)-1)*5+(K_JT(I_LAY)-1))*NSPA(6) + 1
+  IND1(I_LAY) = (K_JP(I_LAY)*5+(K_JT1(I_LAY)-1))*NSPA(6) + 1
+  INDS(I_LAY) = K_INDSELF(I_LAY)
+ENDDO
+
+!-- DS_000515  
+DO IG = 1, NG6
+  DO I_LAY = 1, K_LAYTROP
+!-- DS_000515  
+    P_TAU (NGS5+IG,I_LAY) = P_COLH2O(I_LAY) *&
+     & (P_FAC00(I_LAY) * ABSA(IND0(I_LAY)  ,IG) +&
+     & P_FAC10(I_LAY) * ABSA(IND0(I_LAY)+1,IG) +&
+     & P_FAC01(I_LAY) * ABSA(IND1(I_LAY)  ,IG) +&
+     & P_FAC11(I_LAY) * ABSA(IND1(I_LAY)+1,IG) +&
+     & P_SELFFAC(I_LAY) * (SELFREF(INDS(I_LAY),IG) + &
+     & P_SELFFRAC(I_LAY)*&
+     & (SELFREF(INDS(I_LAY)+1,IG)-SELFREF(INDS(I_LAY),IG))))&
+     & + P_WX(2,I_LAY) * CFC11ADJ(IG)&
+     & + P_WX(3,I_LAY) * CFC12(IG)&
+     & + P_CO2MULT(I_LAY) * ABSCO2(IG)&
+     & + P_TAUAERL(I_LAY,6)  
+    PFRAC(NGS5+IG,I_LAY) = FRACREFA(IG)
+  ENDDO
+ENDDO
+
+!     Nothing important goes on above LAYTROP in this band.
+!-- JJM_000517
+DO IG = 1, NG6
+  DO I_LAY = K_LAYTROP+1, KLEV
+!-- JJM_000517
+    P_TAU (NGS5+IG,I_LAY) = 0.0_JPRB &
+     & + P_WX(2,I_LAY) * CFC11ADJ(IG)&
+     & + P_WX(3,I_LAY) * CFC12(IG)&
+     & + P_TAUAERL(I_LAY,6)  
+    PFRAC(NGS5+IG,I_LAY) = FRACREFA(IG)
+  ENDDO
+ENDDO
+
+IF (LHOOK) CALL DR_HOOK('RRTM_TAUMOL6',1,ZHOOK_HANDLE)
+END SUBROUTINE RRTM_TAUMOL6

@@ -1,0 +1,31 @@
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+# resolution of forcing file (not used yet)
+RESOL=OOL360180
+stomate_LEVEL=7
+
+[InitialStateFiles]
+List=	()
+	
+[BoundaryFiles]
+List=	()
+ListNonDel= (${config_SBG_RestartPath}/${config_SBG_RestartJobName}/SBG/Restart/${config_SBG_RestartJobName}_${Date_Restarts}_stomate_Cforcing.nc, stomate_Cforcing.nc)\
+            (${R_IN}/SRF/reftemp.nc, .)
+
+[SmoothFiles]
+List=	()
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/run.def, .)
+
+[RestartFiles]
+# List restart that have to be saved/restored each loop (file out, saved, and in) :
+List=	(stomate_rest_out.nc, stomate_rest.nc, stomate_rest_in.nc)
+
+[OutputText]
+List=   (run.def, used_run.def, out_forcesoil, out_orchidee)
+
+[OutputFiles]
+List=	()

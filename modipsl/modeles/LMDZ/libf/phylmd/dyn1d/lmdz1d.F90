@@ -1,0 +1,33 @@
+!
+! $Id: lmdz1d.F90 3541 2019-07-03 12:40:01Z fhourdin $
+!
+!#ifdef CPP_1D
+!#include "../dyn3d/mod_const_mpi.F90"
+!#include "../dyn3d_common/control_mod.F90"
+!#include "../dyn3d_common/infotrac.F90"
+!#include "../dyn3d_common/disvert.F90"
+
+
+   PROGRAM lmdz1d
+
+   USE ioipsl, only: getin
+
+   INTEGER forcing_type
+
+   CALL getin('forcing_type',forcing_type)
+
+   IF (forcing_type==1000) THEN
+           CALL scm
+   ELSE
+           CALL old_lmdz1d
+   ENDIF
+
+   END
+
+
+#include "1DUTILS.h"
+#include "1Dconv.h"
+
+!#endif
+
+

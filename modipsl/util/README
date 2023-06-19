@@ -1,0 +1,36 @@
+This folder modipsl/util contains scripts for extraction of configurations and scripts for creation of makefiles.
+
+Scripts for extraction
+**********************
+* model
+Main script to extract pre-defined configurations
+Use "./model -h" for more information.
+Use "./model ConfName" by changing ConfName to the configurationi of
+your choice in the list given by ./model -h
+
+* mod.def
+This script contains all pre-defined configurations.
+The file is read by the script model.
+
+
+Scripts related to creation of makefiles
+****************************************
+Note that these scripts are not needed for newer configurations which uses
+a main compilation script instead of makefiles.
+
+* ins_make
+This script will create makefiles for folders containing AA_make and AA_make.ldef files.
+This is an old method to compile models. It is not used by newer configurations.i
+ins_make is launched by default in the end of the script model for all configurations.
+
+* AA_make.gdef
+This is an input file used by ins_make. It contains compilations options and paths for
+predefined machines at IPSL.
+
+* w_i_h
+This file is used by ins_make. It specifies for predefined machines at IPSL which target
+to use in AA_make.gdef.
+
+* ins_m_prec
+This is a script used by ins_make to configure IOIPSL compilation.
+

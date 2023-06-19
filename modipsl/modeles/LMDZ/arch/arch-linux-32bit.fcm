@@ -1,0 +1,16 @@
+%COMPILER            pgf95
+%LINK                pgf95
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                make
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             
+%BASE_FFLAGS         
+%PROD_FFLAGS         -fast
+%DEV_FFLAGS          -g -O1
+%DEBUG_FFLAGS        -g -O0 -Kieee -Ktrap=fp -Mbounds
+%MPI_FFLAGS
+%OMP_FFLAGS          
+%BASE_LD             
+%MPI_LD
+%OMP_LD              

@@ -1,0 +1,151 @@
+#!/bin/ksh
+
+#D- Driver du script pour STOMATE
+
+function ORCHIDEE_def
+{
+    IGCM_debug_PushStack "ORCHIDEE_def"
+    
+    typeset ORCHIDEE_def_KEY ORCHIDEE_default_KEY
+    
+    ORCHIDEE_def_KEY=$( grep -e "^${1}\ *=" run.def | gawk -- 'BEGIN {FS="="} {print $2}')
+    ORCHIDEE_default_KEY=$( grep -e "^${1}\ *=" ${SUBMIT_DIR}/PARAM/orchidee.default | gawk -- 'BEGIN {FS="="} {print $2}')
+
+    if [ X"${ORCHIDEE_def_KEY}" != X ] ; then
+	IGCM_debug_Print 2 "ORCHIDEE : ${1} has already been set in def file."
+	IGCM_debug_Print 2 " default value : ${ORCHIDEE_default_KEY}"
+	IGCM_debug_Print 2 " script value : ${2}"
+	IGCM_debug_Print 2 " USER value : ${ORCHIDEE_def_KEY}"
+	IGCM_debug_Print 2 "               We will not set in again !"
+    else
+	echo "${1}= ${2}" >> run.def
+	echo ""  >> run.def
+	echo "ORCHIDEE_def : ${1} ${2}"
+    fi
+    
+    IGCM_debug_PopStack "ORCHIDEE_def"
+    return $RET
+}
+
+#-----------------------------------------------------------------
+function SBG_Initialize
+{
+    IGCM_debug_PushStack "SBG_Initialize"
+
+    RESOL=${forcesoil_UserChoices_RESOL}
+
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartDate
+    Date_Restarts=$( IGCM_date_ConvertFormatToGregorian ${config_SBG_RestartDate} )
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartJobName
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartPath    
+
+    NUM_PROC=1
+#D- Number of processors used for lmdz and oasis coupler computed from PBS variable
+    if [ X"${BATCH_NUM_PROC_TOT}" != X ] ; then
+	NUM_PROC=${BATCH_NUM_PROC_TOT}
+    fi
+    echo BATCH_NUM_PROC_TOT=${BATCH_NUM_PROC_TOT}
+    echo NUM_PROC=${NUM_PROC}
+
+    if ( [ X${BATCH_NUM_PROC_TOT} != X ] && [ "${BATCH_NUM_PROC_TOT}" -gt 1 ] ) ; then
+	MPIRUN_COMMAND=${HOST_MPIRUN_COMMAND}
+    fi
+
+    if [ ! -f ${SUBMIT_DIR}/PARAM/run.def ] ; then
+	echo "#orchidee add :" > ${SUBMIT_DIR}/PARAM/run.def
+    else
+	echo "#orchidee add :" >> ${SUBMIT_DIR}/PARAM/run.def
+    fi
+    echo "" >> ${SUBMIT_DIR}/PARAM/run.def
+
+     IGCM_debug_PopStack "SBG_Initialize"
+}
+
+#-----------------------------------------------------------------
+function SBG_PeriodStart
+{
+    IGCM_debug_PushStack "SBG_PeriodStart"
+
+    IGCM_debug_PopStack "SBG_PeriodStart"
+}
+
+#-----------------------------------------------------------------
+function SBG_Update
+{
+    IGCM_debug_PushStack "SBG_Update"
+
+    typeset STOMATE_WRITE_STEP
+
+    case ${config_SBG_WriteFrequency} in
+	*Y|*y) 
+	    WriteInYears=$( echo ${config_SBG_WriteFrequency} | awk -F '[yY]' '{print $1}' )
+	    PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+	    (( STOMATE_WRITE_STEP = PeriodLengthInDays * WriteInYears / PeriodLengthInYears )) ;;
+	1M|1m) 
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		STOMATE_WRITE_STEP=-1.
+		;;
+	*M|*m) 
+		STOMATE_WRITE_STEP=-1.
+		;;
+	    *)
+		(( STOMATE_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) )) ;;
+	    esac
+	    ;;
+	*M|*m) 
+	    WriteInMonths=$( echo ${config_SBG_WriteFrequency} | awk -F '[mM]' '{print $1}' )
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+		(( STOMATE_WRITE_STEP = 30 )) ;;
+	    *M|*m)
+		PeriodLengthInMonths=$( echo ${config_UserChoices_PeriodLength} | awk -F '[mM]' '{print $1}' )
+		(( STOMATE_WRITE_STEP = PeriodLengthInDays * WriteInMonths / PeriodLengthInMonths )) ;;
+	    *)
+		(( STOMATE_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) )) ;;
+	    esac
+	    ;;
+	5D|5d) 
+	    (( STOMATE_WRITE_STEP = 5 )) ;;
+	1D|1d) 
+	    (( STOMATE_WRITE_STEP = 1 )) ;;
+	*s)
+	    WriteInSeconds=$( echo ${config_SBG_WriteFrequency} | awk -F '[s]' '{print $1}' )
+	    (( STOMATE_WRITE_STEP = 1 )) ;;
+	*) 
+	    IGCM_debug_Exit "SBG_Update " ${config_SBG_WriteFrequency} " invalid WriteFrequency : choose in 1Y, 1M, 5D, 1D." 
+	    IGCM_debug_Verif_Exit ;;
+    esac
+
+    ORCHIDEE_def STOMATE_OK_STOMATE y
+    ORCHIDEE_def STOMATE_OK_CO2 y
+
+    ORCHIDEE_def STOMATE_HIST_DT ${STOMATE_WRITE_STEP}
+    ORCHIDEE_def STOMATE_HISTLEVEL ${stomate_UserChoices_stomate_LEVEL}
+    if ( [ ${CumulPeriod} -eq 1 ] && [ "${config_SBG_Restart}" = "n" ] ) ; then
+	echo "Error in forcesoil !"
+	echo "You must use some old restarts with this job." 
+	echo "We will stop here."
+	IGCM_debug_Exit "YOU MUST USE SOME OLD RESTARTS WITH THE JOB FORCESOIL." 
+	IGCM_debug_Verif_Exit
+    else
+	ORCHIDEE_def STOMATE_RESTART_FILEIN stomate_rest_in.nc
+	ORCHIDEE_def STOMATE_CFORCING_NAME stomate_Cforcing.nc
+    fi
+
+    ORCHIDEE_def TIME_LENGTH ${PeriodLengthInYears}Y
+#    ORCHIDEE_def TIME_SKIP ${OldSimulationLengthInDays}D
+
+    IGCM_debug_PopStack "SBG_Update"
+}
+
+#-----------------------------------------------------------------
+function SBG_Finalize
+{
+    IGCM_debug_PushStack "SBG_Finalize"
+
+    echo FINALIZE SBG !!!
+
+    IGCM_debug_PopStack "SBG_Finalize"
+}

@@ -1,0 +1,11 @@
+NETCDF_INCDIR="-I/opt/netcdf42/ifort/include"
+NETCDF_LIBDIR="-L/opt/netcdf42/ifort/lib"
+NETCDF_LIB="-lnetcdf -lnetcdff -lstdc++"
+
+IOIPSL_INCDIR="-I${ORCHDIR}/../../lib -I${ORCHDIR}/../IOIPSL/inc"
+IOIPSL_LIBDIR="-L${ORCHDIR}/../../lib -L${ORCHDIR}/../IOIPSL/lib"
+IOIPSL_LIB="-lioipsl"
+
+XIOS_INCDIR="-I${ORCHDIR}/../XIOS/inc"
+XIOS_LIBDIR="-L${ORCHDIR}/../XIOS/lib"
+XIOS_LIB="-lxios"

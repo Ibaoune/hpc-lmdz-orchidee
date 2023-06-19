@@ -1,0 +1,607 @@
+!
+! $Id$
+!
+
+SUBROUTINE AEROPT_5WV_RRTM(  &
+   pdel, m_allaer,           &
+   RHcl, ai, flag_aerosol,   &
+   flag_bc_internal_mixture, & 
+   pplay, t_seri,            &
+   tausum, drytausum, tau )
+
+  USE DIMPHY
+  USE aero_mod
+  USE phys_local_var_mod, ONLY: od443aer,od550aer,dryod550aer,od865aer,ec550aer,od550lt1aer,abs550aer
+  USE phys_output_var_mod, ONLY: dryaod_diag
+  USE YOMCST, ONLY: RD,RG
+
+  !
+  !    Yves Balkanski le 12 avril 2006
+  !    Celine Deandreis
+  !    Anne Cozic  Avril 2009
+  !    a partir d'une sous-routine de Johannes Quaas pour les sulfates
+  !    Olivier Boucher mars 2014 pour adaptation RRTM
+  !    
+  !
+  ! Refractive indices for seasalt come from Shettle and Fenn (1979)
+  !
+  ! Refractive indices from water come from Hale and Querry (1973)
+  !
+  ! Refractive indices from Ammonium Sulfate Toon and Pollack (1976)
+  !
+  ! Refractive indices for Dust, internal mixture of minerals coated with 1.5% hematite 
+  ! by Volume (Balkanski et al., 2006)
+  !
+  ! Refractive indices for POM: Kinne (pers. Communication 
+  !
+  ! Refractive index for BC from Shettle and Fenn (1979)
+  !
+  ! Shettle, E. P., & Fenn, R. W. (1979), Models for the aerosols of the lower atmosphere and 
+  ! the effects of humidity variations on their optical properties, U.S. Air Force Geophysics 
+  ! Laboratory Rept. AFGL-TR-79-0214, Hanscomb Air Force Base, MA.
+  !
+  ! Hale, G. M. and M. R. Querry, Optical constants of water in the 200-nm to 200-m 
+  ! wavelength region, Appl. Opt., 12, 555-563, 1973.
+  !
+  ! Toon, O. B. and J. B. Pollack, The optical constants of several atmospheric aerosol species:
+  ! Ammonium sulfate, aluminum oxide, and sodium chloride, J. Geohys. Res., 81, 5733-5748,
+  ! 1976.
+  !
+  ! Balkanski, Y., M. Schulz, T. Claquin And O. Boucher, Reevaluation of mineral aerosol 
+  ! radiative forcings suggests a better agreement with satellite and AERONET data, Atmospheric 
+  ! Chemistry and Physics Discussions., 6, pp 8383-8419, 2006.
+  !
+  IMPLICIT NONE
+  !
+  ! Input arguments:
+  !
+  REAL, DIMENSION(klon,klev), INTENT(IN)   :: pdel
+  REAL, DIMENSION(klon,klev,naero_tot), INTENT(IN) :: m_allaer
+  REAL, DIMENSION(klon,klev), INTENT(IN)   :: RHcl     ! humidite relative ciel clair
+  INTEGER,INTENT(IN)                       :: flag_aerosol
+  LOGICAL,INTENT(IN)                       :: flag_bc_internal_mixture
+  REAL, DIMENSION(klon,klev), INTENT(IN)   :: pplay
+  REAL, DIMENSION(klon,klev), INTENT(IN)   :: t_seri
+  !
+  ! Output arguments:
+  !
+  REAL, DIMENSION(klon), INTENT(OUT)                      :: ai      ! POLDER aerosol index 
+  REAL, DIMENSION(klon,nwave,naero_tot), INTENT(OUT)      :: tausum
+  REAL, DIMENSION(klon,naero_tot), INTENT(OUT)            :: drytausum
+  REAL, DIMENSION(klon,klev,nwave,naero_tot), INTENT(OUT) :: tau
+  !
+  ! Local
+  !
+  INTEGER, PARAMETER :: las = nwave_sw
+  LOGICAL :: soluble
+  
+  INTEGER :: i, k, m, aerindex
+  INTEGER :: spsol, spinsol, la
+  INTEGER :: RH_num(klon,klev)
+  INTEGER, PARAMETER :: la443 = 1
+  INTEGER, PARAMETER :: la550 = 2
+  INTEGER, PARAMETER :: la670 = 3
+  INTEGER, PARAMETER :: la765 = 4
+  INTEGER, PARAMETER :: la865 = 5
+  INTEGER, PARAMETER :: nbre_RH=12
+  INTEGER, PARAMETER :: naero_soluble=9   !  1- BC soluble; 2- POM soluble; 3- SO4 coarse
+                                          !  4- SO4 acc; 5 seasalt super-C; 6 seasalt coarse; 7 seasalt acc.
+                                          !  8- NO3 coarse; 9- NO3 accumulation
+  INTEGER, PARAMETER :: naero_insoluble=4 !  1- Dust; 2- BC insoluble; 3- POM insoluble; 4- NO3 insoluble
+
+  REAL :: zrho
+
+  REAL, PARAMETER :: RH_tab(nbre_RH)=(/0.,10.,20.,30.,40.,50.,60.,70.,80.,85.,90.,95./)
+  REAL, PARAMETER :: RH_MAX=95.
+  REAL :: delta(klon,klev), rh(klon,klev)
+  REAL :: tau_ae5wv_int   ! Intermediate computation of epaisseur optique aerosol
+  REAL :: abs_ae5wv_int   ! Intermediate computation of epaisseur optique aerosol
+  REAL :: od670aer(klon)  ! epaisseur optique aerosol extinction 670 nm
+  REAL :: fac
+  INTEGER, ALLOCATABLE, DIMENSION(:)  :: aerosol_name
+  INTEGER :: nb_aer, itau
+  LOGICAL :: ok_itau
+  
+  REAL :: zdh(klon,klev)
+  
+  REAL :: alpha_aers_5wv(nbre_RH,las,naero_soluble)   ! Ext. coeff. ** m2/g 
+  REAL :: abs_aers_5wv(nbre_RH,las,naero_soluble)     ! Abs. coeff. ** m2/g 
+  REAL :: alpha_aeri_5wv(las,naero_insoluble)         ! Ext. coeff. ** m2/g 
+  REAL :: abs_aeri_5wv(las,naero_insoluble)           ! Abs. coeff. ** m2/g 
+
+  !
+  ! BC internal mixture
+  !
+  INTEGER, PARAMETER ::  nbclassbc = 6  ! Added by Rong Wang/OB for the 5 fractions
+                                        ! of BC in the soluble mode:
+                                        ! bc_content/0.001, 0.01, 0.02, 0.05, 0.1/
+  ! for Maxwell-Garnet internal mixture
+  ! Detailed theory can be found in R. Wang Estimation of global black carbon ! direct
+  ! radiative forcing and its uncertainty constrained by observations. J.
+  ! Geophys. Res. Atmos. Added by R. Wang and OB
+  REAL :: alpha_MG_5wv(nbre_RH,las,nbclassbc)
+  REAL :: abs_MG_5wv(nbre_RH,las,nbclassbc)
+
+  !
+  ! Proprietes optiques
+  !
+  REAL :: fact_RH(nbre_RH), BC_massfra
+  INTEGER :: n, classbc
+
+! From here on we look at the optical parameters at 5 wavelengths: 443, 550, 670, 765 and 865 nm 
+
+ DATA alpha_aers_5wv/ &
+   ! BC Accumulation Soluble (AS)     
+  5.342, 5.342, 5.342, 5.342, 5.342, 5.829, 6.344, 7.470, 8.603, 8.736, 8.870,10.149, &
+  5.159, 5.159, 5.159, 5.159, 5.159, 5.608, 6.083, 7.121, 8.169, 8.293, 8.418, 9.612, &
+  4.849, 4.849, 4.849, 4.849, 4.849, 5.251, 5.674, 6.598, 7.533, 7.644, 7.756, 8.829, &
+  4.573, 4.573, 4.573, 4.573, 4.573, 4.936, 5.318, 6.152, 6.996, 7.096, 7.198, 8.171, &
+  4.274, 4.274, 4.274, 4.274, 4.274, 4.600, 4.942, 5.686, 6.441, 6.530, 6.621, 7.495, &
+   ! POM Accumulation Soluble (AS)    
+  5.300, 5.300, 5.300, 5.300, 5.300, 5.827, 6.392, 7.640, 8.898, 9.046, 9.195,10.606, &
+  4.569, 4.569, 4.569, 4.569, 4.569, 5.029, 5.528, 6.649, 7.802, 7.939, 8.077, 9.400, &
+  3.768, 3.768, 3.768, 3.768, 3.768, 4.152, 4.573, 5.533, 6.538, 6.658, 6.780, 7.955, &
+  3.210, 3.210, 3.210, 3.210, 3.210, 3.542, 3.909, 4.752, 5.644, 5.751, 5.860, 6.916, &
+  2.709, 2.709, 2.709, 2.709, 2.709, 2.994, 3.309, 4.041, 4.823, 4.917, 5.013, 5.949, &
+   ! Sulfate Coarse Soluble (CS)      
+  0.702, 0.702, 0.702, 0.702, 0.947, 1.025, 1.127, 1.266, 1.490, 1.675, 2.003, 2.857, &
+  0.725, 0.725, 0.725, 0.725, 0.977, 1.057, 1.163, 1.304, 1.529, 1.718, 2.051, 2.914, &
+  0.751, 0.751, 0.751, 0.751, 1.011, 1.093, 1.200, 1.345, 1.576, 1.768, 2.110, 2.973, &
+  0.769, 0.769, 0.769, 0.769, 1.034, 1.120, 1.227, 1.375, 1.613, 1.811, 2.153, 3.032, &
+  0.786, 0.786, 0.786, 0.786, 1.056, 1.144, 1.254, 1.406, 1.646, 1.850, 2.202, 3.088, &
+   !-- Sulfate Accumulation (BC content=0)
+  4.639, 4.639, 4.639, 4.639, 6.244, 6.878, 7.684, 8.805,10.638,12.174,14.880,21.828, &
+  3.966, 3.966, 3.966, 3.966, 5.359, 5.950, 6.707, 7.771, 9.540,11.046,13.742,20.884, &
+  3.234, 3.234, 3.234, 3.234, 4.393, 4.914, 5.587, 6.543, 8.160, 9.556,12.101,19.072, &
+  2.721, 2.721, 2.721, 2.721, 3.712, 4.175, 4.774, 5.634, 7.101, 8.383,10.747,17.381, &
+  2.262, 2.262, 2.262, 2.262, 3.102, 3.505, 4.030, 4.789, 6.097, 7.251, 9.403,15.581, &
+   ! Seasalt Super Coarse Soluble (SS)
+  0.194, 0.237, 0.254, 0.275, 0.299, 0.327, 0.366, 0.432, 0.544, 0.642, 0.824, 1.265, &
+  0.196, 0.240, 0.257, 0.278, 0.303, 0.331, 0.371, 0.437, 0.550, 0.648, 0.831, 1.274, &
+  0.198, 0.243, 0.260, 0.283, 0.306, 0.335, 0.376, 0.442, 0.557, 0.654, 0.839, 1.285, &
+  0.201, 0.246, 0.263, 0.286, 0.308, 0.338, 0.380, 0.445, 0.559, 0.660, 0.846, 1.289, &
+  0.203, 0.249, 0.266, 0.289, 0.312, 0.341, 0.384, 0.449, 0.564, 0.665, 0.852, 1.297, &
+   ! Seasalt Coarse Soluble (CS)      
+  0.576, 0.690, 0.738, 0.789, 0.855, 0.935, 1.046, 1.212, 1.512, 1.785, 2.258, 3.449, &
+  0.595, 0.713, 0.763, 0.814, 0.880, 0.963, 1.079, 1.248, 1.550, 1.826, 2.306, 3.507, &
+  0.617, 0.738, 0.789, 0.842, 0.911, 0.996, 1.113, 1.286, 1.592, 1.871, 2.369, 3.562, &
+  0.632, 0.755, 0.808, 0.862, 0.931, 1.018, 1.140, 1.316, 1.626, 1.909, 2.409, 3.622, &
+  0.645, 0.771, 0.825, 0.880, 0.951, 1.039, 1.164, 1.344, 1.661, 1.948, 2.455, 3.682, &
+   ! Seasalt Accumulation Soluble (AS)
+  3.684, 4.367, 4.711, 5.074, 5.438, 6.046, 6.793, 7.964,10.200,12.246,15.959,24.642, &
+  3.126, 3.717, 4.023, 4.349, 4.673, 5.229, 5.918, 7.018, 9.179,11.208,14.994,24.184, &
+  2.482, 2.973, 3.233, 3.511, 3.788, 4.272, 4.876, 5.858, 7.836, 9.739,13.393,22.658, &
+  2.086, 2.509, 2.735, 2.979, 3.220, 3.649, 4.186, 5.068, 6.874, 8.642,12.099,21.146, &
+  1.737, 2.097, 2.292, 2.503, 2.711, 3.086, 3.556, 4.337, 5.960, 7.571,10.779,19.427, &
+   ! Nitrate Coarse Soluble (CS)      
+  0.726, 0.726, 0.726, 0.796, 0.868, 0.947, 1.041, 1.246, 1.563, 1.872, 2.328, 2.447, &
+  0.753, 0.753, 0.753, 0.825, 0.900, 0.979, 1.075, 1.285, 1.610, 1.922, 2.385, 2.503, &
+  0.780, 0.780, 0.780, 0.854, 0.932, 1.013, 1.113, 1.326, 1.656, 1.979, 2.447, 2.579, &
+  0.797, 0.797, 0.797, 0.874, 0.953, 1.035, 1.138, 1.356, 1.697, 2.020, 2.495, 2.621, &
+  0.811, 0.811, 0.811, 0.890, 0.971, 1.055, 1.160, 1.384, 1.733, 2.062, 2.547, 2.675, &
+   ! Nitrate Accumulation Soluble (AS)
+  4.208, 4.208, 4.208, 4.693, 5.217, 5.778, 6.502, 8.108,10.722,13.327,17.185,18.210, &
+  3.386, 3.386, 3.386, 3.808, 4.268, 4.768, 5.420, 6.897, 9.377,11.923,15.803,16.852, &
+  2.650, 2.650, 2.650, 2.997, 3.380, 3.801, 4.357, 5.638, 7.850,10.189,13.858,14.870, &
+  2.174, 2.174, 2.174, 2.471, 2.802, 3.167, 3.652, 4.784, 6.774, 8.917,12.345,13.302, &
+  1.776, 1.776, 1.776, 2.028, 2.309, 2.622, 3.040, 4.026, 5.787, 7.717,10.858,11.745  /
+
+ DATA alpha_aeri_5wv/ &
+   ! Dust insoluble
+  0.788, 0.818, 0.842, 0.851, 0.853, &
+   ! BC insoluble 
+  5.342, 5.159, 4.849, 4.573, 4.274, &
+   ! POM insoluble
+  5.300, 4.569, 3.768, 3.210, 2.709, &
+   ! Nitrate insoluble
+  0.726, 0.753, 0.780, 0.797, 0.811 /
+!
+ DATA abs_aers_5wv/ &
+   ! absorption BC Accumulation Soluble (AS)
+  2.861, 2.861, 2.861, 2.861, 2.861, 3.089, 3.316, 3.767, 4.167, 4.211, 4.255, 4.647, &
+  2.806, 2.806, 2.806, 2.806, 2.806, 3.010, 3.209, 3.597, 3.935, 3.971, 4.008, 4.333, &
+  2.674, 2.674, 2.674, 2.674, 2.674, 2.847, 3.015, 3.335, 3.608, 3.638, 3.667, 3.924, &
+  2.566, 2.566, 2.566, 2.566, 2.566, 2.723, 2.872, 3.155, 3.393, 3.419, 3.444, 3.667, &
+  2.444, 2.444, 2.444, 2.444, 2.444, 2.585, 2.719, 2.968, 3.176, 3.199, 3.221, 3.413, &
+   ! absorption POM Accumulation Soluble (AS)
+  0.170, 0.170, 0.170, 0.170, 0.170, 0.167, 0.165, 0.162, 0.160, 0.160, 0.159, 0.158, &
+  0.145, 0.145, 0.145, 0.145, 0.145, 0.143, 0.142, 0.139, 0.138, 0.138, 0.138, 0.137, &
+  0.125, 0.125, 0.125, 0.125, 0.125, 0.123, 0.122, 0.120, 0.119, 0.119, 0.119, 0.119, &
+  0.131, 0.131, 0.131, 0.131, 0.131, 0.130, 0.129, 0.127, 0.127, 0.127, 0.127, 0.127, &
+  0.133, 0.133, 0.133, 0.133, 0.133, 0.132, 0.131, 0.131, 0.131, 0.131, 0.131, 0.131, &
+  ! absorption Sulfate Coarse Soluble (CS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   !-- Absorption Sulfate Accumulation (BC content=0)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   ! absorption Seasalt Super Coarse Soluble (SS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   ! absorption Seasalt Coarse Soluble (CS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   ! absorption Seasalt Accumulation Soluble (AS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   ! absorption Nitrate Coarse Soluble (CS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+   ! absorption Nitrate Accumulation Soluble (AS)
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, &
+  0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000  /
+
+ DATA abs_aeri_5wv/ &
+   ! absorption Dust insoluble
+  0.081, 0.048, 0.032, 0.027, 0.019, &
+   ! absorption BC insoluble
+  2.861, 2.806, 2.674, 2.566, 2.444, &
+   ! absorption POM insoluble
+  0.170, 0.145, 0.125, 0.131, 0.133, &
+   ! absorption Nitrate insoluble
+  0.000, 0.000, 0.000, 0.000, 0.000 /
+
+! Added by R. Wang (July 31 2016)
+! properties for BC assuming Maxwell-Garnett rule and internal mixture
+
+   DATA alpha_MG_5wv/ &
+ !--BC content=0.001
+   4.293,  4.293,  4.293,  4.293,  4.320,  4.342,  4.271,  4.320,  4.476,  4.772,  5.310,  7.434, &
+   4.687,  4.687,  4.687,  4.687,  4.693,  4.602,  4.492,  4.413,  4.374,  4.462,  4.729,  6.274, &
+   4.802,  4.802,  4.802,  4.802,  4.776,  4.646,  4.516,  4.371,  4.231,  4.173,  4.217,  5.072, &
+   4.716,  4.716,  4.716,  4.716,  4.668,  4.548,  4.408,  4.249,  4.047,  3.951,  3.850,  4.259, &
+   4.520,  4.520,  4.520,  4.520,  4.461,  4.353,  4.230,  4.069,  3.850,  3.707,  3.524,  3.565, &
+ !--BC content=0.010
+   4.298,  4.298,  4.298,  4.298,  4.343,  4.333,  4.283,  4.325,  4.472,  4.751,  5.298,  7.402, &
+   4.692,  4.692,  4.692,  4.692,  4.695,  4.598,  4.499,  4.410,  4.383,  4.454,  4.739,  6.260, &
+   4.796,  4.796,  4.796,  4.796,  4.768,  4.644,  4.518,  4.376,  4.230,  4.172,  4.225,  5.048, &
+   4.708,  4.708,  4.708,  4.708,  4.659,  4.543,  4.411,  4.256,  4.053,  3.945,  3.855,  4.242, &
+   4.509,  4.509,  4.509,  4.509,  4.456,  4.351,  4.229,  4.072,  3.852,  3.707,  3.531,  3.560, &
+ !--BC content=0.020
+   4.301,  4.301,  4.301,  4.301,  4.353,  4.330,  4.291,  4.326,  4.478,  4.738,  5.288,  7.393, &
+   4.688,  4.688,  4.688,  4.688,  4.695,  4.596,  4.500,  4.412,  4.386,  4.454,  4.737,  6.248, &
+   4.787,  4.787,  4.787,  4.787,  4.761,  4.641,  4.516,  4.378,  4.231,  4.176,  4.226,  5.041, &
+   4.696,  4.696,  4.696,  4.696,  4.651,  4.538,  4.409,  4.256,  4.055,  3.948,  3.858,  4.240, &
+   4.497,  4.497,  4.497,  4.497,  4.448,  4.345,  4.225,  4.072,  3.854,  3.709,  3.535,  3.561, &
+ !--BC content=0.050
+   4.318,  4.318,  4.318,  4.318,  4.377,  4.337,  4.310,  4.334,  4.488,  4.724,  5.267,  7.342, &
+   4.678,  4.678,  4.678,  4.678,  4.693,  4.595,  4.506,  4.421,  4.396,  4.458,  4.734,  6.203, &
+   4.760,  4.760,  4.760,  4.760,  4.742,  4.631,  4.512,  4.381,  4.237,  4.185,  4.229,  5.015, &
+   4.662,  4.662,  4.662,  4.662,  4.629,  4.522,  4.401,  4.254,  4.062,  3.955,  3.867,  4.229, &
+   4.461,  4.461,  4.461,  4.461,  4.424,  4.328,  4.215,  4.068,  3.858,  3.718,  3.545,  3.562, &
+ !--BC content=0.100
+   4.348,  4.348,  4.348,  4.348,  4.404,  4.361,  4.337,  4.358,  4.503,  4.717,  5.240,  7.239, &
+   4.662,  4.662,  4.662,  4.662,  4.685,  4.596,  4.513,  4.437,  4.411,  4.468,  4.729,  6.123, &
+   4.716,  4.716,  4.716,  4.716,  4.713,  4.613,  4.505,  4.384,  4.249,  4.199,  4.235,  4.974, &
+   4.607,  4.607,  4.607,  4.607,  4.593,  4.497,  4.387,  4.252,  4.072,  3.969,  3.882,  4.212, &
+   4.403,  4.403,  4.403,  4.403,  4.385,  4.299,  4.196,  4.061,  3.865,  3.731,  3.564,  3.563, &
+ !--BC content=0.200
+   4.401,  4.401,  4.401,  4.401,  4.447,  4.409,  4.389,  4.405,  4.529,  4.715,  5.183,  7.007, &
+   4.631,  4.631,  4.631,  4.631,  4.666,  4.594,  4.526,  4.463,  4.439,  4.488,  4.714,  5.958, &
+   4.633,  4.633,  4.633,  4.633,  4.654,  4.575,  4.488,  4.387,  4.271,  4.224,  4.250,  4.894, &
+   4.505,  4.505,  4.505,  4.505,  4.520,  4.444,  4.356,  4.243,  4.089,  3.997,  3.912,  4.179, &
+   4.295,  4.295,  4.295,  4.295,  4.307,  4.239,  4.157,  4.045,  3.876,  3.757,  3.602,  3.569  /
+!
+   DATA abs_MG_5wv/ &
+ !--BC content=0.001
+  13.416, 13.416, 13.416, 13.416, 12.041, 11.928, 11.793, 11.680, 11.488, 11.367, 11.200, 10.968,&
+  10.085, 10.085, 10.085, 10.085,  9.116,  9.061,  8.977,  8.901,  8.778, 8.712,  8.617,  8.474, &
+   7.491,  7.491,  7.491,  7.491,  6.836,  6.808,  6.764,  6.719,  6.659, 6.613,  6.568,  6.508, &
+   6.269,  6.269,  6.269,  6.269,  5.774,  5.761,  5.734,  5.706,  5.665, 5.637,  5.615,  5.579, &
+   5.300,  5.300,  5.300,  5.300,  4.919,  4.913,  4.899,  4.882,  4.863, 4.847,  4.831,  4.825, &
+ !--BC content=0.010
+  12.829, 12.829, 12.829, 12.829, 11.692, 11.618, 11.523, 11.419, 11.278, 11.192, 11.055, 10.850,&
+   9.766,  9.766,  9.766,  9.766,  8.932,  8.890,  8.828,  8.762,  8.671, 8.617,  8.528,  8.411, &
+   7.316,  7.316,  7.316,  7.316,  6.739,  6.716,  6.684,  6.643,  6.597, 6.561,  6.517,  6.465, &
+   6.154,  6.154,  6.154,  6.154,  5.708,  5.696,  5.676,  5.651,  5.624, 5.602,  5.576,  5.543, &
+   5.216,  5.216,  5.216,  5.216,  4.874,  4.870,  4.860,  4.848,  4.835, 4.823,  4.810,  4.800, &
+ !--BC content=0.020
+  12.290, 12.290, 12.290, 12.290, 11.358, 11.315, 11.248, 11.175, 11.073, 11.008, 10.902, 10.743,&
+   9.455,  9.455,  9.455,  9.455,  8.743,  8.716,  8.671,  8.622,  8.556, 8.513,  8.442,  8.349, &
+   7.142,  7.142,  7.142,  7.142,  6.635,  6.621,  6.596,  6.567,  6.532, 6.503,  6.469,  6.428, &
+   6.033,  6.033,  6.033,  6.033,  5.634,  5.629,  5.615,  5.598,  5.578, 5.561,  5.541,  5.517, &
+   5.130,  5.130,  5.130,  5.130,  4.821,  4.821,  4.816,  4.809,  4.801, 4.794,  4.784,  4.781, &
+ !--BC content=0.050
+  10.989, 10.989, 10.989, 10.989, 10.504, 10.523, 10.528, 10.528, 10.522, 10.512, 10.485, 10.445,&
+   8.671,  8.671,  8.671,  8.671,  8.239,  8.249,  8.248,  8.242,  8.233, 8.221,  8.199,  8.176, &
+   6.688,  6.688,  6.688,  6.688,  6.346,  6.354,  6.353,  6.350,  6.346, 6.339,  6.328,  6.322, &
+   5.707,  5.707,  5.707,  5.707,  5.427,  5.437,  5.440,  5.441,  5.444, 5.442,  5.438,  5.444, &
+   4.894,  4.894,  4.894,  4.894,  4.671,  4.682,  4.688,  4.694,  4.702, 4.705,  4.709,  4.726, &
+ !--BC content=0.100
+   9.397,  9.397,  9.397,  9.397,  9.357,  9.443,  9.525,  9.615,  9.725, 9.788,  9.866,  9.991, &
+   7.654,  7.654,  7.654,  7.654,  7.527,  7.581,  7.629,  7.682,  7.746, 7.781,  7.825,  7.901, &
+   6.070,  6.070,  6.070,  6.070,  5.922,  5.956,  5.986,  6.018,  6.057, 6.079,  6.105,  6.156, &
+   5.252,  5.252,  5.252,  5.252,  5.117,  5.146,  5.171,  5.198,  5.231, 5.250,  5.274,  5.322, &
+   4.557,  4.557,  4.557,  4.557,  4.441,  4.466,  4.489,  4.513,  4.544, 4.562,  4.586,  4.634, &
+ !--BC content=0.200
+   7.300,  7.300,  7.300,  7.300,  7.649,  7.799,  7.960,  8.149,  8.397, 8.559,  8.779,  9.149, &
+   6.225,  6.225,  6.225,  6.225,  6.403,  6.504,  6.610,  6.733,  6.893, 6.996,  7.136,  7.372, &
+   5.145,  5.145,  5.145,  5.145,  5.216,  5.282,  5.350,  5.429,  5.530, 5.595,  5.682,  5.833, &
+   4.550,  4.550,  4.550,  4.550,  4.587,  4.640,  4.694,  4.756,  4.836, 4.887,  4.957,  5.079, &
+   4.023,  4.023,  4.023,  4.023,  4.041,  4.084,  4.128,  4.178,  4.244, 4.286,  4.344,  4.447  /
+  ! 
+  ! Initialisations
+  ai(:) = 0.
+  abs550aer(:)=0.0
+  drytausum(:,:) = 0.
+  tausum(:,:,:) = 0.
+  tau(:,:,:,:)=0.
+
+  DO k=1, klev
+    DO i=1, klon
+      zrho=pplay(i,k)/t_seri(i,k)/RD                  ! kg/m3
+      zdh(i,k)=pdel(i,k)/(RG*zrho)                    ! m
+    ENDDO
+  ENDDO
+
+  IF (flag_aerosol .EQ. 1) THEN 
+     nb_aer = 2
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_ASSO4M_phy
+     aerosol_name(2) = id_CSSO4M_phy
+  ELSEIF (flag_aerosol .EQ. 2) THEN
+     nb_aer = 2
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_ASBCM_phy
+     aerosol_name(2) = id_AIBCM_phy
+  ELSEIF (flag_aerosol .EQ. 3) THEN 
+     nb_aer = 2
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_ASPOMM_phy
+     aerosol_name(2) = id_AIPOMM_phy
+  ELSEIF (flag_aerosol .EQ. 4) THEN 
+     nb_aer = 3
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_CSSSM_phy
+     aerosol_name(2) = id_SSSSM_phy
+     aerosol_name(3) = id_ASSSM_phy
+  ELSEIF (flag_aerosol .EQ. 5) THEN 
+     nb_aer = 1
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_CIDUSTM_phy
+  ELSEIF (flag_aerosol .EQ. 6 .OR. flag_aerosol .EQ. 7 ) THEN 
+     nb_aer = 13
+     ALLOCATE (aerosol_name(nb_aer)) 
+     aerosol_name(1) = id_ASSO4M_phy      
+     aerosol_name(2) = id_ASBCM_phy
+     aerosol_name(3) = id_AIBCM_phy
+     aerosol_name(4) = id_ASPOMM_phy
+     aerosol_name(5) = id_AIPOMM_phy
+     aerosol_name(6) = id_CSSSM_phy
+     aerosol_name(7) = id_SSSSM_phy
+     aerosol_name(8) = id_ASSSM_phy
+     aerosol_name(9) = id_CIDUSTM_phy
+     aerosol_name(10)= id_CSSO4M_phy
+     aerosol_name(11)= id_CSNO3M_phy
+     aerosol_name(12)= id_ASNO3M_phy
+     aerosol_name(13)= id_CINO3M_phy
+  ENDIF
+
+  ! 
+  ! Loop over modes, use of precalculated nmd and corresponding sigma
+  !    loop over wavelengths
+  !    for each mass species in mode
+  !      interpolate from Sext to retrieve Sext_at_gridpoint_per_species
+  !      compute optical_thickness_at_gridpoint_per_species
+  !
+  ! Calculations that need to be done since we are not in the subroutines INCA
+  !      
+
+  DO n=1,nbre_RH-1
+    fact_RH(n)=1./(RH_tab(n+1)-RH_tab(n))
+  ENDDO
+   
+  DO k=1, klev
+    DO i=1, klon
+      rh(i,k)=MIN(RHcl(i,k)*100.,RH_MAX)
+      RH_num(i,k) = INT( rh(i,k)/10. + 1.)
+      IF (rh(i,k).GT.85.) RH_num(i,k)=10
+      IF (rh(i,k).GT.90.) RH_num(i,k)=11
+      delta(i,k)=(rh(i,k)-RH_tab(RH_num(i,k)))*fact_RH(RH_num(i,k))
+    ENDDO
+  ENDDO
+
+  DO m=1,nb_aer   ! tau is only computed for each mass    
+    fac=1.0
+    IF (aerosol_name(m).EQ.id_ASBCM_phy) THEN
+        soluble=.TRUE.
+        spsol=1
+    ELSEIF (aerosol_name(m).EQ.id_ASPOMM_phy) THEN 
+        soluble=.TRUE.
+        spsol=2 
+    ELSEIF (aerosol_name(m).EQ.id_CSSO4M_phy) THEN
+        soluble=.TRUE.
+        spsol=3
+        !fac=1.375    ! (NH4)2-SO4/SO4 132/96 mass conversion factor for AOD
+        fac=0.0      !--6 March 2017 - OB as Didier H said CSSO4 should not be used
+    ELSEIF (aerosol_name(m).EQ.id_ASSO4M_phy) THEN
+        soluble=.TRUE.
+        spsol=4
+        fac=1.375    ! (NH4)2-SO4/SO4 132/96 mass conversion factor for AOD
+    ELSEIF (aerosol_name(m).EQ.id_SSSSM_phy) THEN 
+        soluble=.TRUE.
+        spsol=5
+    ELSEIF (aerosol_name(m).EQ.id_CSSSM_phy) THEN 
+        soluble=.TRUE.
+        spsol=6
+    ELSEIF (aerosol_name(m).EQ.id_ASSSM_phy) THEN
+        soluble=.TRUE.
+        spsol=7
+    ELSEIF (aerosol_name(m).EQ.id_CSNO3M_phy) THEN
+        soluble=.TRUE.
+        spsol=8
+        fac=1.2903    ! NO3NH4/NO3 / mass conversion factor for AOD
+    ELSEIF (aerosol_name(m).EQ.id_ASNO3M_phy) THEN
+        soluble=.TRUE.
+        spsol=9
+        fac=1.2903    ! NO3NH4/NO3 / mass conversion factor for AOD
+    ELSEIF (aerosol_name(m).EQ.id_CIDUSTM_phy) THEN 
+        soluble=.FALSE.
+        spinsol=1
+    ELSEIF  (aerosol_name(m).EQ.id_AIBCM_phy) THEN 
+        soluble=.FALSE.
+        spinsol=2
+    ELSEIF (aerosol_name(m).EQ.id_AIPOMM_phy) THEN 
+        soluble=.FALSE.
+        spinsol=3
+    ELSEIF (aerosol_name(m).EQ.id_CINO3M_phy) THEN 
+        soluble=.FALSE.
+        spinsol=4
+        fac=1.2903    ! NO3NH4/NO3 / mass conversion factor for AOD
+    ELSE 
+        CYCLE
+    ENDIF
+
+    aerindex=aerosol_name(m)
+
+    DO la=1,las
+
+    !--only 443, 550, and 865 nm are used
+    !--to save time 670 and AI are not computed for CMIP6
+    !IF (la.NE.la443.AND.la.NE.la550.AND.la.NE.la670.AND.la.NE.la865) CYCLE
+    IF (la.NE.la443.AND.la.NE.la550.AND.la.NE.la865) CYCLE
+
+      IF (soluble) THEN            ! For soluble aerosol
+
+        !--treat special case of soluble BC internal mixture
+        IF (spsol.EQ.1 .AND. flag_bc_internal_mixture) THEN
+
+          DO k=1, klev
+            DO i=1, klon
+
+             BC_massfra = m_allaer(i,k,id_ASBCM_phy)/(m_allaer(i,k,id_ASBCM_phy)+m_allaer(i,k,id_ASSO4M_phy))
+
+             IF (BC_massfra.GE.0.20) THEN
+               classbc = 6
+             ELSEIF (BC_massfra.GE.0.10) THEN
+               classbc = 5
+             ELSEIF  (BC_massfra.GE.0.05) THEN
+               classbc = 4
+             ELSEIF  (BC_massfra.GE.0.02) THEN
+               classbc = 3
+             ELSEIF  (BC_massfra.GE.0.01) THEN
+               classbc = 2
+             ELSE
+               classbc = 1
+             ENDIF
+
+             tau_ae5wv_int = alpha_MG_5wv(RH_num(i,k),la,classbc)+DELTA(i,k)* &
+                            (alpha_MG_5wv(RH_num(i,k)+1,la,classbc) - & 
+                             alpha_MG_5wv(RH_num(i,k),la,classbc))
+             tau(i,k,la,aerindex) = m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*tau_ae5wv_int*fac
+             tausum(i,la,aerindex)=tausum(i,la,aerindex)+tau(i,k,la,aerindex)
+
+             IF (la.EQ.la550.AND.dryaod_diag) THEN 
+                tau_ae5wv_int = alpha_MG_5wv(1,la,classbc)
+                drytausum(i,aerindex)=drytausum(i,aerindex)+m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*tau_ae5wv_int*fac
+             ENDIF
+
+             IF (la.EQ.la550) THEN 
+                abs_ae5wv_int = abs_MG_5wv(RH_num(i,k),la,classbc)+DELTA(i,k)* &
+                               (abs_MG_5wv(RH_num(i,k)+1,la,classbc) - & 
+                                abs_MG_5wv(RH_num(i,k),la,classbc))
+                abs550aer(i)=abs550aer(i)+m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*abs_ae5wv_int*fac
+             ENDIF 
+
+            ENDDO
+          ENDDO
+
+        !--other cases of soluble aerosols
+        ELSE
+
+          DO k=1, klev
+            DO i=1, klon
+              tau_ae5wv_int = alpha_aers_5wv(RH_num(i,k),la,spsol)+DELTA(i,k)* &
+                             (alpha_aers_5wv(RH_num(i,k)+1,la,spsol) - & 
+                              alpha_aers_5wv(RH_num(i,k),la,spsol))
+              tau(i,k,la,aerindex) = m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*tau_ae5wv_int*fac
+              tausum(i,la,aerindex)=tausum(i,la,aerindex)+tau(i,k,la,aerindex)
+
+              IF (la.EQ.la550.AND.dryaod_diag) THEN 
+                 tau_ae5wv_int = alpha_aers_5wv(1,la,spsol)
+                 drytausum(i,aerindex)=drytausum(i,aerindex)+m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*tau_ae5wv_int*fac
+              ENDIF
+
+              IF (la.EQ.la550) THEN 
+                 abs_ae5wv_int = abs_aers_5wv(RH_num(i,k),la,spsol)+DELTA(i,k)* &
+                                (abs_aers_5wv(RH_num(i,k)+1,la,spsol) - & 
+                                 abs_aers_5wv(RH_num(i,k),la,spsol))
+                 abs550aer(i)=abs550aer(i)+m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*abs_ae5wv_int*fac
+              ENDIF 
+
+            ENDDO
+          ENDDO
+
+        ENDIF
+ 
+      ! cases of insoluble aerosol
+      ELSE                         
+
+        DO k=1, klev
+          DO i=1, klon
+
+            tau_ae5wv_int = alpha_aeri_5wv(la,spinsol)
+            tau(i,k,la,aerindex) = m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*tau_ae5wv_int*fac
+            tausum(i,la,aerindex)= tausum(i,la,aerindex)+tau(i,k,la,aerindex)
+
+            IF (la.EQ.la550.AND.dryaod_diag) THEN 
+              drytausum(i,aerindex)= drytausum(i,aerindex)+tau(i,k,la,aerindex)
+            ENDIF
+
+            IF (la.EQ.la550) THEN 
+               abs_ae5wv_int = abs_aeri_5wv(la,spinsol)
+               abs550aer(i)=abs550aer(i)+m_allaer(i,k,aerindex)/1.e6*zdh(i,k)*abs_ae5wv_int*fac
+            ENDIF 
+
+          ENDDO
+        ENDDO
+
+      ENDIF
+
+    ENDDO   ! Boucle sur les longueurs d'onde
+  ENDDO     ! Boucle sur les masses de traceurs
+
+!--AOD calculations for diagnostics
+  od443aer(:)=SUM(tausum(:,la443,:),dim=2)
+  od550aer(:)=SUM(tausum(:,la550,:),dim=2)
+  !od670aer(:)=SUM(tausum(:,la670,:),dim=2)
+  od865aer(:)=SUM(tausum(:,la865,:),dim=2)
+
+!--dry AOD calculation for diagnostics la=la550
+  dryod550aer(:)=SUM(drytausum(:,:),dim=2)
+
+!--extinction coefficient for diagnostic
+  ec550aer(:,:)=SUM(tau(:,:,la550,:),dim=3)/zdh(:,:)
+
+!--aerosol index
+  ai(:)=0.0
+  !ai(:)=-LOG(MAX(od670aer(:),1.e-8)/MAX(od865aer(:),1.e-8))/LOG(670./865.)
+
+  od550lt1aer(:)=tausum(:,la550,id_ASSO4M_phy)+tausum(:,la550,id_ASBCM_phy) +tausum(:,la550,id_AIBCM_phy)+ &
+                 tausum(:,la550,id_ASPOMM_phy)+tausum(:,la550,id_AIPOMM_phy)+tausum(:,la550,id_ASSSM_phy)+ &
+                 0.03*tausum(:,la550,id_CSSSM_phy)+0.4*tausum(:,la550,id_CIDUSTM_phy)
+
+  DEALLOCATE(aerosol_name) 
+  
+END SUBROUTINE AEROPT_5WV_RRTM

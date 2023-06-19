@@ -1,0 +1,118 @@
+SOILTYPE_CLASSIF = zobler 
+SOILALB_FILE     = soils_param.nc
+SOILCLASS_FILE   = soils_param.nc
+
+# DO_RSOIL : Reduce soil evaporation with a soil resistance
+DO_RSOIL = n
+
+# To make AVAN and NVAN constant with depth
+CWRR_AKS_A0 = 0.
+CWRR_AKS_POWER = 0.
+CWRR_NKS_A0 = 0.
+CWRR_NKS_POWER = 0.
+
+#**************************************************************************
+
+# STRESS_GS, STRESS_GM, STRESS_VCMAX : Stress on GS, GM and VCMAX (15 values, without space to have short line readable)
+STRESS_GS=1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.
+STRESS_GM=1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.
+STRESS_VCMAX=1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.
+
+# Optimized parameters for albedo
+ALB_LEAF_NIR = 0.,0.23,0.18,0.18,0.20,0.24,0.15,0.26,0.20,0.24,0.27,0.28,0.26
+ALB_LEAF_VIS = 0.,0.04,0.04,0.04,0.04,0.03,0.03,0.03,0.03,0.06,0.06,0.06,0.06
+SNOWA_AGED_NIR = 0.50,0,0,0.10,0.37,0.08,0.16,0.17,0.27,0.44,0.44,0.44,0.44
+SNOWA_DEC_NIR = 0.13,0,0,0.10,0.10,0.16,0.04,0.07,0.08,0.12,0.12,0.12,0.12
+SNOWA_AGED_VIS = 0.74,0,0,0.08,0.24,0.07,0.18,0.18,0.33,0.57,0.57,0.57,0.57
+SNOWA_DEC_VIS = 0.21,0,0,0.14,0.08,0.17,0.05,0.06,0.09,0.15,0.15,0.15,0.15
+
+# Optimized parameters for photosynthetic capacity 
+VCMAX25__02 = 45.0
+VCMAX25__03 = 45.0
+VCMAX25__04 = 35.0
+VCMAX25__05 = 40.0
+VCMAX25__06 = 50.0
+VCMAX25__07 = 45.0
+VCMAX25__08 = 35.0
+VCMAX25__09 = 35.0
+VCMAX25__10 = 50.0
+VCMAX25__11 = 50.0
+VCMAX25__12 = 60.0
+VCMAX25__13 = 60.0
+
+# Optimized parameters for LAI
+LAI_MAX__02 = 7.0
+LAI_MAX__03 = 5.0
+LAI_MAX__04 = 5.0
+LAI_MAX__05 = 4.0
+LAI_MAX__06 = 5.0
+LAI_MAX__07 = 3.5
+LAI_MAX__08 = 4.0
+LAI_MAX__09 = 3.0
+LAI_MAX__10 = 2.5
+LAI_MAX__11 = 2.0
+LAI_MAX__12 = 5.0
+LAI_MAX__13 = 5.0
+
+# Activate downregulation for CO2
+DOWNREGULATION_CO2=y
+DOWNREGULATION_CO2_BASELEVEL=380.
+
+# Activate harvest of wood
+DO_WOOD_HARVEST=n
+
+# Growth respiration
+FRAC_GROWTHRESP__02 = 0.35
+FRAC_GROWTHRESP__03 = 0.35
+FRAC_GROWTHRESP__04 = 0.28
+FRAC_GROWTHRESP__05 = 0.28
+FRAC_GROWTHRESP__06 = 0.28
+FRAC_GROWTHRESP__07 = 0.35
+FRAC_GROWTHRESP__08 = 0.35
+FRAC_GROWTHRESP__09 = 0.35
+FRAC_GROWTHRESP__10 = 0.28
+FRAC_GROWTHRESP__11 = 0.28
+FRAC_GROWTHRESP__12 = 0.28
+FRAC_GROWTHRESP__13 = 0.28
+
+# Maintenance respiration slope C
+MAINT_RESP_SLOPE_C__02 = 0.12
+MAINT_RESP_SLOPE_C__03 = 0.12
+MAINT_RESP_SLOPE_C__04 = 0.16
+MAINT_RESP_SLOPE_C__05 = 0.16
+MAINT_RESP_SLOPE_C__06 = 0.16
+MAINT_RESP_SLOPE_C__07 = 0.25
+MAINT_RESP_SLOPE_C__08 = 0.25
+MAINT_RESP_SLOPE_C__09 = 0.25
+MAINT_RESP_SLOPE_C__10 = 0.16
+MAINT_RESP_SLOPE_C__11 = 0.12
+MAINT_RESP_SLOPE_C__12 = 0.16
+MAINT_RESP_SLOPE_C__13 = 0.12
+
+# Soil turnover
+CARBON_TAU_ISLOW = 7
+CARBON_TAU_IPASSIVE = 300
+
+# Parameters related to surface and thermal physical properties
+#************************************************************************
+# Read bare soil albedo from file with background MODIS data
+ALB_BG_MODIS = y
+ALB_BG_FILE  = alb_bg.nc
+
+# ROUGH_DYN : Account for a dynamic roughness height (activation of Su et al. parametrization)
+ROUGH_DYN=y
+
+# OK_FREEZE :  Activate the complet soil freezing scheme
+OK_FREEZE=y
+
+# DEPTH_MAX_T (m) :  Maximum depth of the soil thermodynamics
+DEPTH_MAX_T=90
+
+# OK_EXPLICITSNOW :  Activate explict snow scheme
+OK_EXPLICITSNOW=y
+ 
+# READ_REFTEMP :  Initialize soil temperature using climatological temperature
+READ_REFTEMP=y
+
+# Deactivate fire
+FIRE_DISABLE=y

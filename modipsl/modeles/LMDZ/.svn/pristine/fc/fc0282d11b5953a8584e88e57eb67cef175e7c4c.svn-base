@@ -1,0 +1,11 @@
+NETCDF_LIBDIR="-L/usr/lib -lnetcdff  -lnetcdf"
+NETCDF_INCDIR=-I/usr/include
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../prism/IA64/build/lib/psmile.$couple
+OASIS_LIBDIR=$LMDGCM/../../prism/IA64/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/lib
+

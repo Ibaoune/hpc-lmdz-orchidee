@@ -1,0 +1,149 @@
+<!-- Context LMDZ -->
+<context id="LMDZ">
+<!--  <calendar type="D360" start_date="1980-01-01 00:00:00" /> -->
+
+  <!-- Define available variables -->
+  <field_definition src="./field_def_lmdz.xml"/>
+
+  <!-- Define output files
+              Each file contains the list of variables and their output levels -->
+
+  <file_definition src="./file_def_histday_lmdz.xml"/>
+  <file_definition src="./file_def_histhf_lmdz.xml"/>
+  <file_definition src="./file_def_histins_lmdz.xml"/>
+  <file_definition src="./file_def_histLES_lmdz.xml"/>
+  <file_definition src="./file_def_histmth_lmdz.xml"/>
+  <file_definition src="./file_def_histstn_lmdz.xml"/>
+  <file_definition src="./file_def_histmthNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histdayNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histhfNMC_lmdz.xml"/>
+  <file_definition src="./file_def_histstrataer_lmdz.xml"/>
+
+
+
+
+
+  <!-- Define domains and groups of domains -->
+  <domain_definition>
+
+    <domain id="dom_glo"  data_dim="1" />
+
+    <domain id="greordered"  domain_ref="dom_glo">
+      <reorder_domain invert_lat="true" shift_lon_fraction="0.5" min_lon="0" max_lon="360" />
+    </domain> 
+   
+    <domain id="dom_regular" ni_glo="144" nj_glo="142" type="rectilinear"  >
+      <generate_rectilinear_domain/>
+      <interpolate_domain order="1"/>
+    </domain>
+   
+    <domain id="dom_out" domain_ref="dom_glo"/>
+    
+  </domain_definition>
+  
+  <!-- Need to define a grid? Do it here -->
+<!--  <grid_definition>
+    <grid_group id="vertical" axis_ref="presnivs" />
+  </grid_> -->
+
+<!-- Define Scalar grid for GHG, orbital parameters and solar constants -->
+  <grid_definition>
+    <grid id="grid_scalar" >
+      <scalar/>
+    </grid>
+  </grid_definition>
+ 
+  <!-- Define groups of vertical axes -->
+  <axis_definition>
+    <axis id="time_month" n_glo="12" value="(0,11) [1 2 3 4 5 6 7 8 9 10 11 12]"/>
+    <axis id="time_year" unit="day" />
+    <axis id="presnivs" standard_name="Vertical levels" unit="Pa"/>
+    <axis id="Ahyb" standard_name="Ahyb comp of Hyb Cord" unit="Pa"/>
+    <axis id="Bhyb" standard_name="Bhyb comp of Hyb Cord" unit=""/>
+    <axis id="Ahyb_inter" standard_name="A comp of Hyb Cord at interface" unit="Pa"/>
+    <axis id="Bhyb_inter" standard_name="B comp of Hyb Cord at interface" unit=""/>
+    <axis id="Alt" standard_name="Height approx for scale heigh of 8km at levels" unit="km"/>
+    <axis id="plev" standard_name="model_level_number" unit="Pa"/>
+    <axis id="klev"  prec="8" long_name="number of layers" standard_name="number of layers" unit="1" />
+    <axis id="klevp1"  prec="8" long_name="number of layer interfaces" standard_name="number of layer interfaces" unit="1" />
+    <axis id="bnds" standard_name="bounds" unit="1" />
+    <axis id="spectband" standard_name="Sensor Band Central Radiation Wavenumber" unit="m-1"/>
+    <axis id="axis_lat" standard_name="Latitude axis">
+      <reduce_domain operation="average" direction="iDir" />
+    </axis>
+  </axis_definition>
+
+<!-- Cosp axis definitions-->
+
+  <grid_definition>
+
+    <grid id="klev_bnds"> <axis axis_ref="klev" /> <axis axis_ref="bnds" /> </grid>
+    <grid id="klevp1_bnds"> <axis axis_ref="klevp1" /> <axis axis_ref="bnds" /> </grid>
+
+
+     <grid id="grid_glo">
+        <domain domain_ref="dom_glo" />
+     </grid>
+
+     <grid id="grid_out">
+        <domain domain_ref="dom_out" />
+     </grid>
+
+
+     <grid id="grid_glo_presnivs">
+        <domain domain_ref="dom_glo" />
+        <axis axis_ref="presnivs" />
+     </grid>
+
+     <grid id="grid_out_presnivs">
+        <domain domain_ref="dom_out" />
+        <axis axis_ref="presnivs" />
+     </grid>
+
+
+     <grid id="grid_glo_plev">
+        <domain domain_ref="dom_glo" />
+        <axis axis_ref="plev" />
+     </grid>
+
+     <grid id="grid_out_plev">
+        <domain domain_ref="dom_out" />
+        <axis axis_ref="plev" />
+     </grid>
+
+
+     <grid id="grid_glo_spectband">
+        <domain domain_ref="dom_glo" />
+        <axis axis_ref="spectband" />
+     </grid>
+
+     <grid id="grid_out_spectband">
+        <domain domain_ref="dom_out" />
+        <axis axis_ref="spectband" />
+     </grid>
+     
+
+ <!-- Grid definitions to allow summing of a 3D variable -->    
+      <grid id="grid_3D" >
+         <domain domain_ref="dom_glo" />
+         <axis axis_ref="lev" />
+       </grid>
+
+       <grid id="grid_sum_axis">
+         <domain domain_ref="dom_glo" />
+         <scalar>
+            <reduce_axis operation="sum" />
+         </scalar>
+       </grid>
+
+       <grid id="grid_sum">
+         <scalar >
+           <reduce_domain operation="sum" local="true" />
+           <reduce_scalar operation="sum" />
+         </scalar>
+         <scalar/>
+       </grid>
+
+  </grid_definition>
+
+</context>

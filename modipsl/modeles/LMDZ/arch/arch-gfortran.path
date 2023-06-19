@@ -1,0 +1,6 @@
+NETCDF_LIBDIR="-L/usr/local/lib -lnetcdf"
+NETCDF_INCDIR=-I/usr/local/include
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib

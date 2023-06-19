@@ -1,0 +1,12 @@
+%INLINE -pi auto exp=swtt1_lmdar4,swtt_lmdar4,swde_lmdar4,lwttm_lmdar4,lwtt_lmdar4,swr_lmdar4,swclr_lmdar4 noexp=SW_LMDAR4,SWU_LMDAR4,SW1S_LMDAR4,SW2S_LMDAR4,LW_LMDAR4,LWU_LMDAR4,LWBV_LMDAR4,LWC_LMDAR4,LWB_LMDAR4,LWV_LMDAR4,LWVB_LMDAR4,LWVD_LMDAR4,LWVN_LMDAR4 line=2000
+
+bld::tool::fflags::phys::readaerosol         %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt -pi auto
+bld::tool::fflags::phys::aeropt_2bands       %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR
+bld::tool::fflags::phys::radiation_AR4       %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt -Wf,-O,extendreorder %INLINE
+bld::tool::fflags::phys::radiation_AR4_param %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt %INLINE
+bld::tool::fflags::phys::fisrtilp            %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt
+bld::tool::fflags::phys::cv30_routines       %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -Wf,-O,extendreorder
+bld::tool::fflags::phys::cvltr               %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt
+bld::tool::fflags::phys::clouds_gno          %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt
+bld::tool::fflags::dyn::vlsplt_p             %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt
+bld::tool::fflags::dyn::groupeun_p           %BASE_FFLAGS %PARA_FFLAGS %PROD_FFLAGS  %INCDIR -C hopt

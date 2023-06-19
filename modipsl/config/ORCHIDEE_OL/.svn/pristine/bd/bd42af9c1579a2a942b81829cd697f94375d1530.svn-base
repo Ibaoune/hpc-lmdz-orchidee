@@ -1,0 +1,34 @@
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+# Use XIOS as output library instead of IOIPSL
+XIOS=y
+
+[InitialStateFiles]
+List=()
+
+[BoundaryFiles]
+List=  (${R_IN}/SRF/METEO/WFDEI_GPCC/v2/leap/WFDEI_GPCC_${year_m1}.nc, forcing_yearm1.nc),\
+       (${R_IN}/SRF/METEO/WFDEI_GPCC/v2/leap/WFDEI_GPCC_${year}.nc, forcing_year.nc),\
+       (${R_IN}/SRF/METEO/WFDEI_GPCC/v2/leap/WFDEI_GPCC_${year_p1}.nc, forcing_yearp1.nc)
+ListNonDel= ()
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/run.def, .) ,\
+        (${SUBMIT_DIR}/PARAM/iodef.xml, .)   ,\
+        (${MODIPSL}/modeles/ORCHIDEE/src_xml/context_orchidee.xml, .)   ,\
+        (${MODIPSL}/modeles/ORCHIDEE/src_xml/context_input_orchidee.xml, .)  ,\
+        (${MODIPSL}/modeles/ORCHIDEE/src_xml/file_def_orchidee.xml, .)  ,\
+        (${MODIPSL}/modeles/ORCHIDEE/src_xml/field_def_orchidee.xml, .)
+
+
+[RestartFiles]
+List=	(NONE)
+
+[OutputText]
+List=   (run.def, used_run.def, out_orchidee_ol, iodef.xml, context_orchidee.xml, field_def_orchidee.xml, file_def_*orchidee.xml, xios_client_*)
+
+[OutputFiles]
+List= ()

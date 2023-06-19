@@ -1,0 +1,50 @@
+This configuration serves to launch a set of simulations
+========================================================
+
+ Presentation of the ENSEMBLE directory 
+ **************************************
+ (once having executed the "ins_job" command - see the documentation for installing the scripts)
+ The configuration files
+ a) Like for any configuration making used of libIGCM,
+    it contains the following files 
+    - config.card : contains the information on JobName, TagName, Dates et Restart.
+    - a Job_${JobName} (by default Job_Sp) 
+    - a file run.card.init that will serve at following how are progressing the simulations
+ b) two configuration cards, ensemble.card (for ENSEMBLE simulations) and fluxnet.card (for simulations over fluxnet sites): it contains information on the list of simulations/sites, their type and the parameters associated to the simulated that will be launched
+ c) the two parameter files (under PARAM/) : orchidee.default and run.def
+
+ The following files should not be modified :
+ d) the master job Job_ENSEMBLE
+ e) the master job Job_Post_FLUXNET for the post-treatement for the fluxnet.card
+ f) the atlas scripts atlas_FLUXNET_V1.cfg and atlas_FLUXNET_taylor.cfg
+ g) two ferret scripts taylor_arrow_fluxnet_final_1.jnl and taylor_arrow_fluxnet_final_2.jnl used for post-treatment for the fluxnet.card 
+ h) the librairies ensemble.ksh and post_FLUXNET
+
+
+ The successive stages to perform :
+ **********************************
+ 1) For doing a simulation, you should first modify the config.card
+    - JobName=Sp
+    - WriteFrequency="1800s" (if needed)
+    - Restart=n (if needed)
+    - TimeSeriesFrequency= NONE (if needed)
+
+ 2) Then, create the appropriate JobName with the following command :
+  myprompt> ../../../libIGCM/ins_job
+ 
+ 3) Call ins_job as well under /config/ORCHIDEE_OL/SPINUP and the needed subdirectories (for instance /config/ORCHIDEE_OL/SPINUP/SUBJOB/OOL_SEC_STO)
+
+ 4) If running on Irene, due to a problem with the current libIGCM version (libIGCM/trunk rev 1424), comment the following lines in libIGCM/libIGCM_sys/libIGCM_sys_irene.ksh
+#  else
+#    IGCM_debug_Exit "This compiler version is not yet supported : ${compilerVersion}"
+In addition, in case working on another project than gen6328, modify the line "export BRIDGE_MSUB_PROJECT=gen6328" in Job_ENSEMBLE file.
+
+ 5) Then, for executing the job and launching all the sub jobs, simply type, for an ENSEMBLE simulation based on ensemble.card
+  myprompt> ./Job_ENSEMBLE ensemble > out.Job_ENSEMBLE 
+
+    Or, for a FLUXNET simulation based on fluxnet.card
+  myprompt> ./Job_ENSEMBLE fluxnet > out.Job_ENSEMBLE
+  
+ 6) In case of FLUXNET simulations, once they are finished, you can launch post-treatments for creating plots by simply typing:
+  myprompt> ./Job_Post_FLUXNET fluxnet > out_Post 2>&1
+

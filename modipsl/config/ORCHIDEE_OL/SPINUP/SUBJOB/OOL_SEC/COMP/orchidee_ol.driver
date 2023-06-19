@@ -1,0 +1,106 @@
+#!/bin/ksh
+
+#D- Driver du script pour ORCHIDEE_OL (off-line)
+
+function ORCHIDEE_def
+{
+    IGCM_debug_PushStack "ORCHIDEE_def"
+    
+    typeset ORCHIDEE_def_KEY ORCHIDEE_default_KEY
+    
+    ORCHIDEE_def_KEY=$( grep -e "^${1}\ *=" run.def | gawk -- 'BEGIN {FS="="} {print $2}')
+    ORCHIDEE_default_KEY=$( grep -e "^${1}\ *=" ${SUBMIT_DIR}/PARAM/orchidee.default | gawk -- 'BEGIN {FS="="} {print $2}')
+
+    if [ X"${ORCHIDEE_def_KEY}" != X ] ; then
+	IGCM_debug_Print 2 "ORCHIDEE : ${1} has already been set in def file."
+	IGCM_debug_Print 2 " default value : ${ORCHIDEE_default_KEY}"
+	IGCM_debug_Print 2 " script value : ${2}"
+	IGCM_debug_Print 2 " USER value : ${ORCHIDEE_def_KEY}"
+	IGCM_debug_Print 2 "               We will not set in again !"
+    else
+	echo "${1}= ${2}" >> run.def
+	echo "" >> run.def
+	echo "ORCHIDEE_def : ${1} ${2}"
+    fi
+    
+    IGCM_debug_PopStack "ORCHIDEE_def"
+    return $RET
+}
+
+#-----------------------------------------------------------------
+function OOL_Initialize
+{
+    IGCM_debug_PushStack "OOL_Initialize"
+
+    NUM_PROC=1
+#D- Number of processors used for lmdz and oasis coupler computed from PBS variable
+    if [ X"${BATCH_NUM_PROC_TOT}" != X ] ; then
+	NUM_PROC=${BATCH_NUM_PROC_TOT}
+    fi
+    echo BATCH_NUM_PROC_TOT=${BATCH_NUM_PROC_TOT}
+    echo NUM_PROC=${NUM_PROC}
+
+    if ( [ X${BATCH_NUM_PROC_TOT} != X ] && [ "${BATCH_NUM_PROC_TOT}" -gt 1 ] ) ; then
+	MPIRUN_COMMAND=${HOST_MPIRUN_COMMAND}
+    fi
+
+    IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/COMP/orchidee_ol.card UserChoices
+    RESOL=${orchidee_ol_UserChoices_RESOL}
+
+    if [ ! -f ${SUBMIT_DIR}/PARAM/run.def ] ; then
+	echo "#orchidee add :" > ${SUBMIT_DIR}/PARAM/run.def
+    else
+	echo "#orchidee add :" >> ${SUBMIT_DIR}/PARAM/run.def
+    fi
+    echo "" >> ${SUBMIT_DIR}/PARAM/run.def
+
+    IGCM_debug_PopStack "OOL_Initialize"
+}
+
+#-----------------------------------------------------------------
+function OOL_Update
+{
+    IGCM_debug_PushStack "OOL_Update"
+
+    if [ X"${orchidee_ol_UserChoices_TIMELENGTH}" = Xy ] ; then
+	case ${config_UserChoices_PeriodLength} in
+	    *Y|*y|*M|*m|*D|*d)
+		ORCHIDEE_def TIME_LENGTH ${PeriodLengthInDays}D
+		;;
+	    *s)
+		ORCHIDEE_def TIME_LENGTH ${config_UserChoices_PeriodLength}
+	esac
+    fi
+
+    if ( ${FirstInitialize} ) ; then
+	if ( [ "${config_OOL_Restart}" = "y" ] ) ; then
+	    ORCHIDEE_def RESTART_FILEIN driver_rest_in.nc
+	else
+	    ORCHIDEE_def TIME_SKIP $( IGCM_date_DaysBetweenGregorianDate ${DateBegin} ${year}0101 )D
+	fi
+    else
+	if [ X${orchidee_ol_UserChoices_NORESTART} = Xn ] ; then
+	    ORCHIDEE_def RESTART_FILEIN driver_rest_in.nc
+	else
+	    if [ ${DRYRUN} -le 2 ] ; then
+		IGCM_sys_Rm driver_rest_in.nc
+	    fi
+	    ORCHIDEE_def RESTART_FILEIN NONE
+	fi
+    fi
+
+#    IGCM_sys_Put_Out run.def ${R_OUT_OOL}/${PREFIX}_run.def
+    FileToBeDeleted[${#FileToBeDeleted[@]}]=run.def
+
+    IGCM_debug_PopStack "OOL_Update"
+}
+
+#-----------------------------------------------------------------
+function OOL_Finalize
+{
+    IGCM_debug_PushStack "OOL_Finalize"
+
+    echo FINALIZE OOL !!!
+
+    IGCM_debug_PopStack "OOL_Finalize"
+}

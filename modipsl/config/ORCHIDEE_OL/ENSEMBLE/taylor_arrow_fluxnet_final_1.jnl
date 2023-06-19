@@ -1,0 +1,82 @@
+
+
+let var_obs_init=($02)
+let var_obs=var_obs_init[g=my_time_counter@asn]
+
+let flag_ref=($04)
+
+let var_model_init=($01)
+let id_site="($09)" 
+
+
+let norm_std=(Q_VAR^0.5)/(P_VAR^0.5)
+
+
+let var_model_year=var_model[gt=yearly@ave]
+let var_model_month=var_model[gt=monthly@ave]
+let var_model_day=var_model[gt=daily@ave]
+let var_model_hour=var_model[gt=hourly@ave]
+let var_model_year_max=var_model_year[gt=monthly@max]
+let var_model_year_month=if(first_year eq last_year) then var_model_year_max[t=@fnr] else var_model_year[gt=monthly@nrst]
+let var_model_month_day=var_model_month[gt=daily@nrst] 
+let var_model_day_hour=var_model_day[gt=hourly@nrst] 
+let var_model_decomp_default=var_model 
+let var_model_decomp_hour=var_model_hour-var_model_day_hour 
+let var_model_decomp_day=var_model_day-var_model_month_day 
+let var_model_decomp_month=var_model_month-var_model_year_month
+let var_model_decomp_year=var_model_year-var_model_year[l=@ave] 
+
+let var_obs_year=var_obs[gt=yearly@ave]
+let var_obs_month=var_obs[gt=monthly@ave]
+let var_obs_day=var_obs[gt=daily@ave]
+let var_obs_hour=var_obs[gt=hourly@ave]
+let var_obs_year_max=var_obs_year[gt=monthly@max]
+let var_obs_year_month=if(first_year eq last_year) then var_obs_year_max[t=@fnr] else var_obs_year[gt=monthly@nrst]
+let var_obs_month_day=var_obs_month[gt=daily@nrst] 
+let var_obs_day_hour=var_obs_day[gt=hourly@nrst] 
+let var_obs_decomp_default=var_obs 
+let var_obs_decomp_hour=var_obs_hour-var_obs_day_hour 
+let var_obs_decomp_day=var_obs_day-var_obs_month_day 
+let var_obs_decomp_month=var_obs_month-var_obs_year_month
+let var_obs_decomp_year=var_obs_year-var_obs_year[l=@ave] 
+
+
+let d_eval=1
+let d_ref=if flag_ref eq 1 then 3 else 1
+let d_obs=2
+
+let bias_hour=tsequence(abs(var_obs_day_hour[d=`d_obs`]-var_model_day_hour[k=@sum]))
+let bias_day=tsequence(abs(var_obs_month_day[d=`d_obs`]-var_model_month_day[k=@sum]))
+let bias_month=tsequence(abs(var_obs_year_month[d=`d_obs`]-var_model_year_month[k=@sum]))
+let bias_year=tsequence(abs(var_obs_year[l=@ave,d=`d_obs`]-var_model_year[l=@ave,k=@sum]))
+
+
+
+use/REGULART "($10)"
+use/REGULART "($11)"
+let file_ref=if(flag_ref eq 1) then 12 else 10
+use/REGULART "$`file_ref`"
+
+
+define grid/like=var_model_init[d=`d_eval`,k=1] my_time_counter 
+let var_model=if var_obs[d=`d_obs`] NE -9999. then var_model_init[g=my_time_counter@asn] else (-1e34) 
+let mytime=t[gt=my_time_counter] 
+let first_year= `tax_datestring(mytime[l=@min],mytime,"years")`
+let last_year= `tax_datestring(mytime[l=@max],mytime,"years")` 
+define axis/t="1-JAN-`first_year` 00:00":"1-JAN-`last_year+1` 00:00":1/units=hour/cal=gregorian/edges hourly
+define axis/t="1-JAN-`first_year` 00:00":"1-JAN-`last_year+1` 00:00":1/units=day/cal=gregorian/edges daily
+go def_monthaxis_days.jnl gregorian first_year last_year monthly
+let nbyears=last_year-first_year+1
+let indices_year = L[L=1:`1+nbyears`]
+let year = first_year + INT((indices_year-1))
+define axis/units="days"/T0="01-JAN-`first_year`"/edges/cal="GREGORIAN" yearly = DAYS1900(year,1,1)-DAYS1900(`first_year`,1,1)
+let p=tsequence(var_obs_decomp_($03)[d=`d_obs`])
+let q=tsequence(var_model_decomp_($03)[k=@sum])
+go variance
+let correl_eval=CORREL[d=`d_eval`]
+let correl_ref=CORREL[d=`d_ref`]
+
+list/file=stat_($06)_($07)_($08)_($05)_($03).csv/norowlab/append/nohead id_site,norm_std[d=`d_eval`],`correl_eval,p=7`,bias_($03)[d=`d_eval`,l=@ave],norm_std[d=`d_ref`],`correl_ref,p=7`,bias_($03)[d=`d_ref`,l=@ave]
+
+
+CANCEL DATA/ALL

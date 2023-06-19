@@ -1,0 +1,406 @@
+! $Id$
+
+SUBROUTINE nuage(paprs, pplay, t, pqlwp, pclc, pcltau, pclemi, pch, pcl, pcm, &
+    pct, pctlwp, ok_aie, mass_solu_aero, mass_solu_aero_pi, bl95_b0, bl95_b1, &
+    cldtaupi, re, fl)
+  USE dimphy
+  USE icefrac_lsc_mod ! computes ice fraction (JBM 3/14)
+  IMPLICIT NONE
+  ! ======================================================================
+  ! Auteur(s): Z.X. Li (LMD/CNRS) date: 19930910
+  ! Objet: Calculer epaisseur optique et emmissivite des nuages
+  ! ======================================================================
+  ! Arguments:
+  ! t-------input-R-temperature
+  ! pqlwp---input-R-eau liquide nuageuse dans l'atmosphere (kg/kg)
+  ! pclc----input-R-couverture nuageuse pour le rayonnement (0 a 1)
+  ! ok_aie--input-L-apply aerosol indirect effect or not
+  ! mass_solu_aero-----input-R-total mass concentration for all soluble
+  ! aerosols[ug/m^3]
+  ! mass_solu_aero_pi--input-R-dito, pre-industrial value
+  ! bl95_b0-input-R-a parameter, may be varied for tests (s-sea, l-land)
+  ! bl95_b1-input-R-a parameter, may be varied for tests (    -"-      )
+
+  ! cldtaupi-output-R-pre-industrial value of cloud optical thickness,
+  ! needed for the diagnostics of the aerosol indirect
+  ! radiative forcing (see radlwsw)
+  ! re------output-R-Cloud droplet effective radius multiplied by fl [um]
+  ! fl------output-R-Denominator to re, introduced to avoid problems in
+  ! the averaging of the output. fl is the fraction of liquid
+  ! water clouds within a grid cell
+
+  ! pcltau--output-R-epaisseur optique des nuages
+  ! pclemi--output-R-emissivite des nuages (0 a 1)
+  ! ======================================================================
+
+  include "YOMCST.h"
+  include "nuage.h" ! JBM 3/14
+
+  REAL paprs(klon, klev+1), pplay(klon, klev)
+  REAL t(klon, klev)
+
+  REAL pclc(klon, klev)
+  REAL pqlwp(klon, klev)
+  REAL pcltau(klon, klev), pclemi(klon, klev)
+
+  REAL pct(klon), pctlwp(klon), pch(klon), pcl(klon), pcm(klon)
+
+  LOGICAL lo
+
+  REAL cetahb, cetamb
+  PARAMETER (cetahb=0.45, cetamb=0.80)
+
+  INTEGER i, k
+  REAL zflwp, zradef, zfice(klon), zmsac
+
+  REAL radius, rad_chaud
+! JBM (3/14) parameters already defined in nuage.h:
+! REAL rad_froid, rad_chau1, rad_chau2
+! PARAMETER (rad_chau1=13.0, rad_chau2=9.0, rad_froid=35.0)
+  ! cc      PARAMETER (rad_chaud=15.0, rad_froid=35.0)
+  ! sintex initial      PARAMETER (rad_chaud=10.0, rad_froid=30.0)
+  REAL coef, coef_froi, coef_chau
+  PARAMETER (coef_chau=0.13, coef_froi=0.09)
+  REAL seuil_neb
+  PARAMETER (seuil_neb=0.001)
+! JBM (3/14) nexpo is replaced by exposant_glace
+! REAL nexpo ! exponentiel pour glace/eau
+! PARAMETER (nexpo=6.)
+  REAL, PARAMETER :: t_glace_min_old = 258.
+  INTEGER, PARAMETER :: exposant_glace_old = 6
+
+
+  ! jq for the aerosol indirect effect
+  ! jq introduced by Johannes Quaas (quaas@lmd.jussieu.fr), 27/11/2003
+  ! jq
+  LOGICAL ok_aie ! Apply AIE or not?
+
+  REAL mass_solu_aero(klon, klev) ! total mass concentration for all soluble aerosols[ug m-3]
+  REAL mass_solu_aero_pi(klon, klev) ! - " - pre-industrial value
+  REAL cdnc(klon, klev) ! cloud droplet number concentration [m-3]
+  REAL re(klon, klev) ! cloud droplet effective radius [um]
+  REAL cdnc_pi(klon, klev) ! cloud droplet number concentration [m-3] (pi value)
+  REAL re_pi(klon, klev) ! cloud droplet effective radius [um] (pi value)
+
+  REAL fl(klon, klev) ! xliq * rneb (denominator to re; fraction of liquid water clouds
+  ! within the grid cell)
+
+  REAL bl95_b0, bl95_b1 ! Parameter in B&L 95-Formula
+
+  REAL cldtaupi(klon, klev) ! pre-industrial cloud opt thickness for diag
+  ! jq-end
+
+  ! cc      PARAMETER (nexpo=1)
+
+  ! Calculer l'epaisseur optique et l'emmissivite des nuages
+
+  DO k = 1, klev
+     IF (iflag_t_glace.EQ.0) THEN
+       DO i = 1, klon
+        zfice(i) = 1.0 - (t(i,k)-t_glace_min_old)/(273.13-t_glace_min_old)
+        zfice(i) = min(max(zfice(i),0.0), 1.0)
+        zfice(i) = zfice(i)**exposant_glace_old
+       ENDDO
+     ELSE ! of IF (iflag_t_glace.EQ.0)
+! JBM: icefrac_lsc is now a function contained in icefrac_lsc_mod
+!       zfice(i) = icefrac_lsc(t(i,k), t_glace_min, &
+!                           t_glace_max, exposant_glace)
+         CALL icefrac_lsc(klon,t(:,k),pplay(:,k)/paprs(:,1),zfice(:))
+     ENDIF
+
+    DO i = 1, klon
+      rad_chaud = rad_chau1
+      IF (k<=3) rad_chaud = rad_chau2
+
+      pclc(i, k) = max(pclc(i,k), seuil_neb)
+      zflwp = 1000.*pqlwp(i, k)/rg/pclc(i, k)*(paprs(i,k)-paprs(i,k+1))
+
+      IF (ok_aie) THEN
+          ! Formula "D" of Boucher and Lohmann, Tellus, 1995
+          !
+        cdnc(i, k) = 10.**(bl95_b0+bl95_b1*log(max(mass_solu_aero(i,k), &
+          1.E-4))/log(10.))*1.E6 !-m-3
+          ! Cloud droplet number concentration (CDNC) is restricted
+          ! to be within [20, 1000 cm^3]
+          !
+        cdnc(i, k) = min(1000.E6, max(20.E6,cdnc(i,k)))
+        cdnc_pi(i, k) = 10.**(bl95_b0+bl95_b1*log(max(mass_solu_aero_pi(i,k), &
+          1.E-4))/log(10.))*1.E6 !-m-3
+        cdnc_pi(i, k) = min(1000.E6, max(20.E6,cdnc_pi(i,k)))
+          !
+          !
+          ! air density: pplay(i,k) / (RD * zT(i,k))
+          ! factor 1.1: derive effective radius from volume-mean radius
+          ! factor 1000 is the water density
+          ! _chaud means that this is the CDR for liquid water clouds
+          !
+        rad_chaud = 1.1*((pqlwp(i,k)*pplay(i,k)/(rd*t(i,k)))/(4./3.*rpi*1000. &
+          *cdnc(i,k)))**(1./3.)
+          !
+          ! Convert to um. CDR shall be at least 3 um.
+          !
+        rad_chaud = max(rad_chaud*1.E6, 3.)
+
+          ! For output diagnostics
+          !
+          ! Cloud droplet effective radius [um]
+          !
+          ! we multiply here with f * xl (fraction of liquid water
+          ! clouds in the grid cell) to avoid problems in the
+          ! averaging of the output.
+          ! In the output of IOIPSL, derive the real cloud droplet
+          ! effective radius as re/fl
+          !
+        fl(i, k) = pclc(i, k)*(1.-zfice(i))
+        re(i, k) = rad_chaud*fl(i, k)
+
+          ! Pre-industrial cloud opt thickness
+          !
+          ! "radius" is calculated as rad_chaud above (plus the
+          ! ice cloud contribution) but using cdnc_pi instead of
+          ! cdnc.
+        radius = max(1.1E6*((pqlwp(i,k)*pplay(i,k)/(rd*t(i,k)))/(4./3.*rpi* &
+          1000.*cdnc_pi(i,k)))**(1./3.), 3.)*(1.-zfice(i)) + rad_froid*zfice(i)
+        cldtaupi(i, k) = 3.0/2.0*zflwp/radius
+      END IF ! ok_aie
+
+      radius = rad_chaud*(1.-zfice(i)) + rad_froid*zfice(i)
+      coef = coef_chau*(1.-zfice(i)) + coef_froi*zfice(i)
+      pcltau(i, k) = 3.0/2.0*zflwp/radius
+      pclemi(i, k) = 1.0 - exp(-coef*zflwp)
+      lo = (pclc(i,k)<=seuil_neb)
+      IF (lo) pclc(i, k) = 0.0
+      IF (lo) pcltau(i, k) = 0.0
+      IF (lo) pclemi(i, k) = 0.0
+
+      IF (.NOT. ok_aie) cldtaupi(i, k) = pcltau(i, k)
+    END DO
+  END DO
+  ! cc      DO k = 1, klev
+  ! cc      DO i = 1, klon
+  ! cc         t(i,k) = t(i,k)
+  ! cc         pclc(i,k) = MAX( 1.e-5 , pclc(i,k) )
+  ! cc         lo = pclc(i,k) .GT. (2.*1.e-5)
+  ! cc         zflwp = pqlwp(i,k)*1000.*(paprs(i,k)-paprs(i,k+1))
+  ! cc     .          /(rg*pclc(i,k))
+  ! cc         zradef = 10.0 + (1.-sigs(k))*45.0
+  ! cc         pcltau(i,k) = 1.5 * zflwp / zradef
+  ! cc         zfice=1.0-MIN(MAX((t(i,k)-263.)/(273.-263.),0.0),1.0)
+  ! cc         zmsac = 0.13*(1.0-zfice) + 0.08*zfice
+  ! cc         pclemi(i,k) = 1.-EXP(-zmsac*zflwp)
+  ! cc         if (.NOT.lo) pclc(i,k) = 0.0
+  ! cc         if (.NOT.lo) pcltau(i,k) = 0.0
+  ! cc         if (.NOT.lo) pclemi(i,k) = 0.0
+  ! cc      ENDDO
+  ! cc      ENDDO
+  ! ccccc      print*, 'pas de nuage dans le rayonnement'
+  ! ccccc      DO k = 1, klev
+  ! ccccc      DO i = 1, klon
+  ! ccccc         pclc(i,k) = 0.0
+  ! ccccc         pcltau(i,k) = 0.0
+  ! ccccc         pclemi(i,k) = 0.0
+  ! ccccc      ENDDO
+  ! ccccc      ENDDO
+
+  ! COMPUTE CLOUD LIQUID PATH AND TOTAL CLOUDINESS
+
+  DO i = 1, klon
+    pct(i) = 1.0
+    pch(i) = 1.0
+    pcm(i) = 1.0
+    pcl(i) = 1.0
+    pctlwp(i) = 0.0
+  END DO
+
+  DO k = klev, 1, -1
+    DO i = 1, klon
+      pctlwp(i) = pctlwp(i) + pqlwp(i, k)*(paprs(i,k)-paprs(i,k+1))/rg
+      pct(i) = pct(i)*(1.0-pclc(i,k))
+      IF (pplay(i,k)<=cetahb*paprs(i,1)) pch(i) = pch(i)*(1.0-pclc(i,k))
+      IF (pplay(i,k)>cetahb*paprs(i,1) .AND. pplay(i,k)<=cetamb*paprs(i,1)) &
+        pcm(i) = pcm(i)*(1.0-pclc(i,k))
+      IF (pplay(i,k)>cetamb*paprs(i,1)) pcl(i) = pcl(i)*(1.0-pclc(i,k))
+    END DO
+  END DO
+
+  DO i = 1, klon
+    pct(i) = 1. - pct(i)
+    pch(i) = 1. - pch(i)
+    pcm(i) = 1. - pcm(i)
+    pcl(i) = 1. - pcl(i)
+  END DO
+
+  RETURN
+END SUBROUTINE nuage
+SUBROUTINE diagcld1(paprs, pplay, rain, snow, kbot, ktop, diafra, dialiq)
+  USE dimphy
+  IMPLICIT NONE
+
+  ! Laurent Li (LMD/CNRS), le 12 octobre 1998
+  ! (adaptation du code ECMWF)
+
+  ! Dans certains cas, le schema pronostique des nuages n'est
+  ! pas suffisament performant. On a donc besoin de diagnostiquer
+  ! ces nuages. Je dois avouer que c'est une frustration.
+
+  include "YOMCST.h"
+
+  ! Arguments d'entree:
+  REAL paprs(klon, klev+1) ! pression (Pa) a inter-couche
+  REAL pplay(klon, klev) ! pression (Pa) au milieu de couche
+  REAL t(klon, klev) ! temperature (K)
+  REAL q(klon, klev) ! humidite specifique (Kg/Kg)
+  REAL rain(klon) ! pluie convective (kg/m2/s)
+  REAL snow(klon) ! neige convective (kg/m2/s)
+  INTEGER ktop(klon) ! sommet de la convection
+  INTEGER kbot(klon) ! bas de la convection
+
+  ! Arguments de sortie:
+  REAL diafra(klon, klev) ! fraction nuageuse diagnostiquee
+  REAL dialiq(klon, klev) ! eau liquide nuageuse
+
+  ! Constantes ajustables:
+  REAL canva, canvb, canvh
+  PARAMETER (canva=2.0, canvb=0.3, canvh=0.4)
+  REAL cca, ccb, ccc
+  PARAMETER (cca=0.125, ccb=1.5, ccc=0.8)
+  REAL ccfct, ccscal
+  PARAMETER (ccfct=0.400)
+  PARAMETER (ccscal=1.0E+11)
+  REAL cetahb, cetamb
+  PARAMETER (cetahb=0.45, cetamb=0.80)
+  REAL cclwmr
+  PARAMETER (cclwmr=1.E-04)
+  REAL zepscr
+  PARAMETER (zepscr=1.0E-10)
+
+  ! Variables locales:
+  INTEGER i, k
+  REAL zcc(klon)
+
+  ! Initialisation:
+
+  DO k = 1, klev
+    DO i = 1, klon
+      diafra(i, k) = 0.0
+      dialiq(i, k) = 0.0
+    END DO
+  END DO
+
+  DO i = 1, klon ! Calculer la fraction nuageuse
+    zcc(i) = 0.0
+    IF ((rain(i)+snow(i))>0.) THEN
+      zcc(i) = cca*log(max(zepscr,(rain(i)+snow(i))*ccscal)) - ccb
+      zcc(i) = min(ccc, max(0.0,zcc(i)))
+    END IF
+  END DO
+
+  DO i = 1, klon ! pour traiter les enclumes
+    diafra(i, ktop(i)) = max(diafra(i,ktop(i)), zcc(i)*ccfct)
+    IF ((zcc(i)>=canvh) .AND. (pplay(i,ktop(i))<=cetahb*paprs(i, &
+      1))) diafra(i, ktop(i)) = max(diafra(i,ktop(i)), max(zcc( &
+      i)*ccfct,canva*(zcc(i)-canvb)))
+    dialiq(i, ktop(i)) = cclwmr*diafra(i, ktop(i))
+  END DO
+
+  DO k = 1, klev ! nuages convectifs (sauf enclumes)
+    DO i = 1, klon
+      IF (k<ktop(i) .AND. k>=kbot(i)) THEN
+        diafra(i, k) = max(diafra(i,k), zcc(i)*ccfct)
+        dialiq(i, k) = cclwmr*diafra(i, k)
+      END IF
+    END DO
+  END DO
+
+  RETURN
+END SUBROUTINE diagcld1
+SUBROUTINE diagcld2(paprs, pplay, t, q, diafra, dialiq)
+  USE dimphy
+  IMPLICIT NONE
+
+  include "YOMCST.h"
+
+  ! Arguments d'entree:
+  REAL paprs(klon, klev+1) ! pression (Pa) a inter-couche
+  REAL pplay(klon, klev) ! pression (Pa) au milieu de couche
+  REAL t(klon, klev) ! temperature (K)
+  REAL q(klon, klev) ! humidite specifique (Kg/Kg)
+
+  ! Arguments de sortie:
+  REAL diafra(klon, klev) ! fraction nuageuse diagnostiquee
+  REAL dialiq(klon, klev) ! eau liquide nuageuse
+
+  REAL cetamb
+  PARAMETER (cetamb=0.80)
+  REAL cloia, cloib, cloic, cloid
+  PARAMETER (cloia=1.0E+02, cloib=-10.00, cloic=-0.6, cloid=5.0)
+  ! cc      PARAMETER (CLOIA=1.0E+02, CLOIB=-10.00, CLOIC=-0.9, CLOID=5.0)
+  REAL rgammas
+  PARAMETER (rgammas=0.05)
+  REAL crhl
+  PARAMETER (crhl=0.15)
+  ! cc      PARAMETER (CRHL=0.70)
+  REAL t_coup
+  PARAMETER (t_coup=234.0)
+
+  ! Variables locales:
+  INTEGER i, k, kb, invb(klon)
+  REAL zqs, zrhb, zcll, zdthmin(klon), zdthdp
+  REAL zdelta, zcor
+
+  ! Fonctions thermodynamiques:
+  include "YOETHF.h"
+  include "FCTTRE.h"
+
+  ! Initialisation:
+
+  DO k = 1, klev
+    DO i = 1, klon
+      diafra(i, k) = 0.0
+      dialiq(i, k) = 0.0
+    END DO
+  END DO
+
+  DO i = 1, klon
+    invb(i) = klev
+    zdthmin(i) = 0.0
+  END DO
+
+  DO k = 2, klev/2 - 1
+    DO i = 1, klon
+      zdthdp = (t(i,k)-t(i,k+1))/(pplay(i,k)-pplay(i,k+1)) - &
+        rd*0.5*(t(i,k)+t(i,k+1))/rcpd/paprs(i, k+1)
+      zdthdp = zdthdp*cloia
+      IF (pplay(i,k)>cetamb*paprs(i,1) .AND. zdthdp<zdthmin(i)) THEN
+        zdthmin(i) = zdthdp
+        invb(i) = k
+      END IF
+    END DO
+  END DO
+
+  DO i = 1, klon
+    kb = invb(i)
+    IF (thermcep) THEN
+      zdelta = max(0., sign(1.,rtt-t(i,kb)))
+      zqs = r2es*foeew(t(i,kb), zdelta)/pplay(i, kb)
+      zqs = min(0.5, zqs)
+      zcor = 1./(1.-retv*zqs)
+      zqs = zqs*zcor
+    ELSE
+      IF (t(i,kb)<t_coup) THEN
+        zqs = qsats(t(i,kb))/pplay(i, kb)
+      ELSE
+        zqs = qsatl(t(i,kb))/pplay(i, kb)
+      END IF
+    END IF
+    zcll = cloib*zdthmin(i) + cloic
+    zcll = min(1.0, max(0.0,zcll))
+    zrhb = q(i, kb)/zqs
+    IF (zcll>0.0 .AND. zrhb<crhl) zcll = zcll*(1.-(crhl-zrhb)*cloid)
+    zcll = min(1.0, max(0.0,zcll))
+    diafra(i, kb) = max(diafra(i,kb), zcll)
+    dialiq(i, kb) = diafra(i, kb)*rgammas*zqs
+  END DO
+
+  RETURN
+END SUBROUTINE diagcld2

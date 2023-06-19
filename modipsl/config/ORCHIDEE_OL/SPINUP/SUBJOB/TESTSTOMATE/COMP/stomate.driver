@@ -1,0 +1,116 @@
+#!/bin/ksh
+
+#D- Driver du script pour STOMATE
+
+#-----------------------------------------------------------------
+function SBG_Initialize
+{
+    IGCM_debug_PushStack "SBG_Initialize"
+
+    RESOL_SBG=ALL
+    
+    typeset frequency
+    for frequency in ${config_SBG_WriteFrequency} ; do
+        case ${frequency} in
+            HF|hf) SBG_ok_hf=y ;;
+        esac
+    done
+    
+    IGCM_debug_PopStack "SBG_Initialize"
+}
+
+#-----------------------------------------------------------------
+function SBG_PeriodStart
+{
+    IGCM_debug_PushStack "SBG_PeriodStart"
+
+    IGCM_debug_PopStack "SBG_PeriodStart"
+}
+
+#-----------------------------------------------------------------
+function SBG_Update
+{
+    IGCM_debug_PushStack "SBG_Update"
+
+    typeset STOMATE_WRITE_STEP
+
+    case ${config_SBG_WriteFrequency} in
+	*Y|*y) 
+	    WriteInYears=$( echo ${config_SBG_WriteFrequency} | awk -F '[yY]' '{print $1}' )
+	    PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+	    (( STOMATE_WRITE_STEP = PeriodLengthInDays * WriteInYears / PeriodLengthInYears )) ;;
+	1M|1m) 
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		STOMATE_WRITE_STEP=-1.
+		;;
+	    *M|*m)
+		STOMATE_WRITE_STEP=-1.
+		;;
+	    *)
+		(( STOMATE_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) )) ;;
+	    esac
+	    ;;
+	*M|*m) 
+	    WriteInMonths=$( echo ${config_SBG_WriteFrequency} | awk -F '[mM]' '{print $1}' )
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+		(( STOMATE_WRITE_STEP = 30 )) ;;
+	    *M|*m)
+		PeriodLengthInMonths=$( echo ${config_UserChoices_PeriodLength} | awk -F '[mM]' '{print $1}' )
+		(( STOMATE_WRITE_STEP = PeriodLengthInDays * WriteInMonths / PeriodLengthInMonths )) ;;
+	    *)
+		(( STOMATE_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) )) ;;
+	    esac
+	    ;;
+	5D|5d) 
+	    (( STOMATE_WRITE_STEP = 5 )) ;;
+	1D|1d) 
+	    (( STOMATE_WRITE_STEP = 1 )) ;;
+	*s)
+	    WriteInSeconds=$( echo ${config_SBG_WriteFrequency} | awk -F '[s]' '{print $1}' )
+	    (( STOMATE_WRITE_STEP = 1 )) ;;
+	*) 
+	    IGCM_debug_Exit "SBG_Update " ${config_SBG_WriteFrequency} " invalid WriteFrequency : choose in 1Y, 1M, 5D, 1D." 
+	    IGCM_debug_Verif_Exit ;;
+    esac
+
+    ORCHIDEE_def STOMATE_OK_STOMATE y
+
+    ORCHIDEE_def STOMATE_HIST_DT ${STOMATE_WRITE_STEP}
+    ORCHIDEE_def STOMATE_HISTLEVEL ${stomate_UserChoices_stomate_LEVEL}
+    if ( [ ${CumulPeriod} -eq 1 ] && [ "${config_SBG_Restart}" = "n" ] ) ; then
+	echo "STOMATE : without restart"
+    else
+	ORCHIDEE_def STOMATE_RESTART_FILEIN stomate_rest_in.nc
+    fi
+
+    if [ X${SBG_ok_hf} = Xy ] ; then 
+	ORCHIDEE_def STOMATE_IPCC_HIST_DT 1D
+    else
+	ORCHIDEE_def STOMATE_IPCC_HIST_DT ${STOMATE_WRITE_STEP}
+    fi
+
+    IGCM_debug_PopStack "SBG_Update"
+}
+
+#-----------------------------------------------------------------
+function SBG_Finalize
+{
+    IGCM_debug_PushStack "SBG_Finalize"
+
+    typeset NbDaysDone NbYearsDone
+
+#     NbDaysDone=$( IGCM_date_DaysBetweenGregorianDate ${PeriodDateEnd} ${DateBegin} )
+#     NbYearsDone=$(( NbDaysDone / 360 ))
+    
+#     echo $NbDaysDone, $NbYearsDone, $(( NbYearsDone % 10 ))
+#    if [ $(( NbYearsDone % 10 )) = 0 ] ; then
+    if [ $( IGCM_date_DaysBetweenGregorianDate ${PeriodDateEnd} ${DateEnd} ) -ge 0 ] ; then
+	IGCM_sys_Put_Out stomate_Cforcing.nc ${R_OUT_SBG_R}/${config_UserChoices_JobName}_${PeriodDateEnd}_stomate_Cforcing.nc
+	rm -f stomate_Cforcing.nc
+    fi
+
+    IGCM_debug_PopStack "SBG_Finalize"
+}

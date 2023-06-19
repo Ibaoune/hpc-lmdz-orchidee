@@ -1,0 +1,10 @@
+This experience is set up according to the protocol for spinup 
+in the TRENDY2 project. 
+
+Note that
+- The parmeters set in run.def is specific to TRENDY2 protocol 
+- 20 years of CRUNCEP forcing data is used. The simulation loops 12
+  times over this period. This is done using the CyclicBegin and CyclicEnd 
+  in config.card.
+- Only yearly output is set
+

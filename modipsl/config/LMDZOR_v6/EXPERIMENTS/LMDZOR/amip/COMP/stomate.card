@@ -1,0 +1,59 @@
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+
+# Specify output level for output files
+# Only the files stomate_history.nc and stomate_ipcc_history.nc can be set here.
+# output_level_filname=0     : lowest level writing only variables needed for the monitoring
+# output_level_filname=10    : highest level which will output all variables
+# output_level_filname=NONE  : deactivate the file
+output_level_stomate_history = 10
+output_level_stomate_ipcc_history = 1
+
+# Specify output frequency for each file [1y, 1mo, 1d]
+# Settings using WriteFrequency in config.card are not longer used
+output_freq_stomate_history = 1mo
+output_freq_stomate_ipcc_history = 1mo
+
+
+[InitialStateFiles]
+List=   ()
+
+[BoundaryFiles]
+List=   ()
+ListNonDel= ()
+
+[SmoothFiles]
+List=   ()
+
+[ParametersFiles]
+List=   ()
+
+[RestartFiles]
+List=   (stomate_rest_out.nc, stomate_rest.nc, stomate_rest_in.nc)
+
+[OutputText]
+List=   ()
+
+[OutputFiles]
+List=   (stomate_history.nc,      ${R_OUT_SBG_O_M}/${PREFIX}_1M_stomate_history.nc,      Post_1M_stomate_history),    \
+        (stomate_ipcc_history.nc, ${R_OUT_SBG_O_M}/${PREFIX}_1M_stomate_ipcc_history.nc, Post_1M_stomate_ipcc_history)
+
+[Post_1M_stomate_history]
+Patches = ()
+GatherWithInternal = (lon, lat, Areas, CONTFRAC, time_counter, time_centered, time_centered_bounds)
+TimeSeriesVars2D = (T2M_MONTH,RESOLUTION_X,RESOLUTION_Y,CONVFLUX,CFLUX_PROD10,CFLUX_PROD100,HARVEST_ABOVE)
+ChunckJob2D = NONE
+TimeSeriesVars3D = (LAI,VEGET_COV_MAX,NPP,GPP,HET_RESP,MAINT_RESP,GROWTH_RESP,AGE,HEIGHT,TOTAL_M,TOTAL_BM_LITTER,TOTAL_SOIL_CARB,CO2_FIRE,TOTAL_TURN,WOOD_HARVEST_PFT)
+ChunckJob3D = NONE
+Seasonal = ON
+
+[Post_1M_stomate_ipcc_history]
+Patches = ()
+GatherWithInternal = (lon, lat, Areas, CONTFRAC, time_counter, time_centered, time_centered_bounds)
+TimeSeriesVars2D = (cVeg, cLitter, cSoil, cProduct, lai, gpp, ra, npp, rh, fFire, fHarvest, fLuc, nbp, fVegLitter, fLitterSoil, cLeaf, cWood, cRoot, cMisc, cLitterAbove, cLitterBelow, cSoilFast, cSoilMedium, cSoilSlow, landCoverFrac, treeFracPrimDec, treeFracPrimEver, c3PftFrac, c4PftFrac, rGrowth, rMaint, nppLeaf, nppWood, nppRoot, nep, fWoodharvest)
+ChunckJob2D = NONE
+TimeSeriesVars3D = ()
+ChunckJob3D = NONE
+Seasonal = ON

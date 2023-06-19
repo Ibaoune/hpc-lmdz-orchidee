@@ -1,0 +1,198 @@
+SUBROUTINE cv3_estatmix(len, nd, iflag, plim1, plim2, p, ph, &
+                       t, q, u, v, h, gz, w, &
+                       wi, nk, tmix, thmix, qmix, qsmix, umix, vmix, plcl)
+  ! **************************************************************
+  ! *
+  ! CV3_ESTATMIX  Determine the properties of an adiabatic updraft  *
+  !                made of air coming from several layers by        *
+  !                mixing static energy                             *
+  !                                                                 *
+  ! written by   : Grandpeix Jean-Yves, 28/12/2001, 13.14.24        *
+  ! modified by :  Filiberti M-A 06/2005 vectorisation              *
+  ! ****************************************************************
+
+  IMPLICIT NONE
+  ! ==============================================================
+
+  ! estatmix : determines theta, t, q, qs, u and v of the lifted mixture
+  ! made of air between plim1 and plim2 with weighting w.
+  ! If plim1 and plim2 fall within the same model layer, then theta, ... v
+  ! are those of that layer.
+  ! A minimum value (dpmin) is imposed upon plim1-plim2
+
+  ! ===============================================================
+
+  include "cvthermo.h"
+  include "YOETHF.h"
+  include "YOMCST.h"
+  include "FCTTRE.h"
+!inputs:
+  INTEGER, INTENT (IN)                      :: nd, len
+  INTEGER, DIMENSION (len), INTENT (IN)     :: nk
+  REAL, DIMENSION (len), INTENT (IN)        :: plim1, plim2
+  REAL, DIMENSION (len,nd), INTENT (IN)     :: t, q
+  REAL, DIMENSION (len,nd), INTENT (IN)     :: u, v
+  REAL, DIMENSION (len,nd), INTENT (IN)     :: h ! static energy of the layers
+  REAL, DIMENSION (len,nd), INTENT (IN)     :: gz
+  REAL, DIMENSION (nd), INTENT (IN)         :: w
+  REAL, DIMENSION (len,nd), INTENT (IN)     :: p
+  REAL, DIMENSION (len,nd+1), INTENT (IN)   :: ph
+!input/output:
+  INTEGER, DIMENSION (len), INTENT (INOUT)  ::  iflag
+!outputs:
+  REAL, DIMENSION (len), INTENT (OUT)       :: tmix, thmix, qmix
+  REAL, DIMENSION (len), INTENT (OUT)       :: umix, vmix
+  REAL, DIMENSION (len), INTENT (OUT)       :: qsmix
+  REAL, DIMENSION (len), INTENT (OUT)       :: plcl
+  REAL, DIMENSION (len,nd), INTENT (OUT)    :: wi
+!internal variables :
+  INTEGER i, j
+  INTEGER niflag7
+  INTEGER, DIMENSION(len)                   :: j1, j2
+  REAL                                      :: a, b
+  REAL                                      :: cpn
+  REAL                                      :: x, y, p0, zdelta, zcor
+  REAL, SAVE                                :: dpmin=1.
+!$OMP THREADPRIVATE(dpmin)
+  REAL, DIMENSION(len)                      :: plim2p  ! = min(plim2(:),plim1(:)-dpmin)
+  REAL, DIMENSION(len)                      :: dpw, coef
+  REAL, DIMENSION(len)                      :: hmix ! static energy of the updraft
+  REAL, DIMENSION(len)                      :: rdcp, pnk
+  REAL, DIMENSION(len)                      :: rh, chi
+  REAL, DIMENSION(len)                      :: eqwght
+  REAL, DIMENSION(len,nd)                   :: p1, p2
+
+
+!!  print *,' ->cv3_vertmix, plim1,plim2 ', plim1,plim2   !jyg
+  plim2p(:) = min(plim2(:),plim1(:)-dpmin)
+  j1(:)=nd
+  j2(:) = 0
+  DO j = 1, nd
+    DO i = 1, len
+      IF (plim1(i)<=ph(i,j)) j1(i) = j
+!!!      IF (plim2p(i)>=ph(i,j+1) .AND. plim2p(i)<ph(i,j)) j2(i) = j
+      IF (plim2p(i)< ph(i,j)) j2(i) = j
+    END DO
+  END DO
+
+  DO j = 1, nd
+    DO i = 1, len
+      wi(i, j) = 0.
+    END DO
+  END DO
+  DO i = 1, len
+    hmix(i) = 0.
+    qmix(i) = 0.
+    umix(i) = 0.
+    vmix(i) = 0.
+    dpw(i) = 0.
+    pnk(i) = p(i, nk(i))
+  END DO
+  eqwght(:) = 0.
+
+  p0 = 1000.
+
+  DO i = 1, len
+    IF (j2(i) < j1(i)) THEN
+      coef(i) = 1.
+      eqwght(i) = 1.
+    ELSE
+      coef(i) = 1./(plim1(i)-plim2p(i))
+    ENDIF
+  END DO
+
+!!  print *,'cv3_vertmix, j1,j2,coef ', j1,j2,coef  !jyg
+
+  DO j = 1, nd
+    DO i = 1, len
+      IF (j>=j1(i) .AND. j<=j2(i)) THEN
+        p1(i, j) = min(ph(i,j), plim1(i))
+        p2(i, j) = max(ph(i,j+1), plim2p(i))
+        ! CRtest:couplage thermiques: deja normalise
+        ! wi(i,j) = w(j)
+        ! print*,'wi',wi(i,j)
+        wi(i, j) = w(j)*(p1(i,j)-p2(i,j))*coef(i)+eqwght(i)
+        dpw(i) = dpw(i) + wi(i, j)
+
+!!  print *,'cv3_vertmix, j, wi(1,j),dpw ', j, wi(1,j),dpw  !jyg
+
+      END IF
+    END DO
+  END DO
+
+  ! CR:print
+  ! do i=1,len
+  ! print*,'plim',plim1(i),plim2p(i)
+  ! enddo
+  DO j = 1, nd
+    DO i = 1, len
+      IF (j>=j1(i) .AND. j<=j2(i)) THEN
+        wi(i, j) = wi(i, j)/dpw(i)
+        hmix(i) = hmix(i) + h(i, j)*wi(i, j)
+        qmix(i) = qmix(i) +  q(i, j)*wi(i, j)
+        umix(i) = umix(i) +  u(i, j)*wi(i, j)
+        vmix(i) = vmix(i) +  v(i, j)*wi(i, j)
+      END IF
+    END DO
+  END DO
+
+  DO i = 1, len
+    rdcp(i) = (rrd*(1.-qmix(i))+qmix(i)*rrv)/(cpd*(1.-qmix(i))+qmix(i)*cpv)
+  END DO
+
+
+!!  print *,'cv3_vertmix, rdcp ', rdcp  !jyg
+
+  DO i = 1, len
+    tmix(i) = (hmix(i) - gz(i,1))/(cpd*(1.-qmix(i)) + qmix(i)*cpv)
+    !      (Use of Cpv since we are dealing with dry static energy)
+    thmix(i) = tmix(i)*(p0/pnk(i))**rdcp(i)
+    ! print*,'tmix thmix hmix ',tmix(i),thmix(i),hmix(i)
+    zdelta = max(0., sign(1.,rtt-tmix(i)))
+    qsmix(i) = r2es*foeew(tmix(i), zdelta)/(pnk(i)*100.)
+    qsmix(i) = min(0.5, qsmix(i))
+    zcor = 1./(1.-retv*qsmix(i))
+    qsmix(i) = qsmix(i)*zcor
+  END DO
+
+  ! -------------------------------------------------------------------
+  ! --- Calculate lifted condensation level of air at parcel origin level
+  ! --- (Within 0.2% of formula of Bolton, MON. WEA. REV.,1980)
+  ! -------------------------------------------------------------------
+
+  a = 1669.0 ! convect3
+  b = 122.0 ! convect3
+
+
+  niflag7 = 0
+  DO i = 1, len
+
+    IF (iflag(i)/=7) THEN ! modif sb Jun7th 2002
+
+      rh(i) = qmix(i)/qsmix(i)
+      chi(i) = tmix(i)/(a-b*rh(i)-tmix(i)) ! convect3
+      ! ATTENTION, la LIGNE DESSOUS A ETE RAJOUTEE ARBITRAIREMENT ET
+      ! MASQUE UN PB POTENTIEL
+      chi(i) = max(chi(i), 0.)
+      rh(i) = max(rh(i), 0.)
+      plcl(i) = pnk(i)*(rh(i)**chi(i))
+      IF (((plcl(i)<200.0) .OR. (plcl(i)>=2000.0)) .AND. (iflag(i)==0)) &
+          iflag(i) = 8
+
+    ELSE
+
+      niflag7 = niflag7 + 1
+      plcl(i) = plim2p(i)
+
+    END IF ! iflag=7
+
+    ! print*,'NIFLAG7  =',niflag7
+
+  END DO
+
+!!  print *,' cv3_vertmix->'  !jyg
+
+
+  RETURN
+END SUBROUTINE cv3_estatmix
+

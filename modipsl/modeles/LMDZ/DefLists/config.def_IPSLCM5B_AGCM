@@ -1,0 +1,133 @@
+##############################################################################
+# PARAMETRES ET CLES DE CONFIGURATION LMDZ
+##############################################################################
+# D: Valeur par default
+#
+# Controle des sorties
+#*********************
+#ok_regdyn : y/n calcul/non des regymes dynamiques sur regions pre-definies
+ok_regdyn=y
+phys_out_filekeys=       y       n       n       n       n
+phys_out_filenames=      histmth histday histhf  histins histLES
+phys_out_filelevels=     5      2       2       4       4
+phys_out_filetypes=      ave(X)  ave(X)  ave(X) inst(X) inst(X)
+phys_out_filetimesteps=  _ecrit-mth_   1day    6hr     3hr     6hr
+### parametres pour hist*NMC.nc
+#lev_histdayNMC: nombre de niveaux sur la verticale dans le fichier
+#                histdayNMC: 8 ou 17
+lev_histdayNMC=8
+### - ok_histNMC = y/n, y/n, y/n pour avoir les sorties NMC mensuelles, journalieres et haute frequence
+ok_histNMC = y, n, n
+#
+#Couplage avec autres modules
+#******************************
+#option de couplage pour ocean (D:force)
+##type_ocean=couple
+##version_ocean=nemo
+#avec ou sans orchidee (D:n)
+##VEGET=y
+#type_run=AMIP, ENSP, clim (D:AMIP)
+type_run=CLIM
+##  Soil Model  ou non               
+soil_model=y
+##  Cycle diurne  ou non                 
+cycle_diurne=y
+
+#Code de transfert radiatif
+#**************************
+# ajout de ce flag pour activer/desactiver le rayonnement (MPL)
+# 0 : pas de rayonnement. 1: on active le rayonnement (D=1)
+iflag_radia=1
+## Nombre appels des routines de rayonnements ( par jour)                 
+nbapp_rad=24
+
+# Parametres "orbitaux/ ere geologique"
+#######################################
+#Parametres orbitaux
+#excentricite
+R_ecc=0.016715
+#equinoxe
+R_peri=102.7
+#inclinaison
+R_incl=23.441
+#constante solaire
+solaire=1365.6537
+##  Facteur additif pour l albedo
+pmagic=0.00
+#
+# Taux gaz a effet de serre
+#######################################
+#concentration des gaz (co2 ch4   n2o  cfc11 cfc12)
+#                  (D: 348. 1650. 306.  280.  484.)
+co2_ppm=0.28472500E+03
+#RCO2=co2_ppm * 1.0e-06  * 44.011/28.97= 5.286789092164308E-04
+CH4_ppb=0.79097924E+03
+#RCH4=1.65E-06* 16.043/28.97= 9.137366240938903E-07
+N2O_ppb=0.27542506E+03
+#RN2O=306.E-09* 44.013/28.97= 4.648939592682085E-07
+CFC11_ppt=0.
+#RCFC11=280.E-12* 137.3686/28.97= 1.327690990680013E-09
+CFC12_ppt=0.
+#RCFC12=484.E-12* 120.9140/28.97= 2.020102726958923E-09
+#
+# Parametres effets directs/indirects des "aerosols"
+#######################################
+### ok cloud droplet number concentration
+# n par defaut (sans aerosols), y avec aerosols
+ok_cdnc=y
+### ok_ade=y/n   flag Aerosol direct effect
+ok_ade=y
+### ok_aie=y/n   flag Aerosol indirect effect
+ok_aie=y
+### aer_type =   Aerosol variation type : actuel / preind / scenario / annuel
+aer_type=preind
+###  If aerosol offline : type of coupled aerosol =0 (pas d aerosol) =1 (sulphate only default) =2 => bc  only =3 => pom only =4 => seasalt only =5 => dust only =6 => all aerosol
+flag_aerosol=6 
+### bl95_b0 =    Parameter in CDNC-maer link (Boucher&Lohmann 1995)
+bl95_b0=1.7
+### bl95_b1 =    Parameter in CDNC-maer link (Boucher&Lohmann 1995)
+bl95_b1=0.2
+#
+# Parametre de lecture de l'ozone
+#######################################
+# Allowed values are 0, 1 and 2
+# 0: do not read an ozone climatology
+# 1: read a single ozone climatology that will be used day and night
+# 2: read two ozone climatologies, the average day and night climatology and the daylight climatology
+read_climoz=2
+#
+# Parametres simulateur COSP (CFMIP Observational Simulator Package)
+#######################################
+### ok_cosp=y/n flag simulateur COSP
+ok_cosp=n
+### freq_COSP = frequence d'appel de COSP en secondes
+freq_COSP=10800.
+### ok_mensuelCOSP=y/n sortir fichier mensuel COSP histmthCOSP.nc, =n pas de fichier histmthCOSP.nc
+ok_mensuelCOSP=y
+### ok_journeCOSP=y/n sortir fichier journalier histdayCOSP.nc, =n pas de fichier histdayCOSP.nc
+ok_journeCOSP=y
+### ok_hfCOSP=y/n, ecrire sorties  haute frequence histhfCOSP.nc, =n pas de fichier histhfCOSP.nc
+ok_hfCOSP=n
+#
+# Parametres simulateur ISCCP
+#######################################
+### ok_isccp=y/n flag simulateur ISCCP
+ok_isccp=n
+### freqin_isccp = frequence input en secondes du simulateur ISCCP
+freq_ISCCP=10800.
+### top_height = flag choix calcul nuages par le simulateur en utilisant 
+# -              les donnees IR et/ou VIS et l algorithme ISCCP-D1
+# - top_height = 1 -> algo IR-VIS
+# - top_height = 2 -> identique a 1, mais "ptop(ibox)=pfull(ilev)"
+# - top_height = 3 -> algo IR
+top_height = 1
+### overlap =    Hypothese de Recouvrement (HR) utilisee pour le simulateur ISCCP
+# - overlap=1    Max overlap
+# - overlap=2    Random overlap
+# - overlap=3    Max/Random overlap
+overlap = 3
+#
+
+# Specifique aquaplanete
+########################
+#qsol0=100.

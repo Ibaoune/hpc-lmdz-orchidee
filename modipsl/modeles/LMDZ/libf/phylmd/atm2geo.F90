@@ -1,0 +1,72 @@
+!
+! $Id: atm2geo.F90 3465 2019-03-14 09:34:31Z fairhead $
+!
+SUBROUTINE atm2geo ( im, jm, pte, ptn, plon, plat, pxx, pyy, pzz )
+  USE dimphy
+  USE mod_phys_lmdz_para
+  USE mod_grid_phy_lmdz, only: grid_type, unstructured, regular_lonlat
+  IMPLICIT NONE
+  INCLUDE 'YOMCST.h'
+
+  CHARACTER (len = 6)                :: clmodnam
+  CHARACTER (len = 20)               :: modname = 'atm2geo'
+  CHARACTER (len = 80)               :: abort_message
+
+!
+! Change wind local atmospheric coordinates to geocentric
+!
+! Geocentric :
+! axe x is eastward : crosses (0 N, 0 E) point.
+! axe y crosses (0 N, 90 E) point.
+! axe z is 'up' : crosses north pole
+  INTEGER, INTENT (in)                 :: im, jm
+  REAL, DIMENSION (im,jm), INTENT (in) :: pte  ! Eastward vector component
+  REAL, DIMENSION (im,jm), INTENT (in) :: ptn  ! Northward vector component
+  REAL, DIMENSION (im,jm), INTENT (in) :: plon, plat
+  REAL, DIMENSION (im,jm), INTENT(out) :: pxx, pyy, pzz  ! Component in the geocentric referential 
+  REAL :: rad, reps
+
+  rad = rpi / 180.0E0
+  reps = 1.0e-5
+  
+  pxx(:,:) = & 
+       - pte(:,:) * SIN(rad * plon(:,:)) &
+       - ptn(:,:) * SIN(rad * plat(:,:)) * COS(rad * plon(:,:))
+
+  pyy(:,:) = &
+       + pte(:,:) * COS(rad * plon(:,:)) &
+       - ptn(:,:) * SIN(rad * plat(:,:)) * SIN(rad * plon(:,:))
+  
+  pzz(:,:) = &
+       + ptn(:,:) * COS(rad * plat (:,:))
+  
+  IF (grid_type==regular_lonlat) THEN
+  ! Value at North Pole  
+    IF (is_north_pole_dyn) THEN
+       pxx(:, 1) = - pte (1, 1)
+       pyy(:, 1) = - ptn (1, 1) 
+       pzz(:, 1) = pzz(1,1) ! => 0
+    ENDIF
+
+  ! Value at South Pole
+    IF (is_south_pole_dyn) THEN
+      pxx(:,jm) = pxx(1,jm)
+       pyy(:,jm) = pyy(1,jm)
+       pzz(:,jm) = pzz(1,jm) ! => 0
+    ENDIF
+ 
+  ELSE IF (grid_type==unstructured) THEN
+     ! Pole nord pour Dynamico
+     WHERE ( plat(:,:) >= 90.0d+0-reps )
+        pxx (:,:) = -ptn (:,:)
+        pyy (:,:) =  pte (:,:)
+        pzz (:,:) =  0.0e0
+     END WHERE
+
+  ELSE
+     abort_message='Problem: unknown grid type'
+     CALL abort_physic(modname,abort_message,1)
+  END IF
+
+  
+END SUBROUTINE atm2geo

@@ -1,0 +1,88 @@
+
+! $Id$
+
+SUBROUTINE ini_wake(wape, fip, it_wape_prescr, wape_prescr, fip_prescr, &
+    alp_bl_prescr, ale_bl_prescr)
+  USE print_control_mod, ONLY: lunout
+  IMPLICIT NONE
+  ! **************************************************************
+  ! *
+  ! INI_WAKE : variables d'initialisation de la poche    *
+  ! froide, necessaires au declenchement      *
+  ! de la convection.                         *
+  ! *
+  ! *
+  ! **************************************************************
+  ! Arguments
+  ! =========
+  ! Input
+  ! -----
+  ! wape           : valeur de l'energie potentielle de la poche (WAPE)
+  ! dans l'etat initial
+  ! fip            : valeur de la puissance incidente sur le front (FIP)
+  ! dans l'etat initial
+  ! Output
+  ! ------
+  ! it_wape_prescr : nombre de pas de temps pendant lesquels la WAPE
+  ! doit etre imposee.
+  ! wape_prescr    : valeur prescrite de la WAPE.
+  ! fip_prescr     : valeur prescrite de la FIP.
+  ! ale_bl_prescr  : valeur prescrite de la Ale de PBL.
+  ! alp_bl_prescr  : valeur prescrite de la Alp de PBL.
+
+  ! Variables internes
+  ! ==================
+  ! it = nbre de pas de temps lu
+  ! w  = WAPE lue
+  ! f  = FIP lue
+  ! alebl  = Ale de PBL lue
+  ! alpbl  = Alp de PBL lue
+
+  ! declarations
+  REAL wape, fip, wape_prescr, fip_prescr
+  INTEGER it_wape_prescr
+  REAL ale_bl_prescr
+  REAL alp_bl_prescr
+  REAL it
+  REAL w,f,alebl,alpbl
+
+  ! FH A mettre si besoin dans physiq.def
+  ! FH : voir avec JYG
+  it = 0.
+  w = 4.
+  f = 0.1
+  alebl = 4.
+  alpbl = 0.1
+
+  ! CR: on rajoute ale et alp de la PBL precrits
+  OPEN (99, FILE='ini_wake_param.data', FORM='formatted', STATUS='old', &
+    ERR=902)
+  READ (99, *) it
+  READ (99, *) w
+  READ (99, *) f
+  READ (99, *, END=901) alebl
+  READ (99, *, END=901) alpbl
+901 CLOSE (99)
+902 CONTINUE
+
+  WRITE (lunout, *) ' it,wape ', it, wape
+  it_wape_prescr = it
+  IF (w<0) THEN
+    wape_prescr = wape
+    fip_prescr = fip
+  ELSE
+    wape_prescr = w
+    fip_prescr = f
+  END IF
+
+  WRITE (lunout, *) ' alebl, alpbl ', alebl, alpbl
+  ale_bl_prescr = alebl
+  alp_bl_prescr = alpbl
+  PRINT *, 'Initialisation de la poche : WAPE, FIP imposees =', wape_prescr, &
+    fip_prescr
+  PRINT *, '                   pendant ', it_wape_prescr, ' steps'
+
+  PRINT *, 'Initialisation de la BL: ALP, ALE imposees =', alp_bl_prescr, &
+    ale_bl_prescr
+  RETURN
+END SUBROUTINE ini_wake

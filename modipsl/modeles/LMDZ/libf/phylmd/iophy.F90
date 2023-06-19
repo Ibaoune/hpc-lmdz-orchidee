@@ -1,0 +1,1546 @@
+!
+! $Id: iophy.F90 3853 2021-02-23 15:01:34Z lmdz-users $
+!
+MODULE iophy
+
+! abd  REAL,private,allocatable,DIMENSION(:),save :: io_lat
+! abd  REAL,private,allocatable,DIMENSION(:),save :: io_lon
+  REAL,ALLOCATABLE,DIMENSION(:),SAVE :: io_lat
+  REAL,ALLOCATABLE,DIMENSION(:),SAVE :: io_lon
+  INTEGER, SAVE :: phys_domain_id
+  INTEGER, SAVE :: npstn
+  INTEGER, ALLOCATABLE, DIMENSION(:), SAVE :: nptabij
+  INTEGER, SAVE :: itau_iophy
+  LOGICAL :: check_dim = .false.
+
+!$OMP THREADPRIVATE(itau_iophy)
+
+#ifdef CPP_XIOS
+  INTERFACE histwrite_phy
+    MODULE PROCEDURE histwrite2d_phy,histwrite3d_phy,histwrite2d_phy_old,histwrite3d_phy_old,histwrite2d_xios,histwrite3d_xios,histwrite0d_xios
+  END INTERFACE
+#else
+  INTERFACE histwrite_phy
+    MODULE PROCEDURE histwrite2d_phy,histwrite3d_phy,histwrite2d_phy_old,histwrite3d_phy_old
+  END INTERFACE
+#endif
+
+  INTERFACE histbeg_phy_all
+    MODULE PROCEDURE histbeg_phy,histbeg_phyxios,histbeg_phy_points
+  END INTERFACE
+
+
+CONTAINS
+
+! ug Routine pour définir itau_iophy depuis phys_output_write_mod:
+  SUBROUTINE set_itau_iophy(ito)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: ito
+    itau_iophy = ito
+  END SUBROUTINE
+
+  SUBROUTINE init_iophy_new(rlat,rlon)
+
+    USE dimphy, ONLY: klon
+    USE mod_phys_lmdz_para, ONLY: gather, bcast, &
+                                  jj_nb, jj_begin, jj_end, ii_begin, ii_end, &
+                                  mpi_size, mpi_rank, klon_mpi, &
+                                is_sequential, is_south_pole_dyn
+  USE mod_grid_phy_lmdz, ONLY: nbp_lon, nbp_lat, klon_glo, grid_type, unstructured
+  USE print_control_mod, ONLY: prt_level,lunout 
+#ifdef CPP_IOIPSL
+    USE ioipsl, ONLY: flio_dom_set
+#endif
+#ifdef CPP_XIOS
+  use wxios, ONLY: wxios_domain_param, wxios_domain_param_unstructured, wxios_context_init
+#endif
+    IMPLICIT NONE
+    REAL,DIMENSION(klon),INTENT(IN) :: rlon
+    REAL,DIMENSION(klon),INTENT(IN) :: rlat
+
+    REAL,DIMENSION(klon_glo)        :: rlat_glo
+    REAL,DIMENSION(klon_glo)        :: rlon_glo
+    
+    INTEGER,DIMENSION(2) :: ddid
+    INTEGER,DIMENSION(2) :: dsg
+    INTEGER,DIMENSION(2) :: dsl
+    INTEGER,DIMENSION(2) :: dpf
+    INTEGER,DIMENSION(2) :: dpl
+    INTEGER,DIMENSION(2) :: dhs
+    INTEGER,DIMENSION(2) :: dhe 
+    INTEGER :: i    
+    INTEGER :: data_ibegin, data_iend
+
+#ifdef CPP_XIOS
+      CALL wxios_context_init
+#endif
+    
+
+    IF (grid_type==unstructured) THEN
+    
+#ifdef CPP_XIOS
+      CALL wxios_domain_param_unstructured("dom_glo")
+#endif
+
+    ELSE
+
+      CALL gather(rlat,rlat_glo)
+      CALL bcast(rlat_glo)
+      CALL gather(rlon,rlon_glo)
+      CALL bcast(rlon_glo)
+    
+!$OMP MASTER  
+    ALLOCATE(io_lat(nbp_lat))
+    IF (klon_glo == 1) THEN
+      io_lat(1)=rlat_glo(1)
+    ELSE
+      io_lat(1)=rlat_glo(1)
+      io_lat(nbp_lat)=rlat_glo(klon_glo)
+      DO i=2,nbp_lat-1
+        io_lat(i)=rlat_glo(2+(i-2)*nbp_lon)
+      ENDDO
+    ENDIF
+
+    ALLOCATE(io_lon(nbp_lon))
+    IF (klon_glo == 1) THEN
+      io_lon(1)=rlon_glo(1)
+    ELSE 
+      io_lon(1:nbp_lon)=rlon_glo(2:nbp_lon+1)
+    ENDIF
+
+!! (I) dtnb   : total number of domains
+!! (I) dnb    : domain number
+!! (I) did(:) : distributed dimensions identifiers
+!!              (up to 5 dimensions are supported)
+!! (I) dsg(:) : total number of points for each dimension
+!! (I) dsl(:) : local number of points for each dimension
+!! (I) dpf(:) : position of first local point for each dimension
+!! (I) dpl(:) : position of last local point for each dimension
+!! (I) dhs(:) : start halo size for each dimension
+!! (I) dhe(:) : end halo size for each dimension
+!! (C) cdnm   : Model domain definition name.
+!!              The names actually supported are :
+!!              "BOX", "APPLE", "ORANGE".
+!!              These names are case insensitive.
+
+    ddid=(/ 1,2 /)
+    dsg=(/ nbp_lon, nbp_lat /)
+    dsl=(/ nbp_lon, jj_nb /)
+    dpf=(/ 1,jj_begin /)
+    dpl=(/ nbp_lon, jj_end /)
+    dhs=(/ ii_begin-1,0 /)
+    IF (mpi_rank==mpi_size-1) THEN
+      dhe=(/0,0/)
+    ELSE
+      dhe=(/ nbp_lon-ii_end,0 /)  
+    ENDIF
+
+#ifndef CPP_IOIPSL_NO_OUTPUT    
+    CALL flio_dom_set(mpi_size,mpi_rank,ddid,dsg,dsl,dpf,dpl,dhs,dhe, &
+                      'APPLE',phys_domain_id)
+#endif
+#ifdef CPP_XIOS
+      ! Set values for the mask:
+      IF (mpi_rank == 0) THEN
+          data_ibegin = 0
+      ELSE 
+          data_ibegin = ii_begin - 1
+      END IF
+
+      IF (mpi_rank == mpi_size-1) THEN
+          data_iend = nbp_lon
+      ELSE
+          data_iend = ii_end + 1
+      END IF
+
+      IF (prt_level>=10) THEN
+        write(lunout,*) "init_iophy_new: mpirank=",mpi_rank," iibegin=",ii_begin , " ii_end=",ii_end," jjbegin=",jj_begin," jj_nb=",jj_nb," jj_end=",jj_end
+        write(lunout,*) "init_iophy_new: mpirank=",mpi_rank," nbp_lon=",nbp_lon," nbp_lat=",nbp_lat
+        write(lunout,*) "init_iophy_new: mpirank=",mpi_rank," data_ibegin=",data_ibegin," data_iend=",data_iend
+        write(lunout,*) "init_iophy_new: mpirank=",mpi_rank," data_ibegin=",data_ibegin," data_iend=",data_iend
+        write(lunout,*) "init_iophy_new: mpirank=",mpi_rank," is_south_pole_dyn=",is_south_pole_dyn
+      ENDIF
+
+      ! Initialize the XIOS domain coreesponding to this process:
+#endif
+!$OMP END MASTER
+
+#ifdef CPP_XIOS    
+        CALL wxios_domain_param("dom_glo")
+#endif
+      
+    ENDIF
+      
+  END SUBROUTINE init_iophy_new
+
+
+  SUBROUTINE init_iophy(lat,lon)
+
+    USE mod_phys_lmdz_para, ONLY: jj_begin, jj_end, ii_begin, ii_end, jj_nb, &
+                                  mpi_size, mpi_rank 
+    USE ioipsl, ONLY: flio_dom_set
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+
+    IMPLICIT NONE
+
+    REAL,DIMENSION(nbp_lon),INTENT(IN) :: lon
+    REAL,DIMENSION(nbp_lat),INTENT(IN) :: lat
+
+    INTEGER,DIMENSION(2) :: ddid
+    INTEGER,DIMENSION(2) :: dsg
+    INTEGER,DIMENSION(2) :: dsl
+    INTEGER,DIMENSION(2) :: dpf
+    INTEGER,DIMENSION(2) :: dpl
+    INTEGER,DIMENSION(2) :: dhs
+    INTEGER,DIMENSION(2) :: dhe 
+
+!$OMP MASTER  
+    ALLOCATE(io_lat(nbp_lat))
+    io_lat(:)=lat(:)
+    ALLOCATE(io_lon(nbp_lon))
+    io_lon(:)=lon(:)
+   
+    ddid=(/ 1,2 /)
+    dsg=(/ nbp_lon, nbp_lat /)
+    dsl=(/ nbp_lon, jj_nb /)
+    dpf=(/ 1,jj_begin /)
+    dpl=(/ nbp_lon, jj_end /)
+    dhs=(/ ii_begin-1,0 /)
+    IF (mpi_rank==mpi_size-1) THEN
+      dhe=(/0,0/)
+    ELSE
+      dhe=(/ nbp_lon-ii_end,0 /)  
+    ENDIF
+    
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+    call flio_dom_set(mpi_size,mpi_rank,ddid,dsg,dsl,dpf,dpl,dhs,dhe, &
+                      'APPLE',phys_domain_id)
+#endif
+!$OMP END MASTER
+      
+  END SUBROUTINE init_iophy
+
+ SUBROUTINE histbeg_phyxios(name,itau0,zjulian,dtime,ffreq,lev,nhori,nid_day)
+!  USE dimphy
+  USE mod_phys_lmdz_para, ONLY: is_sequential, is_using_mpi, is_mpi_root, &
+                                jj_begin, jj_end, jj_nb
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+  USE ioipsl, ONLY: histbeg
+#ifdef CPP_XIOS
+  USE wxios, ONLY: wxios_add_file
+#endif
+  IMPLICIT NONE
+  INCLUDE 'clesphys.h'
+    
+  CHARACTER*(*), INTENT(IN) :: name
+  INTEGER, INTENT(IN) :: itau0
+  REAL,INTENT(IN) :: zjulian
+  REAL,INTENT(IN) :: dtime
+  CHARACTER(LEN=*), INTENT(IN) :: ffreq
+  INTEGER,INTENT(IN) :: lev
+  INTEGER,INTENT(OUT) :: nhori
+  INTEGER,INTENT(OUT) :: nid_day
+
+!$OMP MASTER    
+  IF (is_sequential) THEN
+    CALL histbeg(name,nbp_lon,io_lon, jj_nb,io_lat(jj_begin:jj_end), &
+                 1,nbp_lon,1,jj_nb,itau0, zjulian, dtime, nhori, nid_day)
+  ELSE
+    CALL histbeg(name,nbp_lon,io_lon, jj_nb,io_lat(jj_begin:jj_end), &
+                 1,nbp_lon,1,jj_nb,itau0, zjulian, dtime, nhori, nid_day,phys_domain_id)
+  ENDIF
+
+#ifdef CPP_XIOS
+  ! ug OMP en chantier...
+  IF((.NOT. is_using_mpi) .OR. is_mpi_root) THEN
+      ! ug Création du fichier
+    IF (.not. ok_all_xml) THEN
+      CALL wxios_add_file(name, ffreq, lev)
+    ENDIF
+  ENDIF
+#endif
+!$OMP END MASTER
+  
+  END SUBROUTINE histbeg_phyxios
+  
+  SUBROUTINE histbeg_phy(name,itau0,zjulian,dtime,nhori,nid_day)
+
+  USE mod_phys_lmdz_para, ONLY: jj_begin, jj_end, jj_nb, is_sequential
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+  USE ioipsl, ONLY: histbeg
+
+  IMPLICIT NONE
+    
+    CHARACTER*(*), INTENT(IN) :: name
+    INTEGER, INTENT(IN) :: itau0
+    REAL,INTENT(IN) :: zjulian
+    REAL,INTENT(IN) :: dtime
+    INTEGER,INTENT(OUT) :: nhori
+    INTEGER,INTENT(OUT) :: nid_day
+
+!$OMP MASTER    
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+    IF (is_sequential) THEN
+      CALL histbeg(name,nbp_lon,io_lon, jj_nb,io_lat(jj_begin:jj_end), &
+                   1,nbp_lon,1,jj_nb,itau0, zjulian, dtime, nhori, nid_day)
+    ELSE
+      CALL histbeg(name,nbp_lon,io_lon, jj_nb,io_lat(jj_begin:jj_end), &
+                   1,nbp_lon,1,jj_nb,itau0, zjulian, dtime, nhori, nid_day,phys_domain_id)
+    ENDIF
+#endif
+!$OMP END MASTER
+  
+  END SUBROUTINE histbeg_phy
+
+
+  SUBROUTINE histbeg_phy_points(rlon,rlat,pim,tabij,ipt,jpt, &
+             plon,plat,plon_bounds,plat_bounds, &
+             nname,itau0,zjulian,dtime,nnhori,nnid_day)
+  USE dimphy, ONLY: klon
+  USE mod_phys_lmdz_para, ONLY: gather, bcast, &
+                                is_sequential, klon_mpi_begin, klon_mpi_end, &
+                                mpi_rank
+  USE mod_grid_phy_lmdz, ONLY: klon_glo, nbp_lon, nbp_lat, grid1dTo2d_glo
+  USE ioipsl, ONLY: histbeg
+
+  IMPLICIT NONE
+
+    REAL,DIMENSION(klon),INTENT(IN) :: rlon
+    REAL,DIMENSION(klon),INTENT(IN) :: rlat
+    INTEGER, INTENT(IN) :: itau0
+    REAL,INTENT(IN) :: zjulian
+    REAL,INTENT(IN) :: dtime
+    INTEGER, INTENT(IN) :: pim
+    INTEGER, intent(out) :: nnhori
+    CHARACTER(len=20), INTENT(IN) :: nname
+    INTEGER, INTENT(OUT) :: nnid_day
+    INTEGER :: i
+    REAL,DIMENSION(klon_glo)        :: rlat_glo
+    REAL,DIMENSION(klon_glo)        :: rlon_glo
+    INTEGER, DIMENSION(pim), INTENT(IN)  :: tabij
+    REAL,DIMENSION(pim), INTENT(IN) :: plat, plon
+    INTEGER,DIMENSION(pim), INTENT(IN) :: ipt, jpt
+    REAL,DIMENSION(pim,2), intent(out) :: plat_bounds, plon_bounds
+
+    INTEGER, SAVE :: tabprocbeg, tabprocend
+!$OMP THREADPRIVATE(tabprocbeg, tabprocend)
+    INTEGER :: ip
+    INTEGER, PARAMETER :: nip=1
+    INTEGER :: npproc
+    REAL, allocatable, DIMENSION(:) :: npplat, npplon
+    REAL, allocatable, DIMENSION(:,:) :: npplat_bounds, npplon_bounds
+    REAL, DIMENSION(nbp_lon,nbp_lat) :: zx_lon, zx_lat
+
+    CALL gather(rlat,rlat_glo)
+    CALL bcast(rlat_glo)
+    CALL gather(rlon,rlon_glo)
+    CALL bcast(rlon_glo)
+
+!$OMP MASTER
+    DO i=1,pim
+
+!    print*,'CFMIP_iophy i tabij lon lat',i,tabij(i),plon(i),plat(i)
+
+     plon_bounds(i,1)=rlon_glo(tabij(i)-1)
+     plon_bounds(i,2)=rlon_glo(tabij(i)+1)
+     IF (plon_bounds(i,2).LE.0..AND.plon_bounds(i,1).GE.0.) THEN
+      IF (rlon_glo(tabij(i)).GE.0.) THEN
+       plon_bounds(i,2)=-1*plon_bounds(i,2)
+      ENDIF
+     ENDIF
+     IF (plon_bounds(i,2).GE.0..AND.plon_bounds(i,1).LE.0.) THEN
+      IF (rlon_glo(tabij(i)).LE.0.) THEN
+       plon_bounds(i,2)=-1*plon_bounds(i,2)
+      ENDIF
+     ENDIF
+!
+     IF ( tabij(i).LE.nbp_lon) THEN
+      plat_bounds(i,1)=rlat_glo(tabij(i))
+     ELSE
+      plat_bounds(i,1)=rlat_glo(tabij(i)-nbp_lon)
+     ENDIF
+     plat_bounds(i,2)=rlat_glo(tabij(i)+nbp_lon)
+!
+!    print*,'CFMIP_iophy point i lon lon_bds',i,plon_bounds(i,1),rlon_glo(tabij(i)),plon_bounds(i,2) 
+!    print*,'CFMIP_iophy point i lat lat_bds',i,plat_bounds(i,1),rlat_glo(tabij(i)),plat_bounds(i,2) 
+!
+    ENDDO
+    if (is_sequential) then
+
+     npstn=pim
+     IF(.NOT. ALLOCATED(nptabij)) THEN
+      ALLOCATE(nptabij(pim))
+     ENDIF 
+     DO i=1,pim
+      nptabij(i)=tabij(i)
+     ENDDO
+
+       CALL grid1dTo2d_glo(rlon_glo,zx_lon)
+       IF ((nbp_lon*nbp_lat).GT.1) THEN
+       DO i = 1, nbp_lon
+         zx_lon(i,1) = rlon_glo(i+1)
+         zx_lon(i,nbp_lat) = rlon_glo(i+1)
+       ENDDO
+       ENDIF
+       CALL grid1dTo2d_glo(rlat_glo,zx_lat)
+
+    DO i=1,pim
+!    print*,'CFMIP_iophy i tabij lon lat',i,tabij(i),plon(i),plat(i)
+
+     plon_bounds(i,1)=zx_lon(ipt(i)-1,jpt(i))
+     plon_bounds(i,2)=zx_lon(ipt(i)+1,jpt(i))
+
+     IF (ipt(i).EQ.1) THEN
+      plon_bounds(i,1)=zx_lon(nbp_lon,jpt(i))
+      plon_bounds(i,2)=360.+zx_lon(ipt(i)+1,jpt(i))
+     ENDIF
+ 
+     IF (ipt(i).EQ.nbp_lon) THEN
+      plon_bounds(i,2)=360.+zx_lon(1,jpt(i))
+     ENDIF
+
+     plat_bounds(i,1)=zx_lat(ipt(i),jpt(i)-1)
+     plat_bounds(i,2)=zx_lat(ipt(i),jpt(i)+1)
+
+     IF (jpt(i).EQ.1) THEN
+      plat_bounds(i,1)=zx_lat(ipt(i),1)+0.001
+      plat_bounds(i,2)=zx_lat(ipt(i),1)-0.001
+     ENDIF
+ 
+     IF (jpt(i).EQ.nbp_lat) THEN
+      plat_bounds(i,1)=zx_lat(ipt(i),nbp_lat)+0.001
+      plat_bounds(i,2)=zx_lat(ipt(i),nbp_lat)-0.001
+     ENDIF
+!
+!    print*,'CFMIP_iophy point i lon lon_bds',i,plon_bounds(i,1),rlon(tabij(i)),plon_bounds(i,2) 
+!    print*,'CFMIP_iophy point i lat lat_bds',i,plat_bounds(i,1),rlat(tabij(i)),plat_bounds(i,2) 
+!
+    ENDDO
+
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+     CALL histbeg(nname,pim,plon,plon_bounds, & 
+                           plat,plat_bounds, &
+                           itau0, zjulian, dtime, nnhori, nnid_day)
+#endif
+    ELSE
+     npproc=0
+     DO ip=1, pim
+      tabprocbeg=klon_mpi_begin
+      tabprocend=klon_mpi_end
+      IF(tabij(ip).GE.tabprocbeg.AND.tabij(ip).LE.tabprocend) THEN
+       npproc=npproc+1
+       npstn=npproc
+      ENDIF 
+     ENDDO
+!    print*,'CFMIP_iophy mpi_rank npstn',mpi_rank,npstn
+     IF(.NOT. ALLOCATED(nptabij)) THEN
+      ALLOCATE(nptabij(npstn))
+      ALLOCATE(npplon(npstn), npplat(npstn))
+      ALLOCATE(npplon_bounds(npstn,2), npplat_bounds(npstn,2))
+     ENDIF
+     npproc=0
+     DO ip=1, pim
+      IF(tabij(ip).GE.tabprocbeg.AND.tabij(ip).LE.tabprocend) THEN
+       npproc=npproc+1
+       nptabij(npproc)=tabij(ip)
+!      print*,'mpi_rank npproc ip plon plat tabij=',mpi_rank,npproc,ip, &
+!      plon(ip),plat(ip),tabij(ip)
+       npplon(npproc)=plon(ip)
+       npplat(npproc)=plat(ip)
+       npplon_bounds(npproc,1)=plon_bounds(ip,1)
+       npplon_bounds(npproc,2)=plon_bounds(ip,2)
+       npplat_bounds(npproc,1)=plat_bounds(ip,1)
+       npplat_bounds(npproc,2)=plat_bounds(ip,2)
+!!!
+!!! print qui sert a reordonner les points stations selon l'ordre CFMIP
+!!! ne pas enlever
+        print*,'iophy_mpi rank ip lon lat',mpi_rank,ip,plon(ip),plat(ip)
+!!!
+      ENDIF
+     ENDDO
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+     CALL histbeg(nname,npstn,npplon,npplon_bounds, &
+                            npplat,npplat_bounds, &
+                            itau0,zjulian,dtime,nnhori,nnid_day,phys_domain_id)
+#endif
+    ENDIF
+!$OMP END MASTER
+
+  END SUBROUTINE histbeg_phy_points
+
+
+  SUBROUTINE histdef2d_old (iff,lpoint,flag_var,nomvar,titrevar,unitvar)
+
+    USE ioipsl, ONLY: histdef
+    USE mod_phys_lmdz_para, ONLY: jj_nb, is_master
+    USE phys_output_var_mod, ONLY: type_ecri, zoutm, zdtime_moy, lev_files, &
+                                   nid_files, nhorim, swaero_diag, dryaod_diag, nfiles, &
+                                   ok_4xCO2atm
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+    USE aero_mod, ONLY : naero_tot, name_aero_tau
+    USE print_control_mod, ONLY: prt_level,lunout
+
+    IMPLICIT NONE
+
+    INCLUDE "clesphys.h"
+
+    INTEGER                          :: iff
+    INTEGER                          :: naero
+    LOGICAL                          :: lpoint
+    INTEGER, DIMENSION(nfiles)       :: flag_var
+    CHARACTER(LEN=20)                :: nomvar
+    CHARACTER(LEN=*)                 :: titrevar
+    CHARACTER(LEN=*)                 :: unitvar
+
+    REAL zstophym
+
+    IF (type_ecri(iff)=='inst(X)'.OR.type_ecri(iff)=='once') THEN
+       zstophym=zoutm(iff)
+    ELSE
+       zstophym=zdtime_moy
+    ENDIF
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histdef2d_old for ', nomvar
+    ! Appel a la lecture des noms et niveau d'ecriture des variables dans output.def
+    CALL conf_physoutputs(nomvar,flag_var)
+
+    IF(.NOT.lpoint) THEN  
+       IF ( flag_var(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff),nomvar,titrevar,unitvar, &
+               nbp_lon,jj_nb,nhorim(iff), 1,1,1, -99, 32, &
+               type_ecri(iff), zstophym,zoutm(iff))                
+       ENDIF
+    ELSE
+       IF ( flag_var(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff),nomvar,titrevar,unitvar, &
+               npstn,1,nhorim(iff), 1,1,1, -99, 32, &
+               type_ecri(iff), zstophym,zoutm(iff))                
+       ENDIF
+    ENDIF
+
+    ! Set swaero_diag=true if at least one of the concerned variables are defined 
+    IF (nomvar=='topswad' .OR. nomvar=='topswad0' .OR. nomvar=='solswad' .OR. nomvar=='solswad0' .OR. & 
+        nomvar=='toplwad' .OR. nomvar=='toplwad0' .OR. nomvar=='sollwad' .OR. nomvar=='sollwad0' .OR. & 
+        nomvar=='topswai' .OR. nomvar=='solswai' ) THEN 
+       IF  ( flag_var(iff)<=lev_files(iff) ) swaero_diag=.TRUE.
+    ENDIF
+
+    ! Set dryaod_diag=true if at least one of the concerned variables are defined 
+    IF (nomvar=='dryod550aer') THEN
+      IF  ( flag_var(iff)<=lev_files(iff) ) dryaod_diag=.TRUE.
+    ENDIF
+    DO naero = 1, naero_tot-1
+      IF (nomvar=='dryod550_'//name_aero_tau(naero)) THEN
+        IF  ( flag_var(iff)<=lev_files(iff) ) dryaod_diag=.TRUE.
+      ENDIF
+    ENDDO
+
+    ! Set ok_4xCO2atm=true if at least one of the concerned variables are
+    ! defined
+    IF (nomvar=='rsut4co2'.OR.nomvar=='rlut4co2'.OR.nomvar=='rsutcs4co2' & 
+        .OR. nomvar=='rlutcs4co2'.OR.nomvar=='rsu4co2'.OR.nomvar=='rsucs4co2' &
+        .OR.nomvar=='rsu4co2'.OR.nomvar=='rsucs4co2'.OR.nomvar=='rsd4co2'.OR. &
+        nomvar=='rsdcs4co2'.OR.nomvar=='rlu4co2'.OR.nomvar=='rlucs4co2'.OR.&
+        nomvar=='rld4co2'.OR.nomvar=='rldcs4co2') THEN
+        IF ( flag_var(iff)<=lev_files(iff) ) ok_4xCO2atm=.TRUE.
+    ENDIF 
+  END SUBROUTINE histdef2d_old
+
+  SUBROUTINE histdef3d_old (iff,lpoint,flag_var,nomvar,titrevar,unitvar)
+
+    USE ioipsl, ONLY: histdef
+    USE dimphy, ONLY: klev
+    USE mod_phys_lmdz_para, ONLY: jj_nb, is_master
+    USE phys_output_var_mod, ONLY: type_ecri, zoutm, lev_files, nid_files, &
+                                   nhorim, zdtime_moy, levmin, levmax, &
+                                   nvertm, nfiles
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+    USE print_control_mod, ONLY: prt_level,lunout
+    IMPLICIT NONE
+
+    INCLUDE "clesphys.h"
+
+    INTEGER                          :: iff
+    LOGICAL                          :: lpoint
+    INTEGER, DIMENSION(nfiles)       :: flag_var
+    CHARACTER(LEN=20)                 :: nomvar
+    CHARACTER(LEN=*)                 :: titrevar
+    CHARACTER(LEN=*)                 :: unitvar
+
+    REAL zstophym
+
+    ! Appel a la lecture des noms et niveau d'ecriture des variables dans output.def
+    CALL conf_physoutputs(nomvar,flag_var)
+
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histdef3d_old for ', nomvar
+
+    IF (type_ecri(iff)=='inst(X)'.OR.type_ecri(iff)=='once') THEN
+       zstophym=zoutm(iff)
+    ELSE
+       zstophym=zdtime_moy
+    ENDIF
+
+    IF(.NOT.lpoint) THEN
+       IF ( flag_var(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff), nomvar, titrevar, unitvar, &
+               nbp_lon, jj_nb, nhorim(iff), klev, levmin(iff), &
+               levmax(iff)-levmin(iff)+1, nvertm(iff), 32, type_ecri(iff), &
+               zstophym, zoutm(iff))
+       ENDIF
+    ELSE
+       IF ( flag_var(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff), nomvar, titrevar, unitvar, &
+               npstn,1,nhorim(iff), klev, levmin(iff), &
+               levmax(iff)-levmin(iff)+1, nvertm(iff), 32, &
+               type_ecri(iff), zstophym,zoutm(iff))
+       ENDIF
+    ENDIF
+  END SUBROUTINE histdef3d_old
+
+  SUBROUTINE histdef2d (iff,var)
+
+    USE ioipsl, ONLY: histdef
+    USE mod_phys_lmdz_para, ONLY: jj_nb, is_master
+    USE phys_output_var_mod, ONLY: ctrl_out, type_ecri_files, zoutm, zdtime_moy, &
+                                   clef_stations, phys_out_filenames, lev_files, &
+                                   nid_files, nhorim, swaerofree_diag, swaero_diag, dryaod_diag,&
+                                   ok_4xCO2atm 
+    USE print_control_mod, ONLY: prt_level,lunout 
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+    USE aero_mod, ONLY : naero_tot, name_aero_tau
+#ifdef CPP_XIOS
+    USE wxios, ONLY: wxios_add_field_to_file
+#endif
+    USE print_control_mod, ONLY: prt_level,lunout
+    IMPLICIT NONE
+
+    INCLUDE "clesphys.h"
+
+    INTEGER                          :: iff
+    INTEGER                          :: naero
+    TYPE(ctrl_out)                   :: var
+
+    REAL zstophym
+    CHARACTER(LEN=20) :: typeecrit
+
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histdef2d for ', var%name
+
+    ! ug On récupère le type écrit de la structure:
+    !       Assez moche, à refaire si meilleure méthode...
+    IF (INDEX(var%type_ecrit(iff), "once") > 0) THEN
+       typeecrit = 'once'
+    ELSE IF(INDEX(var%type_ecrit(iff), "t_min") > 0) THEN
+       typeecrit = 't_min(X)'
+    ELSE IF(INDEX(var%type_ecrit(iff), "t_max") > 0) THEN
+       typeecrit = 't_max(X)'
+    ELSE IF(INDEX(var%type_ecrit(iff), "inst") > 0) THEN
+       typeecrit = 'inst(X)'
+    ELSE
+       typeecrit = type_ecri_files(iff)
+    ENDIF
+
+    IF (typeecrit=='inst(X)'.OR.typeecrit=='once') THEN
+       zstophym=zoutm(iff)
+    ELSE
+       zstophym=zdtime_moy
+    ENDIF
+
+    ! Appel a la lecture des noms et niveau d'ecriture des variables dans output.def
+    CALL conf_physoutputs(var%name, var%flag)
+
+    IF(.NOT.clef_stations(iff)) THEN  
+
+#ifdef CPP_XIOS
+      IF (.not. ok_all_xml) THEN
+        IF ( var%flag(iff)<=lev_files(iff) ) THEN
+          CALL wxios_add_field_to_file(var%name, 2, iff, phys_out_filenames(iff), &
+          var%description, var%unit, var%flag(iff), typeecrit)
+          IF (prt_level >= 10) THEN
+            WRITE(lunout,*) 'histdef2d: call wxios_add_field_to_file var%name iff: ', &
+                            trim(var%name),iff
+          ENDIF
+        ENDIF
+      ENDIF
+#endif
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+
+       IF ( var%flag(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff), var%name, var%description, var%unit, &
+               nbp_lon,jj_nb,nhorim(iff), 1,1,1, -99, 32, &
+               typeecrit, zstophym,zoutm(iff))                
+       ENDIF
+    ELSE
+       IF ( var%flag(iff)<=lev_files(iff)) THEN
+          CALL histdef (nid_files(iff), var%name, var%description, var%unit, &
+               npstn,1,nhorim(iff), 1,1,1, -99, 32, &
+               typeecrit, zstophym,zoutm(iff))                
+       ENDIF
+#endif
+    ENDIF
+
+    ! Set swaero_diag=true if at least one of the concerned variables are defined
+    !--OB 30/05/2016 use wider set of variables
+    IF ( var%name=='topswad' .OR. var%name=='topswad0' .OR. var%name=='solswad' .OR. var%name=='solswad0' .OR. &
+         var%name=='topswai' .OR. var%name=='solswai'  .OR. ( iflag_rrtm==1 .AND. (                            &
+         var%name=='toplwad' .OR. var%name=='toplwad0' .OR. var%name=='sollwad' .OR. var%name=='sollwad0' .OR. &
+         var%name=='toplwai' .OR. var%name=='sollwai'  ) ) ) THEN
+       IF  ( var%flag(iff)<=lev_files(iff) ) swaero_diag=.TRUE.
+    ENDIF
+
+    ! Set swaerofree_diag=true if at least one of the concerned variables are defined 
+    IF (var%name=='SWupTOAcleanclr' .OR. var%name=='SWupSFCcleanclr' .OR. var%name=='SWdnSFCcleanclr' .OR. & 
+        var%name=='LWupTOAcleanclr' .OR. var%name=='LWdnSFCcleanclr' ) THEN
+       IF  ( var%flag(iff)<=lev_files(iff) ) swaerofree_diag=.TRUE.
+    ENDIF
+
+    ! set dryaod_dry=true if at least one of the concerned variables are defined
+    IF (var%name=='dryod550aer') THEN 
+      IF  ( var%flag(iff)<=lev_files(iff) ) dryaod_diag=.TRUE.
+    ENDIF
+    !
+    DO naero = 1, naero_tot-1 
+      IF (var%name=='dryod550_'//name_aero_tau(naero)) THEN
+        IF  ( var%flag(iff)<=lev_files(iff) ) dryaod_diag=.TRUE.
+      ENDIF
+    ENDDO
+    ! Set ok_4xCO2atm=true if at least one of the concerned variables are
+    ! defined
+    IF (var%name=='rsut4co2'.OR.var%name=='rlut4co2'.OR.var%name=='rsutcs4co2' & 
+        .OR. var%name=='rlutcs4co2'.OR.var%name=='rsu4co2'.OR.var%name=='rsucs4co2' &
+        .OR.var%name=='rsu4co2'.OR.var%name=='rsucs4co2'.OR.var%name=='rsd4co2'.OR. &
+        var%name=='rsdcs4co2'.OR.var%name=='rlu4co2'.OR.var%name=='rlucs4co2'.OR.&
+        var%name=='rld4co2'.OR.var%name=='rldcs4co2') THEN
+        IF ( var%flag(iff)<=lev_files(iff) ) ok_4xCO2atm=.TRUE.
+    ENDIF 
+  END SUBROUTINE histdef2d
+
+  SUBROUTINE histdef3d (iff,var)
+
+    USE ioipsl, ONLY: histdef
+    USE dimphy, ONLY: klev
+    USE mod_phys_lmdz_para, ONLY: jj_nb, is_master
+    USE phys_output_var_mod, ONLY: ctrl_out, type_ecri_files, zoutm, zdtime_moy, &
+                                   clef_stations, phys_out_filenames, lev_files, &
+                                   nid_files, nhorim, swaerofree_diag, levmin, &
+                                   levmax, nvertm
+    USE print_control_mod, ONLY: prt_level,lunout
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+#ifdef CPP_XIOS
+    USE wxios, ONLY: wxios_add_field_to_file
+#endif
+    USE print_control_mod, ONLY: prt_level,lunout
+    IMPLICIT NONE
+
+    INCLUDE "clesphys.h"
+
+    INTEGER                          :: iff
+    TYPE(ctrl_out)                   :: var
+
+    REAL zstophym
+    CHARACTER(LEN=20) :: typeecrit
+
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histdef3d for ', var%name
+
+    ! ug On récupère le type écrit de la structure:
+    !       Assez moche, à refaire si meilleure méthode...
+    IF (INDEX(var%type_ecrit(iff), "once") > 0) THEN
+       typeecrit = 'once'
+    ELSE IF(INDEX(var%type_ecrit(iff), "t_min") > 0) THEN
+       typeecrit = 't_min(X)'
+    ELSE IF(INDEX(var%type_ecrit(iff), "t_max") > 0) THEN
+       typeecrit = 't_max(X)'
+    ELSE IF(INDEX(var%type_ecrit(iff), "inst") > 0) THEN
+       typeecrit = 'inst(X)'
+    ELSE
+       typeecrit = type_ecri_files(iff)
+    ENDIF
+
+    ! Appel a la lecture des noms et niveau d'ecriture des variables dans output.def
+    CALL conf_physoutputs(var%name,var%flag)
+
+    IF (typeecrit=='inst(X)'.OR.typeecrit=='once') THEN
+       zstophym=zoutm(iff)
+    ELSE
+       zstophym=zdtime_moy
+    ENDIF
+
+    IF(.NOT.clef_stations(iff)) THEN
+
+#ifdef CPP_XIOS
+       IF (.not. ok_all_xml) THEN
+         IF ( var%flag(iff)<=lev_files(iff) ) THEN
+         CALL wxios_add_field_to_file(var%name, 3, iff, phys_out_filenames(iff), &
+         var%description, var%unit, var%flag(iff), typeecrit)
+           IF (prt_level >= 10) THEN
+             WRITE(lunout,*) 'histdef3d: call wxios_add_field_to_file var%name iff: ', &
+                             trim(var%name),iff
+           ENDIF
+         ENDIF
+       ENDIF
+#endif
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+
+       IF ( var%flag(iff)<=lev_files(iff) ) THEN
+          CALL histdef (nid_files(iff), var%name, var%description, var%unit, &
+               nbp_lon, jj_nb, nhorim(iff), klev, levmin(iff), &
+               levmax(iff)-levmin(iff)+1, nvertm(iff), 32, typeecrit, &
+               zstophym, zoutm(iff))
+       ENDIF
+    ELSE
+       IF ( var%flag(iff)<=lev_files(iff)) THEN
+          CALL histdef (nid_files(iff), var%name, var%description, var%unit, &
+               npstn,1,nhorim(iff), klev, levmin(iff), &
+               levmax(iff)-levmin(iff)+1, nvertm(iff), 32, &
+               typeecrit, zstophym,zoutm(iff))
+       ENDIF
+#endif
+    ENDIF
+
+    ! Set swaerofree_diag=true if at least one of the concerned variables are defined 
+    IF (var%name=='rsucsaf' .OR. var%name=='rsdcsaf') THEN
+       IF  ( var%flag(iff)<=lev_files(iff) ) swaerofree_diag=.TRUE.
+    ENDIF
+
+  END SUBROUTINE histdef3d
+
+  SUBROUTINE conf_physoutputs(nam_var,flag_var)
+!!! Lecture des noms et niveau de sortie des variables dans output.def
+    !   en utilisant les routines getin de IOIPSL  
+    USE ioipsl, ONLY: getin
+    USE phys_output_var_mod, ONLY: nfiles
+    USE print_control_mod, ONLY: prt_level,lunout
+    IMPLICIT NONE
+
+    CHARACTER(LEN=20)                :: nam_var
+    INTEGER, DIMENSION(nfiles)      :: flag_var
+
+    IF(prt_level>10) WRITE(lunout,*)'Avant getin: nam_var flag_var ',nam_var,flag_var(:)
+    CALL getin('flag_'//nam_var,flag_var)
+    CALL getin('name_'//nam_var,nam_var)
+    IF(prt_level>10) WRITE(lunout,*)'Apres getin: nam_var flag_var ',nam_var,flag_var(:)
+
+  END SUBROUTINE conf_physoutputs
+
+ 
+  SUBROUTINE histwrite2d_phy_old(nid,lpoint,name,itau,field)
+
+    USE dimphy, ONLY: klon
+    USE mod_phys_lmdz_para, ONLY: Gather_omp, grid1Dto2D_mpi, &
+                                  is_sequential, klon_mpi_begin, klon_mpi_end, &
+                                  jj_nb, klon_mpi, is_master
+    USE ioipsl, ONLY: histwrite
+    USE print_control_mod, ONLY: prt_level,lunout
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+
+    IMPLICIT NONE
+    
+    INTEGER,INTENT(IN) :: nid
+    LOGICAL,INTENT(IN) :: lpoint 
+    CHARACTER*(*), INTENT(IN) :: name
+    INTEGER, INTENT(IN) :: itau
+    REAL,DIMENSION(:),INTENT(IN) :: field
+    REAL,DIMENSION(klon_mpi) :: buffer_omp
+    INTEGER, allocatable, DIMENSION(:) :: index2d
+    REAL :: Field2d(nbp_lon,jj_nb)
+
+    INTEGER :: ip
+    REAL,ALLOCATABLE,DIMENSION(:) :: fieldok
+
+    IF (size(field)/=klon) CALL abort_physic('iophy::histwrite2d','Field first DIMENSION not equal to klon',1)
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite2d_phy_old for ', name
+
+    CALL Gather_omp(field,buffer_omp)    
+!$OMP MASTER
+    CALL grid1Dto2D_mpi(buffer_omp,Field2d)
+    IF (.NOT.lpoint) THEN
+     ALLOCATE(index2d(nbp_lon*jj_nb))
+     ALLOCATE(fieldok(nbp_lon*jj_nb))
+     IF (prt_level >= 10) write(lunout,*)'Sending ',name,' to IOIPSL'
+     CALL histwrite(nid,name,itau,Field2d,nbp_lon*jj_nb,index2d)
+     IF (prt_level >= 10) write(lunout,*)'Finished sending ',name,' to IOIPSL'
+    ELSE
+     ALLOCATE(fieldok(npstn))
+     ALLOCATE(index2d(npstn))
+
+     IF (is_sequential) THEN
+!     klon_mpi_begin=1
+!     klon_mpi_end=klon
+      DO ip=1, npstn
+       fieldok(ip)=buffer_omp(nptabij(ip))
+      ENDDO
+     ELSE
+      DO ip=1, npstn
+!     print*,'histwrite2d is_sequential npstn ip name nptabij',npstn,ip,name,nptabij(ip)
+       IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+          nptabij(ip).LE.klon_mpi_end) THEN
+         fieldok(ip)=buffer_omp(nptabij(ip)-klon_mpi_begin+1)
+       ENDIF
+      ENDDO
+     ENDIF
+     IF (prt_level >= 10) write(lunout,*)'Sending ',name,' to IOIPSL'
+     CALL histwrite(nid,name,itau,fieldok,npstn,index2d)
+     IF (prt_level >= 10) write(lunout,*)'Finished sending ',name,' to IOIPSL'
+!
+    ENDIF
+    DEALLOCATE(index2d)
+    DEALLOCATE(fieldok)
+!$OMP END MASTER   
+
+ 
+  END SUBROUTINE histwrite2d_phy_old
+
+  SUBROUTINE histwrite3d_phy_old(nid,lpoint,name,itau,field)
+
+    USE dimphy, ONLY: klon
+    USE mod_phys_lmdz_para, ONLY: Gather_omp, grid1Dto2D_mpi, &
+                                  is_sequential, klon_mpi_begin, klon_mpi_end, &
+                                  jj_nb, klon_mpi, is_master
+    USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat
+    USE ioipsl, ONLY: histwrite
+    USE print_control_mod, ONLY: prt_level,lunout
+
+    IMPLICIT NONE
+    
+    INTEGER,INTENT(IN) :: nid
+    LOGICAL,INTENT(IN) :: lpoint
+    CHARACTER*(*), INTENT(IN) :: name
+    INTEGER, INTENT(IN) :: itau
+    REAL,DIMENSION(:,:),INTENT(IN) :: field  ! --> field(klon,:)
+    REAL,DIMENSION(klon_mpi,size(field,2)) :: buffer_omp
+    REAL :: Field3d(nbp_lon,jj_nb,size(field,2))
+    INTEGER :: ip, n, nlev
+    INTEGER, ALLOCATABLE, DIMENSION(:) :: index3d
+    REAL,allocatable, DIMENSION(:,:) :: fieldok
+
+    IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite3d_phy_old for ', name
+
+    IF (size(field,1)/=klon) CALL abort_physic('iophy::histwrite3d','Field first DIMENSION not equal to klon',1)
+    nlev=size(field,2)
+
+    CALL Gather_omp(field,buffer_omp)
+!$OMP MASTER
+    CALL grid1Dto2D_mpi(buffer_omp,field3d)
+    IF (.NOT.lpoint) THEN
+      ALLOCATE(index3d(nbp_lon*jj_nb*nlev))
+      ALLOCATE(fieldok(nbp_lon*jj_nb,nlev))
+      IF (prt_level >= 10) write(lunout,*)'Sending ',name,' to IOIPSL'
+      CALL histwrite(nid,name,itau,Field3d,nbp_lon*jj_nb*nlev,index3d)
+      IF (prt_level >= 10) write(lunout,*)'Finished sending ',name,' to IOIPSL'
+    ELSE
+      nlev=size(field,2)
+      ALLOCATE(index3d(npstn*nlev))
+      ALLOCATE(fieldok(npstn,nlev))
+
+      IF (is_sequential) THEN
+!       klon_mpi_begin=1
+!       klon_mpi_end=klon
+        DO n=1, nlev
+        DO ip=1, npstn
+          fieldok(ip,n)=buffer_omp(nptabij(ip),n)
+        ENDDO
+        ENDDO
+      ELSE
+        DO n=1, nlev
+        DO ip=1, npstn
+          IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+           nptabij(ip).LE.klon_mpi_end) THEN
+           fieldok(ip,n)=buffer_omp(nptabij(ip)-klon_mpi_begin+1,n)
+          ENDIF
+        ENDDO
+        ENDDO
+      ENDIF
+      IF (prt_level >= 10) write(lunout,*)'Sending ',name,' to IOIPSL'
+      CALL histwrite(nid,name,itau,fieldok,npstn*nlev,index3d)
+      IF (prt_level >= 10) write(lunout,*)'Finished sending ',name,' to IOIPSL'
+    ENDIF 
+    DEALLOCATE(index3d)
+    DEALLOCATE(fieldok)
+!$OMP END MASTER    
+
+  END SUBROUTINE histwrite3d_phy_old
+
+
+! ug NOUVELLE VERSION DES WRITE AVEC LA BOUCLE DO RENTREE
+  SUBROUTINE histwrite2d_phy(var,field, STD_iff)
+
+  USE mod_phys_lmdz_omp_transfert, ONLY: bcast_omp
+  USE dimphy, ONLY: klon, klev
+  USE mod_phys_lmdz_para, ONLY: gather_omp, grid1dto2d_mpi, &
+                                jj_nb, klon_mpi, klon_mpi_begin, &
+                                klon_mpi_end, is_sequential, is_master
+  USE ioipsl, ONLY: histwrite
+  USE phys_output_var_mod, ONLY: ctrl_out, clef_files, lev_files, &
+                                 nfiles, vars_defined, clef_stations, &
+                                 nid_files, swaerofree_diag, swaero_diag, dryaod_diag, ok_4xCO2atm
+  USE print_control_mod, ONLY: prt_level,lunout
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat, grid_type, unstructured, regular_lonlat
+#ifdef CPP_XIOS
+  USE xios, ONLY: xios_send_field
+#endif
+  USE print_control_mod, ONLY: lunout, prt_level
+
+  IMPLICIT NONE
+  INCLUDE 'clesphys.h'
+
+  TYPE(ctrl_out), INTENT(IN) :: var
+  REAL, DIMENSION(:), INTENT(IN) :: field
+  INTEGER, INTENT(IN), OPTIONAL :: STD_iff ! ug RUSTINE POUR LES STD LEVS.....
+      
+  INTEGER :: iff, iff_beg, iff_end
+  LOGICAL, SAVE  :: firstx
+!$OMP THREADPRIVATE(firstx)
+
+  REAL,DIMENSION(klon_mpi) :: buffer_omp
+  INTEGER, allocatable, DIMENSION(:) :: index2d
+  REAL :: Field2d(nbp_lon,jj_nb)
+
+  INTEGER :: ip
+  REAL, ALLOCATABLE, DIMENSION(:) :: fieldok
+
+  IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite2d_phy for ',trim(var%name)
+
+  IF (prt_level >= 10) THEN
+    WRITE(lunout,*)'Begin histwrite2d_phy for ',trim(var%name)
+  ENDIF
+
+! ug RUSTINE POUR LES STD LEVS.....
+  IF (PRESENT(STD_iff)) THEN
+        iff_beg = STD_iff
+        iff_end = STD_iff
+  ELSE
+        iff_beg = 1
+        iff_end = nfiles
+  ENDIF
+
+  ! On regarde si on est dans la phase de définition ou d'écriture:
+  IF (.NOT.vars_defined) THEN
+!$OMP MASTER
+      !Si phase de définition.... on définit
+      IF (.not. ok_all_xml) THEN
+      IF (prt_level >= 10) THEN
+      write(lunout,*)"histwrite2d_phy: .not.vars_defined ; time to define ", &
+                     trim(var%name)
+      ENDIF
+      DO iff=iff_beg, iff_end
+         IF (clef_files(iff)) THEN
+            CALL histdef2d(iff, var)
+         ENDIF
+      ENDDO
+      ENDIF
+!$OMP END MASTER
+!--broadcasting the flags that have been changed in histdef2d on OMP masters
+      CALL bcast_omp(swaero_diag)
+      CALL bcast_omp(swaerofree_diag)
+      CALL bcast_omp(dryaod_diag)
+      CALL bcast_omp(ok_4xCO2atm)
+
+  ELSE
+
+    !Et sinon on.... écrit
+    IF (SIZE(field)/=klon .AND. SIZE(field)/=klev .AND. SIZE(field)/=klev+1) CALL abort_physic('iophy::histwrite2d_phy','Field first DIMENSION not equal to klon/klev',1)    
+    IF (prt_level >= 10) THEn
+      WRITE (lunout,*)"histwrite2d_phy: .not.vars_defined ; time to gather and write ", trim(var%name)
+    ENDIF
+    
+    
+    IF (SIZE(field) == klon) then
+        CALL Gather_omp(field,buffer_omp)
+    ELSE
+        buffer_omp(:)=0.
+    ENDIF
+!$OMP MASTER
+    IF (grid_type==regular_lonlat) CALL grid1Dto2D_mpi(buffer_omp,Field2d)
+
+! La boucle sur les fichiers:
+      firstx=.true.
+
+      IF (ok_all_xml) THEN
+#ifdef CPP_XIOS
+          IF (prt_level >= 10) THEN
+             write(lunout,*)'Dans iophy histwrite2D,var%name ', trim(var%name)                       
+          ENDIF
+          
+          IF (grid_type==regular_lonlat) THEN
+            IF (SIZE(field) == klon) then
+              CALL xios_send_field(var%name, Field2d)
+            ELSE
+               CALL xios_send_field(var%name, field)
+            ENDIF 
+          ELSE IF (grid_type==unstructured) THEN
+            IF (SIZE(field) == klon) then
+              CALL xios_send_field(var%name, buffer_omp)
+            ELSE
+               CALL xios_send_field(var%name, field)
+            ENDIF
+
+          ENDIF
+          IF (prt_level >= 10) THEN
+             write(lunout,*)'Dans iophy histwrite2D,var%name apres xios_send ',&
+                             trim(var%name)                       
+          ENDIF
+#else
+        CALL abort_physic ('iophy','cannot have ok_all_xml = .T. without CPP_XIOS defined' ,1)
+#endif
+      ELSE  
+        DO iff=iff_beg, iff_end
+            IF (var%flag(iff) <= lev_files(iff) .AND. clef_files(iff)) THEN 
+
+#ifdef CPP_XIOS
+               IF (firstx) THEN
+                  IF (prt_level >= 10) THEN
+                     write(lunout,*)'Dans iophy histwrite2D,iff,var%name ',&
+                                    iff,trim(var%name)                       
+                     write(lunout,*)"histwrite2d_phy:.NOT.clef_stations(iff)and iff==iff_beg, call xios_send_field"
+                  ENDIF
+                  IF (grid_type==regular_lonlat) THEN
+                    IF (SIZE(field) == klon) then
+                       CALL xios_send_field(var%name, Field2d)
+                    ELSE
+                       CALL xios_send_field(var%name, field)
+                    ENDIF
+                  ELSE IF (grid_type==unstructured) THEN
+                    IF (SIZE(field) == klon) then
+                      CALL xios_send_field(var%name, buffer_omp)
+                    ELSE
+                      CALL xios_send_field(var%name, field)
+                    ENDIF
+                  ENDIF
+
+                  firstx=.false.
+               ENDIF
+#endif
+
+                  IF (.NOT.clef_stations(iff)) THEN
+                        ALLOCATE(index2d(nbp_lon*jj_nb))
+                        ALLOCATE(fieldok(nbp_lon*jj_nb))
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+                        CALL histwrite(nid_files(iff),var%name,itau_iophy,Field2d,nbp_lon*jj_nb,index2d)
+#endif
+!#ifdef CPP_XIOS
+!                        IF (iff == iff_beg) THEN
+!                          IF (prt_level >= 10) THEN
+!                            write(lunout,*)"histwrite2d_phy: .NOT.clef_stations(iff) and iff==iff_beg, call xios_send_field"
+!                          ENDIF
+!                          CALL xios_send_field(var%name, Field2d)
+!                        ENDIF
+!#endif
+                  ELSE 
+                        ALLOCATE(fieldok(npstn))
+                        ALLOCATE(index2d(npstn))
+
+                        IF (is_sequential) THEN
+                          DO ip=1, npstn
+                            fieldok(ip)=buffer_omp(nptabij(ip))
+                          ENDDO
+                        ELSE
+                              DO ip=1, npstn
+                                write(lunout,*)'histwrite2d_phy is_sequential npstn ip namenptabij',npstn,ip,var%name,nptabij(ip)
+                                     IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+                                        nptabij(ip).LE.klon_mpi_end) THEN
+                                       fieldok(ip)=buffer_omp(nptabij(ip)-klon_mpi_begin+1)
+                                     ENDIF
+                              ENDDO
+                       ENDIF ! of IF (is_sequential)
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+                       IF (prt_level >= 10) THEN
+                         write(lunout,*)"histwrite2d_phy: clef_stations(iff) and iff==iff_beg, call wxios_write_2D"
+                       ENDIF
+                       CALL histwrite(nid_files(iff),var%name,itau_iophy,fieldok,npstn,index2d)
+#endif
+                  ENDIF ! of IF(.NOT.clef_stations(iff))
+                  
+                DEALLOCATE(index2d)
+                DEALLOCATE(fieldok)
+            ENDIF !levfiles
+        ENDDO ! of DO iff=iff_beg, iff_end
+      ENDIF
+!$OMP END MASTER   
+  ENDIF ! vars_defined
+
+  IF (prt_level >= 10) WRITE(lunout,*)'End histwrite2d_phy ',trim(var%name)
+
+  END SUBROUTINE histwrite2d_phy
+
+
+! ug NOUVELLE VERSION DES WRITE AVEC LA BOUCLE DO RENTREE
+  SUBROUTINE histwrite3d_phy(var, field, STD_iff)
+
+  USE mod_phys_lmdz_omp_transfert, ONLY: bcast_omp
+  USE dimphy, ONLY: klon, klev
+  USE mod_phys_lmdz_para, ONLY: gather_omp, grid1dto2d_mpi, &
+                                jj_nb, klon_mpi, klon_mpi_begin, &
+                                klon_mpi_end, is_sequential, is_master
+  USE ioipsl, ONLY: histwrite
+  USE phys_output_var_mod, ONLY: ctrl_out, clef_files, lev_files, &
+                                 nfiles, vars_defined, clef_stations, &
+                                 nid_files, swaerofree_diag
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat, grid_type, regular_lonlat, unstructured
+#ifdef CPP_XIOS
+  USE xios, ONLY: xios_send_field
+#endif
+  USE print_control_mod, ONLY: prt_level,lunout
+
+  IMPLICIT NONE
+  INCLUDE 'clesphys.h'
+
+  TYPE(ctrl_out), INTENT(IN) :: var
+  REAL, DIMENSION(:,:), INTENT(IN) :: field ! --> field(klon,:)
+  INTEGER, INTENT(IN), OPTIONAL :: STD_iff ! ug RUSTINE POUR LES STD LEVS.....
+      
+  INTEGER :: iff, iff_beg, iff_end
+  LOGICAL, SAVE  :: firstx
+!$OMP THREADPRIVATE(firstx)
+  REAL,DIMENSION(klon_mpi,SIZE(field,2)) :: buffer_omp
+  REAL :: Field3d(nbp_lon,jj_nb,SIZE(field,2))
+  INTEGER :: ip, n, nlev, nlevx
+  INTEGER, ALLOCATABLE, DIMENSION(:) :: index3d
+  REAL,ALLOCATABLE, DIMENSION(:,:) :: fieldok
+
+  IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite3d_phy for ', trim(var%name)
+
+  IF (prt_level >= 10) write(lunout,*)'Begin histrwrite3d ',var%name
+
+! ug RUSTINE POUR LES STD LEVS.....
+      IF (PRESENT(STD_iff)) THEN
+            iff_beg = STD_iff
+            iff_end = STD_iff
+      ELSE
+            iff_beg = 1
+            iff_end = nfiles
+      ENDIF
+
+  ! On regarde si on est dans la phase de définition ou d'écriture:
+  IF (.NOT.vars_defined) THEN
+      !Si phase de définition.... on définit
+!$OMP MASTER
+      DO iff=iff_beg, iff_end
+        IF (clef_files(iff)) THEN
+          CALL histdef3d(iff, var)
+        ENDIF
+      ENDDO
+!$OMP END MASTER
+!--broadcasting the flag that have been changed in histdef3d on OMP masters
+      CALL bcast_omp(swaerofree_diag)
+  ELSE
+    !Et sinon on.... écrit
+
+    IF (SIZE(field,1)/=klon .AND. SIZE(field,1)/=klev .AND. SIZE(field,1)/=klev+1) CALL abort_physic('iophy::histwrite3d_phy','Field first DIMENSION not equal to klon/klev',1)
+
+    nlev=SIZE(field,2)
+    nlevx=nlev
+!    IF (nlev.EQ.klev+1) THEN
+!        nlevx=klev
+!    ELSE
+!        nlevx=nlev
+!    ENDIF
+
+    IF (SIZE(field,1) == klon) then
+        CALL Gather_omp(field,buffer_omp)
+    ELSE
+        buffer_omp(:,:)=0.
+    ENDIF
+!$OMP MASTER
+    IF (grid_type==regular_lonlat) CALL grid1Dto2D_mpi(buffer_omp,field3d)
+
+! BOUCLE SUR LES FICHIERS
+    firstx=.true.
+
+    IF (ok_all_xml) THEN
+#ifdef CPP_XIOS
+          IF (prt_level >= 10) THEN
+             write(lunout,*)'Dans iophy histwrite3D,var%name ',&
+                             trim(var%name)                       
+          ENDIF
+          IF (grid_type==regular_lonlat) THEN
+            IF (SIZE(field,1) == klon) then
+               CALL xios_send_field(var%name, Field3d(:,:,1:nlevx))
+            ELSE
+               CALL xios_send_field(var%name, field)
+            ENDIF
+          ELSE IF (grid_type==unstructured) THEN
+            IF (SIZE(field,1) == klon) then
+               CALL xios_send_field(var%name, buffer_omp(:,1:nlevx))
+            ELSE
+               CALL xios_send_field(var%name, field)
+            ENDIF
+        ENDIF
+
+#else
+        CALL abort_physic ('iophy','cannot have ok_all_xml = .T. without CPP_XIOS defined' ,1)
+#endif
+    ELSE  
+
+      DO iff=iff_beg, iff_end
+          IF (var%flag(iff) <= lev_files(iff) .AND. clef_files(iff)) THEN
+#ifdef CPP_XIOS
+              IF (firstx) THEN
+                IF (prt_level >= 10) THEN
+                  write(lunout,*)'Dans iophy, histwrite3D iff nlev klev firstx', &
+                                  iff,nlev,klev, firstx                       
+                  write(lunout,*)'histwrite3d_phy: call xios_send_field for ', &
+                                  trim(var%name), ' with iim jjm nlevx = ', &
+                                  nbp_lon,jj_nb,nlevx
+                ENDIF
+                IF (grid_type==regular_lonlat) THEN
+                  IF (SIZE(field,1) == klon) then
+                      CALL xios_send_field(var%name, Field3d(:,:,1:nlevx))
+                  ELSE
+                       CALL xios_send_field(var%name, field)
+                  ENDIF
+                ELSE IF (grid_type==unstructured) THEN
+                  IF (SIZE(field,1) == klon) then
+                     CALL xios_send_field(var%name, buffer_omp(:,1:nlevx))
+                  ELSE
+                     CALL xios_send_field(var%name, field)
+                  ENDIF
+                ENDIF
+
+                firstx=.false.
+              ENDIF
+#endif
+              IF (.NOT.clef_stations(iff)) THEN
+                        ALLOCATE(index3d(nbp_lon*jj_nb*nlev))
+                        ALLOCATE(fieldok(nbp_lon*jj_nb,nlev))
+
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+                        CALL histwrite(nid_files(iff),var%name,itau_iophy,Field3d,nbp_lon*jj_nb*nlev,index3d)
+#endif
+
+!#ifdef CPP_XIOS
+!                        IF (iff == 1) THEN
+!                              CALL xios_send_field(var%name, Field3d(:,:,1:klev))
+!                        ENDIF
+!#endif
+!                        
+              ELSE 
+                        nlev=size(field,2)
+                        ALLOCATE(index3d(npstn*nlev))
+                        ALLOCATE(fieldok(npstn,nlev))
+
+                        IF (is_sequential) THEN
+                              DO n=1, nlev
+                                    DO ip=1, npstn
+                                          fieldok(ip,n)=buffer_omp(nptabij(ip),n)
+                                    ENDDO
+                              ENDDO
+                        ELSE
+                              DO n=1, nlev
+                                    DO ip=1, npstn
+                                                IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+                                                      nptabij(ip).LE.klon_mpi_end) THEN
+                                                fieldok(ip,n)=buffer_omp(nptabij(ip)-klon_mpi_begin+1,n)
+                                          ENDIF
+                                    ENDDO
+                              ENDDO
+                        ENDIF
+#ifndef CPP_IOIPSL_NO_OUTPUT 
+                        CALL histwrite(nid_files(iff),var%name,itau_iophy,fieldok,npstn*nlev,index3d)
+#endif
+              ENDIF 
+              DEALLOCATE(index3d)
+              DEALLOCATE(fieldok)
+          ENDIF
+      ENDDO
+    ENDIF
+!$OMP END MASTER   
+  ENDIF ! vars_defined
+
+  IF (prt_level >= 10) write(lunout,*)'End histrwrite3d ',var%name
+
+  END SUBROUTINE histwrite3d_phy
+  
+
+! VERSION DES HISTWRITE DEDIEES AU TOUT-XIOS-XML DEJA UTILISEE DANS PHYDEV
+#ifdef CPP_XIOS
+  SUBROUTINE histwrite2d_xios(field_name,field)
+
+  USE dimphy, ONLY: klon, klev
+  USE mod_phys_lmdz_para, ONLY: gather_omp, grid1Dto2D_mpi, &
+                                is_sequential, klon_mpi_begin, klon_mpi_end, &
+                                jj_nb, klon_mpi, is_master
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat, grid_type, unstructured
+  USE xios, ONLY: xios_send_field
+  USE print_control_mod, ONLY: prt_level,lunout
+
+  IMPLICIT NONE
+
+  CHARACTER(LEN=*), INTENT(IN) :: field_name
+  REAL, DIMENSION(:), INTENT(IN) :: field
+      
+  REAL,DIMENSION(klon_mpi) :: buffer_omp
+  INTEGER, allocatable, DIMENSION(:) :: index2d
+  REAL :: Field2d(nbp_lon,jj_nb)
+
+  INTEGER :: ip
+  REAL, ALLOCATABLE, DIMENSION(:) :: fieldok
+
+  IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite2d_xios for ', field_name
+
+  IF (prt_level >= 10) WRITE(lunout,*)'Begin histrwrite2d_xios ',field_name
+
+    !Et sinon on.... écrit
+    IF (SIZE(field)/=klon .AND. SIZE(field)/=klev .AND. SIZE(field)/=klev+1) CALL abort_physic('iophy::histwrite2d_xios','Field first DIMENSION not equal to klon/klev',1)
+    IF (SIZE(field) == klev .OR. SIZE(field) == klev+1) then
+!$OMP MASTER
+
+        CALL xios_send_field(field_name,field)
+!$OMP END MASTER   
+  ELSE
+        CALL Gather_omp(field,buffer_omp)    
+!$OMP MASTER
+
+      IF (grid_type==unstructured) THEN
+  
+        CALL xios_send_field(field_name, buffer_omp)
+
+      ELSE
+
+        CALL grid1Dto2D_mpi(buffer_omp,Field2d)
+    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!ATTENTION, STATIONS PAS GEREES !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !IF(.NOT.clef_stations(iff)) THEN
+        IF (.TRUE.) THEN
+    
+            CALL xios_send_field(field_name, Field2d)
+    
+        ELSE 
+            ALLOCATE(fieldok(npstn))
+            ALLOCATE(index2d(npstn))
+    
+            IF (is_sequential) THEN
+                DO ip=1, npstn
+                    fieldok(ip)=buffer_omp(nptabij(ip))
+                ENDDO
+            ELSE
+                DO ip=1, npstn
+                    PRINT*,'histwrite2d_xios is_sequential npstn ip namenptabij',npstn,ip,field_name,nptabij(ip)
+                    IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+                    nptabij(ip).LE.klon_mpi_end) THEN
+                        fieldok(ip)=buffer_omp(nptabij(ip)-klon_mpi_begin+1)
+                    ENDIF
+                ENDDO
+            ENDIF
+            DEALLOCATE(index2d)
+            DEALLOCATE(fieldok)
+    
+        ENDIF                  
+      ENDIF
+!$OMP END MASTER   
+  ENDIF
+
+  IF (prt_level >= 10) WRITE(lunout,*)'End histrwrite2d_xios ',field_name
+  END SUBROUTINE histwrite2d_xios
+
+
+! ug NOUVELLE VERSION DES WRITE AVEC LA BOUCLE DO RENTREE
+  SUBROUTINE histwrite3d_xios(field_name, field)
+
+  USE dimphy, ONLY: klon, klev
+  USE mod_phys_lmdz_para, ONLY: gather_omp, grid1Dto2D_mpi, &
+                                is_sequential, klon_mpi_begin, klon_mpi_end, &
+                                jj_nb, klon_mpi, is_master
+  USE xios, ONLY: xios_send_field
+  USE mod_grid_phy_lmdz, ONLY : nbp_lon, nbp_lat, grid_type, unstructured
+  USE print_control_mod, ONLY: prt_level,lunout
+
+  IMPLICIT NONE
+
+  CHARACTER(LEN=*), INTENT(IN) :: field_name
+  REAL, DIMENSION(:,:), INTENT(IN) :: field ! --> field(klon,:)
+
+  REAL,DIMENSION(klon_mpi,SIZE(field,2)) :: buffer_omp
+  REAL :: Field3d(nbp_lon,jj_nb,SIZE(field,2))
+  INTEGER :: ip, n, nlev
+  INTEGER, ALLOCATABLE, DIMENSION(:) :: index3d
+  REAL,ALLOCATABLE, DIMENSION(:,:) :: fieldok
+
+  IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite3d_xios for ', field_name
+
+  IF (prt_level >= 10) write(lunout,*)'Begin histrwrite3d_xios ',field_name
+
+    !Et on.... écrit
+    IF (SIZE(field,1)/=klon .AND. SIZE(field,1)/=klev .AND. SIZE(field,1)/=klev+1) then
+      write(lunout,*)' histrwrite3d_xios ', field_name, SIZE(field)
+      CALL abort_physic('iophy::histwrite3d_xios','Field first DIMENSION not equal to klon/klev',1)
+    ENDIF
+    
+    IF (SIZE(field,1) == klev .OR. SIZE(field,1) == klev+1) then
+!$OMP MASTER
+        CALL xios_send_field(field_name,field)
+!$OMP END MASTER   
+  ELSE
+        nlev=SIZE(field,2)
+
+
+        CALL Gather_omp(field,buffer_omp)
+!$OMP MASTER
+
+    IF (grid_type==unstructured) THEN
+
+      CALL xios_send_field(field_name, buffer_omp(:,1:nlev))
+
+    ELSE
+        CALL grid1Dto2D_mpi(buffer_omp,field3d)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!ATTENTION, STATIONS PAS GEREES !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !IF (.NOT.clef_stations(iff)) THEN
+        IF(.TRUE.)THEN
+
+           CALL xios_send_field(field_name, Field3d(:,:,1:nlev))
+                            
+        ELSE 
+            nlev=size(field,2)
+            ALLOCATE(index3d(npstn*nlev))
+            ALLOCATE(fieldok(npstn,nlev))
+    
+            IF (is_sequential) THEN
+                DO n=1, nlev
+                    DO ip=1, npstn
+                        fieldok(ip,n)=buffer_omp(nptabij(ip),n)
+                    ENDDO
+                ENDDO
+            ELSE
+                DO n=1, nlev
+                    DO ip=1, npstn
+                        IF(nptabij(ip).GE.klon_mpi_begin.AND. &
+                        nptabij(ip).LE.klon_mpi_end) THEN
+                            fieldok(ip,n)=buffer_omp(nptabij(ip)-klon_mpi_begin+1,n)
+                        ENDIF
+                    ENDDO
+                ENDDO
+            ENDIF
+            DEALLOCATE(index3d)
+            DEALLOCATE(fieldok)
+        ENDIF 
+      ENDIF
+!$OMP END MASTER   
+  ENDIF
+
+  IF (prt_level >= 10) write(lunout,*)'End histrwrite3d_xios ',field_name
+
+  END SUBROUTINE histwrite3d_xios
+
+#ifdef CPP_XIOS
+  SUBROUTINE histwrite0d_xios(field_name, field)
+  USE xios, ONLY: xios_send_field
+  USE mod_phys_lmdz_para, ONLY: is_master
+  USE print_control_mod, ONLY: prt_level,lunout
+  IMPLICIT NONE
+
+  CHARACTER(LEN=*), INTENT(IN) :: field_name
+  REAL, INTENT(IN) :: field ! --> scalar
+
+  IF (check_dim .AND. is_master) WRITE(lunout,*)'histwrite0d_xios for ', field_name
+
+!$OMP MASTER
+  CALL xios_send_field(field_name, field)
+!$OMP END MASTER
+
+  END SUBROUTINE histwrite0d_xios
+#endif
+
+#endif
+END MODULE iophy

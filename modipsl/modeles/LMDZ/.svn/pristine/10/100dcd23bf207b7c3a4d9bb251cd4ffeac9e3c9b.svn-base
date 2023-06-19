@@ -1,0 +1,16 @@
+%COMPILER            $MPI_BIN/mpif90
+%LINK                $MPI_BIN/mpif90
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                make
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE FFT_MKL
+%BASE_FFLAGS         -real-size 64 -ip -fp-model precise -align all -mcmodel=large -auto
+%PROD_FFLAGS         -O2 -ip
+%DEV_FFLAGS          -p -g -O1 -fpe0 -traceback
+%DEBUG_FFLAGS        -p -g -O0 -fpe-all=0 -traceback -ftrapuv -fp-stack-check -check bounds,format,output_conversion,pointers,uninit -debug
+%MPI_FFLAGS          
+%OMP_FFLAGS          -openmp
+%BASE_LD             -Wl,-rpath=$NETCDF_HOME/lib -L/opt/intel/composer_xe_2011_sp1.9.293/mkl/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+%MPI_LD              
+%OMP_LD              -openmp

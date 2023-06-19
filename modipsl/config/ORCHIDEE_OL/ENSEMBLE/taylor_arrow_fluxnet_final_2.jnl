@@ -1,0 +1,79 @@
+
+go page_new -i 1 1 0 100 0 100
+
+let count=($01)
+let flag_ref=($03)
+
+let norm_max=1.7
+
+
+set window 1
+
+DEFINE VIEWPORT/XLIM=0,1/YLIM=0.25,0.95 V1
+DEFINE VIEWPORT/XLIM=0,1/YLIM=0,1 V2
+DEFINE VIEWPORT/XLIM=0,1/YLIM=0.07,0.27 V3
+
+SET VIEWPORT V1
+go taylor_frame.jnl norm_max `norm_max/6,p=1` " " "Normalized Standard Deviation" 2
+
+
+file/TYPE="TEXT,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC,NUMERIC"/variables="vec_id_site,vec_norm_eval,vec_correl_eval,vec_bias_eval,vec_norm_ref,vec_correl_ref,vec_bias_ref"/FORMAT=DELIMITERS/DELIM="\b" stat_($05)_($06)_($07)_($04)_($02).csv
+
+repeat/i=1:`count` ( \ 
+let norm_ref=vec_norm_ref[i=`i`]; \
+let norm_eval=vec_norm_eval[i=`i`]; \
+let correl_ref=vec_correl_ref[i=`i`]; \
+let correl_eval=vec_correl_eval[i=`i`]; \
+let num_site=`i` ; \
+go poly_vectors.jnl `norm_ref`*cos(acos(`correl_ref`)) `norm_ref`*sin(acos(`correl_ref`)) `norm_eval`*cos(acos(`correl_eval`))-`norm_ref`*cos(acos(`correl_ref`)) `norm_eval`*sin(acos(`correl_eval`))-`norm_ref`*sin(acos(`correl_ref`)) 0.2760 "arrow" ; \
+polygon/over/nolabel/noaxis/nokey/pal="white"/line plt_x_arrow, plt_y_arrow, 1 ; \
+go taylor_polymark `norm_ref` `correl_ref` /line/fill/nokey/pal="white"/over 1 circle 0.5 ; \
+let mon_lab_x = `norm_ref`*cos(acos(`correl_ref`))+`norm_max/50` ; \
+let mon_lab_y = `norm_ref`*sin(acos(`correl_ref`))+`norm_max/50` ; \
+let mon_lab_x_corr =if(mon_lab_x gt norm_max*1.3) then (-1) else mon_lab_x ; \
+label `mon_lab_x_corr`,`mon_lab_y`,0,0,0.1 "`num_site`"  ; )
+
+set VIEWPORT V2
+repeat/i=1:`count` ( \ 
+let id_site=vec_id_site[i=`i`] ; \
+let num_site=`i` ; \
+let xpos=10*(0.7+INT((`num_site`-1)/10)*1.5) ; let ypos=90-mod(`num_site`-1,10)*3 ; \
+go text_put xpos ypos "`num_site` `id_site`" -1 0.2 )
+
+go text_put 50 95 "($07) sites: ($02)-to-($02) ($04) variability" 0 0.5
+
+set VIEWPORT V1
+label 0, `norm_max/3*-1,p=1`,1,0,0.2 "@ASVersion ($06)"
+repeat/range=1:`flag_ref`/name=ref ( \ 
+go world_arrow_put 0 `norm_max/3*-1,p=1` `norm_max/3,p=1` `norm_max/3*-1,p=1`;\
+label `norm_max/3,p=1`, `norm_max/3*-1,p=1`,-1,0,0.2 "@AS($05)")
+
+
+set VIEWPORT V3
+go margins_set 20 20 20 5
+
+define axis/x=1:`count+1`:1/edges my_x
+
+let var_pft=if(j[j=1:2] le 1) then vec_bias_eval[gx=my_x@asn] else vec_bias_ref[gx=my_x@asn]
+shade/set_up/pal=inverse_greyscale/VGRAT=(line,col=black,THICK=3)/hlimits=1:`count+1`:1/AXES=1,1,0,0/nolabels/nokey var_pft
+
+
+PPL AXLABP 0,0 !turn off numeric labels
+PPL AXLSZE 0.95,0.25
+PPL LABSET 0.3 0.3 0.3 0.3
+ppl shakey 1, 0, 0.15, 5, 3, 6, ($PPL$XORG),  `($PPL$XORG)+($PPL$XLEN)`,`($PPL$YORG)-1.3`,`($PPL$YORG)-0.9`
+ppl shade
+
+
+repeat/i=1:2 (\
+let xlegend="@AS$`4+i`" ;\
+let my_y=`i-0.5`*($PPL$YLEN)/2; \
+let my_x=-0.5 ; \
+label/nouser `my_x`,`my_y`,1,0,.15 `xlegend` )
+
+repeat/i=1:`count` (\
+let xlegend="@AS`i`" ;\
+let my_x=`i-0.5`*($PPL$XLEN)/`count`; \
+let my_y=-0.5 ; \
+label/nouser `my_x`,`my_y`,0,0,.15 `xlegend` )
+

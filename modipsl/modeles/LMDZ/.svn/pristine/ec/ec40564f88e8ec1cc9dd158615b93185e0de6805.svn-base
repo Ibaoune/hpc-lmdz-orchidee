@@ -1,0 +1,16 @@
+%COMPILER            g95
+%LINK                g95
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                make
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             PLOUF
+%BASE_FFLAGS         -c
+%PROD_FFLAGS         -O3
+%DEV_FFLAGS          -O
+%DEBUG_FFLAGS        -fbounds-check -freal=nan -ftrace=full -g -O0 -Wall
+%MPI_FFLAGS
+%OMP_FFLAGS          
+%BASE_LD             
+%MPI_LD
+%OMP_LD              

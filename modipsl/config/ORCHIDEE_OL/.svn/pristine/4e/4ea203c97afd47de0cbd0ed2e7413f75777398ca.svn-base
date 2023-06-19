@@ -1,0 +1,229 @@
+#!/bin/ksh
+
+########################################################################
+
+#D- Flag to determine if this job in a standalone mode
+#D- Default : value from AA_job if any
+StandAlone=${StandAlone:=true}
+
+#D- Increased verbosity (1, 2, 3)
+#D- Default : value from AA_job if any
+Verbosity=${Verbosity:=3}
+
+#D- Low level debug : to bypass lib test checks and stack construction
+#D- Default : value from AA_job if any
+DEBUG_debug=${DEBUG_debug:=false}
+
+
+########################################################################
+
+MODIPSL=$1
+libIGCM=${libIGCM:=${MODIPSL}/libIGCM}
+
+. ${libIGCM}/libIGCM_debug/libIGCM_debug.ksh
+. ${libIGCM}/libIGCM_card/libIGCM_card.ksh
+. ${libIGCM}/libIGCM_date/libIGCM_date.ksh
+#-------
+. ${libIGCM}/libIGCM_sys/libIGCM_sys.ksh
+. ${libIGCM}/libIGCM_config/libIGCM_config.ksh
+. ${libIGCM}/libIGCM_comp/libIGCM_comp.ksh
+. ${libIGCM}/libIGCM_post/libIGCM_post.ksh
+#-------
+( ${DEBUG_debug} ) && IGCM_debug_Check
+( ${DEBUG_debug} ) && IGCM_card_Check
+( ${DEBUG_debug} ) && IGCM_date_Check
+
+#D--------------------------------------------------------------------==
+#D- 0.1 COMMON ENVIRONMENT
+#D-     - Read libIGCM compatibility version in config.card
+#D-     - Read UserChoices section
+#D-     - Read Ensemble section
+#D-     - Read Post section
+#D-     - Define all netcdf output directories
+#D--------------------------------------------------------------------==
+IGCM_config_CommonConfiguration ${SUBMIT_DIR}/config.card
+
+
+#D--------------------------------------------------------------------==
+#D- 1. INITIALIZE CONFIGURATION
+#D-    - Simulation configuration
+#D-    - Simulation parameters
+#D-    - Execution parameter
+#D-    - Define input files directory
+#D-    - Read or initialize CumulPeriod
+#D-    - run.card
+#D---------------------------------------------------------------------==
+IGCM_config_Initialize
+
+
+
+########################################################################
+#set -vx
+########################################################################
+# Script input parameters
+
+Group=$2
+# Site name
+SiteArg=$3
+Site=${SiteArg:=Gu}
+export Site
+## Time in years in file for this site :
+#DureeArg=$4
+#DUREE=${DureeArg:=1}
+#export DUREE
+#
+## First year in file for this site :
+#FirstArg=$5
+#FYEAR=${FirstArg:=1}
+#export FYEAR
+#
+#(( LYEAR=FYEAR+DUREE-1 ))
+#export LYEAR
+
+
+# Atlas Name : 
+AtlasCfgArg=$4
+AtlasCfg=${AtlasCfgArg:=atlas_FLUXNET.cfg}
+
+# observation_file
+eval observation_file_pathArg=$5
+observation_file=${observation_file_pathArg}
+echo observation_file=${observation_file}
+
+# Modulo for SpinUp years 
+ModuloArg=${8}
+echo "ModuloArg:" $ModuloArg
+
+IGCM_sys_MkdirWork ${RUN_DIR_PATH}
+echo "RUN_DIR_PATH ${RUN_DIR_PATH} ok."
+IGCM_sys_Cd ${RUN_DIR_PATH}
+
+if [ ${StandAlone} = true ] ; then
+    CARD_DIR=${SUBMIT_DIR}
+else
+    CARD_DIR=${RUN_DIR_PATH}/$( basename ${SUBMIT_DIR} )
+    IGCM_sys_Get_Master ${SUBMIT_DIR} ${RUN_DIR_PATH}
+fi
+
+#
+# First of all
+#
+IGCM_card_DefineArrayFromSection ${CARD_DIR}/config.card UserChoices
+typeset option
+for option in ${config_UserChoices[*]} ; do
+    IGCM_card_DefineVariableFromOption ${CARD_DIR}/config.card UserChoices ${option}
+done
+#
+echo
+IGCM_debug_Print 1 "DefineArrayFromOption  : config_UserChoices"
+IGCM_debug_PrintVariables 3 config_UserChoices_JobName
+if [ 3 -le ${Verbosity} ] ; then
+    echo "--------------Debug3-->" "config_UserChoices_LongName="
+    echo "--------------Debug3-->" \"${config_UserChoices_LongName}\"
+fi
+IGCM_debug_PrintVariables 3 config_UserChoices_TagName
+IGCM_debug_PrintVariables 3 config_UserChoices_CalendarType
+IGCM_debug_PrintVariables 3 config_UserChoices_DateBegin
+IGCM_debug_PrintVariables 3 config_UserChoices_DateEnd
+IGCM_debug_PrintVariables 3 config_UserChoices_PeriodLength
+echo
+
+
+# FLAG = SECHIBA, OK_STOMATE
+IGCM_card_DefineVariableFromOption ${CARD_DIR}/ensemble.card UserChoices ok_stomate
+if [ X${ensemble_UserChoices_ok_stomate} = Xn ] ; then
+    export FLAG=SECHIBA
+else
+    export FLAG=OK_STOMATE
+fi
+
+
+#==================================
+
+SpinUpJob=${Site}${config_UserChoices_JobName}
+set -A liste_fichiers_with_path -- $( \ls -rt ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}/${SpinUpJob}HIST/SRF/Output/MO/*_sechiba_history.nc )
+echo liste_fichiers_with_path=${liste_fichiers_with_path}
+ii=0
+for filetmp in ${liste_fichiers_with_path[@]} ; do
+    (( ii = ii + 1 ))
+    file=$( echo ${filetmp} | xargs basename )
+done
+if [ $ii -ne 1 ] ; then
+  echo "Error. More than one file found. ii=$ii"
+  exit
+fi
+echo file=$file
+
+# Get and sed atlas
+IGCM_sys_Cp ${CARD_DIR}/${AtlasCfg} ./atlas.cfg
+IGCM_sys_Cp ${CARD_DIR}/ORCHIDEE_3dif.jnl ./ORCHIDEE_3dif.jnl
+    
+IGCM_sys_Cp -Rp ${liste_fichiers_with_path[0]} .
+
+# old history file
+reference_file_pathArg=$6
+if [ X${reference_file_pathArg} == XNONE ] ; then
+    reference_file_path=${liste_fichiers_with_path}
+else
+    reference_file_path=${reference_file_pathArg}
+fi
+
+eval reference_file=${reference_file_path}
+sed -e "s,RRRRRRR,${reference_file},g" -e "s,VVVVVVV,${observation_file},g" atlas.cfg > atlas_.cfg
+
+echo "REFERENCE ATLAS for file : " ${file} ${reference_file} ${observation_file}
+reference_config=$7
+atlas -o ${SpinUpJob}_${reference_config} atlas_.cfg ${file}
+
+# Remove small files before saving
+if [ X$CleanSmallFiles = Xyes ] ; then
+  tmpdir=${SpinUpJob}_${reference_config}
+  # Remove .info .tex .jnl .stdout .jpg .pdf (deuxieme niveau )
+  echo "Remove small files before saving : "
+  sumfilestoremove=$(( $( find ${tmpdir} -name "*.info" | wc -l ) +  $( find ${tmpdir} -name "*.tex" | wc -l ) +  $( find ${tmpdir} -name "*.jnl" | wc -l ) + $( find ${tmpdir} -name "*.stdout" | wc -l ) + $( find ${tmpdir} -name "*.pdf" | wc -l ) ))
+  echo "Following $sumfilestoremove files listed below will be removed: "
+
+  find ${tmpdir} -name "*.info"
+  find ${tmpdir} -name "*.tex" 
+  find ${tmpdir} -name "*.jnl" 
+  find ${tmpdir} -name "*.stdout"
+  find ${tmpdir} -name "*.pdf" 
+
+  # Now remove them
+  find ${tmpdir} -name "*.info" -print -exec rm -f '{}' \;
+  find ${tmpdir} -name "*.tex" -print -exec rm -f '{}' \;
+  find ${tmpdir} -name "*.jnl" -print -exec rm -f '{}' \;
+  find ${tmpdir} -name "*.stdout" -print -exec rm -f '{}' \;
+  find ${tmpdir} -name "*.pdf" -print -exec rm -f '{}' \;
+
+else
+  echo "No clean of small files will be done."
+fi
+
+
+# Save files
+R_SAVE=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}/fluxnet_taylor_diff_${config_UserChoices_JobName}_${reference_config}_${Group}
+
+echo "Before IGCM_sys_Put_Dir : destination= ${R_SAVE}"
+IGCM_sys_Put_Dir ${SpinUpJob}_${reference_config} ${R_SAVE}
+
+IGCM_sys_Rm -Rf ${SpinUpJob}_${reference_config}
+
+
+
+# # Get and Apply Patch
+# . ${MODIPSL}/libIGCM/libIGCM_post/IGCM_Patch_20070220_histcom_time_axis.ksh
+# for file in ${liste_fichiers[*]} ; do 
+#     IGCM_Patch_20070220_histcom_time_axis ${file}
+# done
+
+# # look at files
+# echo "after Patch" IGCM_Patch_20070220_histcom_time_axis
+# \ls -lrt  *_sechiba_history.nc
+
+# Concat files
+#IGCM_sys_ncrcat -o ${SpinUpJob}_1M_sechiba_history.nc ${liste_fichiers[*]}
+
+IGCM_sys_Rm -Rf  ${liste_fichiers[*]}
+
+IGCM_sys_RmRunDir -Rf ${RUN_DIR_PATH}

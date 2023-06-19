@@ -1,0 +1,11 @@
+NETCDF_LIBDIR="-L/S/home010/c0010/ES/lib -lnetcdf"
+NETCDF_INCDIR=-I/S/home010/c0010/ES/include
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../prism/ES/build/lib/psmile.$couple
+OASIS_LIBDIR=$LMDGCM/../../prism/ES/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/lib
+LIBPREFIX=sx

@@ -1,0 +1,14 @@
+#!/bin/bash
+#MSUB -r Job_post_FLUXNET          # Request name 
+#MSUB -n 1                         # Number of tasks to use 
+#MSUB -T 7200                        # Elapsed time limit in seconds 
+#MSUB -o example_%I.o              # Standard output. %I is the job id 
+#MSUB -e example_%I.e              # Error output. %I is the job id 
+#MSUB -q standard                  # Queue
+ 
+##
+# Embasingly parallel job :
+#   basic example using GLoST
+## 
+
+module load glost

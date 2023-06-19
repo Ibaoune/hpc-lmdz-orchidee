@@ -1,0 +1,8 @@
+70000. !pfree
+1.     !beta_pbl
+1.     !beta_free
+-180.  !lon1_beta
+180.   !lon2_beta
+90.    !lat1_beta
+-90    !lat2_beta
+.FALSE. !mskocean_beta

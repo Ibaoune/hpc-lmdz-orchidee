@@ -1,0 +1,1162 @@
+!
+! $Id: radlwsw_m.F90 3666 2020-04-20 10:13:34Z lfalletti $
+!
+module radlwsw_m
+
+  IMPLICIT NONE
+
+contains
+
+SUBROUTINE radlwsw( &
+   dist, rmu0, fract, &
+!albedo SB >>>
+!  paprs, pplay,tsol,alb1, alb2, &
+   paprs, pplay,tsol,SFRWL,alb_dir, alb_dif, &
+!albedo SB <<<
+   t,q,wo,&
+   cldfra, cldemi, cldtaupd,&
+   ok_ade, ok_aie, ok_volcan, flag_aerosol,&
+   flag_aerosol_strat, flag_aer_feedback, &
+   tau_aero, piz_aero, cg_aero,&
+   tau_aero_sw_rrtm, piz_aero_sw_rrtm, cg_aero_sw_rrtm,& ! rajoute par OB pour RRTM
+   tau_aero_lw_rrtm, &                                   ! rajoute par C. Kleinschmitt pour RRTM
+   cldtaupi, &
+   qsat, flwc, fiwc, &
+   ref_liq, ref_ice, ref_liq_pi, ref_ice_pi, &
+   heat,heat0,cool,cool0,albpla,&
+   heat_volc, cool_volc,&
+   topsw,toplw,solsw,sollw,&
+   sollwdown,&
+   topsw0,toplw0,solsw0,sollw0,&
+   lwdnc0, lwdn0, lwdn, lwupc0, lwup0, lwup,&
+   swdnc0, swdn0, swdn, swupc0, swup0, swup,&
+   topswad_aero, solswad_aero,&
+   topswai_aero, solswai_aero, &
+   topswad0_aero, solswad0_aero,&
+   topsw_aero, topsw0_aero,&
+   solsw_aero, solsw0_aero, &
+   topswcf_aero, solswcf_aero,&
+!-C. Kleinschmitt for LW diagnostics
+   toplwad_aero, sollwad_aero,&
+   toplwai_aero, sollwai_aero, &
+   toplwad0_aero, sollwad0_aero,&
+!-end
+   ZLWFT0_i, ZFLDN0, ZFLUP0,&
+   ZSWFT0_i, ZFSDN0, ZFSUP0)
+
+
+
+  USE DIMPHY
+  USE assert_m, ONLY : assert
+  USE infotrac_phy, ONLY : type_trac
+  USE write_field_phy
+#ifdef REPROBUS
+  USE CHEM_REP, ONLY : solaireTIME, ok_SUNTIME, ndimozon
+#endif
+#ifdef CPP_RRTM
+!    modules necessaires au rayonnement 
+!    -----------------------------------------
+!     USE YOMCST   , ONLY : RG       ,RD       ,RTT      ,RPI
+!     USE YOERAD   , ONLY : NSW      ,LRRTM    ,LINHOM   , LCCNL,LCCNO,
+!     USE YOERAD   , ONLY : NSW      ,LRRTM    ,LCCNL    ,LCCNO ,&
+! NSW mis dans .def MPL 20140211
+! NLW ajoute par OB
+      USE YOERAD   , ONLY : NLW, LRRTM    ,LCCNL    ,LCCNO ,&
+          NRADIP   , NRADLP , NICEOPT, NLIQOPT ,RCCNLND  , RCCNSEA
+      USE YOELW    , ONLY : NSIL     ,NTRA     ,NUA      ,TSTAND   ,XP
+      USE YOESW    , ONLY : RYFWCA   ,RYFWCB   ,RYFWCC   ,RYFWCD,&   
+          RYFWCE   ,RYFWCF   ,REBCUA   ,REBCUB   ,REBCUC,&   
+          REBCUD   ,REBCUE   ,REBCUF   ,REBCUI   ,REBCUJ,&  
+          REBCUG   ,REBCUH   ,RHSAVI   ,RFULIO   ,RFLAA0,&  
+          RFLAA1   ,RFLBB0   ,RFLBB1   ,RFLBB2   ,RFLBB3,&  
+          RFLCC0   ,RFLCC1   ,RFLCC2   ,RFLCC3   ,RFLDD0,&  
+          RFLDD1   ,RFLDD2   ,RFLDD3   ,RFUETA   ,RASWCA,& 
+          RASWCB   ,RASWCC   ,RASWCD   ,RASWCE   ,RASWCF
+!    &    RASWCB   ,RASWCC   ,RASWCD   ,RASWCE   ,RASWCF, RLINLI
+      USE YOERDU   , ONLY : NUAER  ,NTRAER ,REPLOG ,REPSC  ,REPSCW ,DIFF
+!      USE YOETHF   , ONLY : RTICE
+      USE YOERRTWN , ONLY : DELWAVE   ,TOTPLNK      
+      USE YOMPHY3  , ONLY : RII0
+#endif
+      USE aero_mod
+
+  !======================================================================
+  ! Auteur(s): Z.X. Li (LMD/CNRS) date: 19960719
+  ! Objet: interface entre le modele et les rayonnements
+  ! Arguments:
+  ! dist-----input-R- distance astronomique terre-soleil
+  ! rmu0-----input-R- cosinus de l'angle zenithal
+  ! fract----input-R- duree d'ensoleillement normalisee
+  ! co2_ppm--input-R- concentration du gaz carbonique (en ppm)
+  ! paprs----input-R- pression a inter-couche (Pa)
+  ! pplay----input-R- pression au milieu de couche (Pa)
+  ! tsol-----input-R- temperature du sol (en K)
+  ! alb1-----input-R- albedo du sol(entre 0 et 1) dans l'interval visible 
+  ! alb2-----input-R- albedo du sol(entre 0 et 1) dans l'interval proche infra-rouge   
+  ! t--------input-R- temperature (K)
+  ! q--------input-R- vapeur d'eau (en kg/kg)
+  ! cldfra---input-R- fraction nuageuse (entre 0 et 1)
+  ! cldtaupd---input-R- epaisseur optique des nuages dans le visible (present-day value)
+  ! cldemi---input-R- emissivite des nuages dans l'IR (entre 0 et 1)
+  ! ok_ade---input-L- apply the Aerosol Direct Effect or not?
+  ! ok_aie---input-L- apply the Aerosol Indirect Effect or not?
+  ! ok_volcan-input-L- activate volcanic diags (SW heat & LW cool rate, SW & LW flux)
+  ! flag_aerosol-input-I- aerosol flag from 0 to 6
+  ! flag_aerosol_strat-input-I- use stratospheric aerosols flag (0, 1, 2)
+  ! flag_aer_feedback-input-I- activate aerosol radiative feedback (T, F)
+  ! tau_ae, piz_ae, cg_ae-input-R- aerosol optical properties (calculated in aeropt.F)
+  ! cldtaupi-input-R- epaisseur optique des nuages dans le visible
+  !                   calculated for pre-industrial (pi) aerosol concentrations, i.e. with smaller
+  !                   droplet concentration, thus larger droplets, thus generally cdltaupi cldtaupd
+  !                   it is needed for the diagnostics of the aerosol indirect radiative forcing      
+  !
+  ! heat-----output-R- echauffement atmospherique (visible) (K/jour)
+  ! cool-----output-R- refroidissement dans l'IR (K/jour)
+  ! albpla---output-R- albedo planetaire (entre 0 et 1)
+  ! topsw----output-R- flux solaire net au sommet de l'atm.
+  ! toplw----output-R- ray. IR montant au sommet de l'atmosphere
+  ! solsw----output-R- flux solaire net a la surface
+  ! sollw----output-R- ray. IR montant a la surface
+  ! solswad---output-R- ray. solaire net absorbe a la surface (aerosol dir)
+  ! topswad---output-R- ray. solaire absorbe au sommet de l'atm. (aerosol dir)
+  ! solswai---output-R- ray. solaire net absorbe a la surface (aerosol ind)
+  ! topswai---output-R- ray. solaire absorbe au sommet de l'atm. (aerosol ind)
+  !
+  ! heat_volc-----output-R- echauffement atmospherique  du au forcage volcanique (visible) (K/s)
+  ! cool_volc-----output-R- refroidissement dans l'IR du au forcage volcanique (K/s)
+  !
+  ! ATTENTION: swai and swad have to be interpreted in the following manner:
+  ! ---------
+  ! ok_ade=F & ok_aie=F -both are zero
+  ! ok_ade=T & ok_aie=F -aerosol direct forcing is F_{AD} = topsw-topswad
+  !                        indirect is zero
+  ! ok_ade=F & ok_aie=T -aerosol indirect forcing is F_{AI} = topsw-topswai
+  !                        direct is zero
+  ! ok_ade=T & ok_aie=T -aerosol indirect forcing is F_{AI} = topsw-topswai
+  !                        aerosol direct forcing is F_{AD} = topswai-topswad
+  !
+  ! --------- RRTM: output RECMWFL
+  ! ZEMTD (KPROMA,KLEV+1)         ; TOTAL DOWNWARD LONGWAVE EMISSIVITY
+  ! ZEMTU (KPROMA,KLEV+1)         ; TOTAL UPWARD   LONGWAVE EMISSIVITY
+  ! ZTRSO (KPROMA,KLEV+1)         ; TOTAL SHORTWAVE TRANSMISSIVITY
+  ! ZTH   (KPROMA,KLEV+1)         ; HALF LEVEL TEMPERATURE
+  ! ZCTRSO(KPROMA,2)              ; CLEAR-SKY SHORTWAVE TRANSMISSIVITY
+  ! ZCEMTR(KPROMA,2)              ; CLEAR-SKY NET LONGWAVE EMISSIVITY
+  ! ZTRSOD(KPROMA)                ; TOTAL-SKY SURFACE SW TRANSMISSITY
+  ! ZLWFC (KPROMA,2)              ; CLEAR-SKY LONGWAVE FLUXES
+  ! ZLWFT (KPROMA,KLEV+1)         ; TOTAL-SKY LONGWAVE FLUXES
+  ! ZLWFT0(KPROMA,KLEV+1)         ; CLEAR-SKY LONGWAVE FLUXES      ! added by MPL 090109
+  ! ZSWFC (KPROMA,2)              ; CLEAR-SKY SHORTWAVE FLUXES
+  ! ZSWFT (KPROMA,KLEV+1)         ; TOTAL-SKY SHORTWAVE FLUXES
+  ! ZSWFT0(KPROMA,KLEV+1)         ; CLEAR-SKY SHORTWAVE FLUXES     ! added by MPL 090109
+  ! ZFLUX (KLON,2,KLEV+1)         ; TOTAL LW FLUXES  1=up, 2=DWN   ! added by MPL 080411
+  ! ZFLUC (KLON,2,KLEV+1)         ; CLEAR SKY LW FLUXES            ! added by MPL 080411
+  ! ZFSDWN(klon,KLEV+1)           ; TOTAL SW  DWN FLUXES           ! added by MPL 080411
+  ! ZFCDWN(klon,KLEV+1)           ; CLEAR SKY SW  DWN FLUXES       ! added by MPL 080411
+  ! ZFCCDWN(klon,KLEV+1)          ; CLEAR SKY CLEAN (NO AEROSOL) SW  DWN FLUXES      ! added by OB 211117
+  ! ZFSUP (klon,KLEV+1)           ; TOTAL SW  UP  FLUXES           ! added by MPL 080411
+  ! ZFCUP (klon,KLEV+1)           ; CLEAR SKY SW  UP  FLUXES       ! added by MPL 080411
+  ! ZFCCUP (klon,KLEV+1)          ; CLEAR SKY CLEAN (NO AEROSOL) SW  UP  FLUXES      ! added by OB 211117
+  ! ZFLCCDWN(klon,KLEV+1)         ; CLEAR SKY CLEAN (NO AEROSOL) LW  DWN FLUXES      ! added by OB 211117
+  ! ZFLCCUP (klon,KLEV+1)         ; CLEAR SKY CLEAN (NO AEROSOL) LW  UP  FLUXES      ! added by OB 211117
+  
+  !======================================================================
+  
+  ! ====================================================================
+  ! Adapte au modele de chimie INCA par Celine Deandreis & Anne Cozic -- 2009
+  ! 1 = ZERO    
+  ! 2 = AER total    
+  ! 3 = NAT    
+  ! 4 = BC    
+  ! 5 = SO4    
+  ! 6 = POM    
+  ! 7 = DUST    
+  ! 8 = SS    
+  ! 9 = NO3    
+  ! 
+  ! ====================================================================
+  include "YOETHF.h"
+  include "YOMCST.h"
+  include "clesphys.h"
+
+! Input arguments
+  REAL,    INTENT(in)  :: dist
+  REAL,    INTENT(in)  :: rmu0(KLON), fract(KLON)
+  REAL,    INTENT(in)  :: paprs(KLON,KLEV+1), pplay(KLON,KLEV)
+!albedo SB >>>
+! REAL,    INTENT(in)  :: alb1(KLON), alb2(KLON), tsol(KLON)
+  REAL,    INTENT(in)  :: tsol(KLON)
+  REAL,    INTENT(in) :: alb_dir(KLON,NSW),alb_dif(KLON,NSW)
+  real, intent(in) :: SFRWL(6)
+!albedo SB <<<
+  REAL,    INTENT(in)  :: t(KLON,KLEV), q(KLON,KLEV)
+
+  REAL, INTENT(in):: wo(:, :, :) ! dimension(KLON,KLEV, 1 or 2)
+  ! column-density of ozone in a layer, in kilo-Dobsons
+  ! "wo(:, :, 1)" is for the average day-night field, 
+  ! "wo(:, :, 2)" is for daylight time.
+
+  LOGICAL, INTENT(in)  :: ok_ade, ok_aie                                 ! switches whether to use aerosol direct (indirect) effects or not
+  LOGICAL, INTENT(in)  :: ok_volcan                                      ! produce volcanic diags (SW/LW heat flux and rate)
+  LOGICAL              :: lldebug
+  INTEGER, INTENT(in)  :: flag_aerosol                                   ! takes value 0 (no aerosol) or 1 to 6 (aerosols)
+  INTEGER, INTENT(in)  :: flag_aerosol_strat                             ! use stratospheric aerosols
+  LOGICAL, INTENT(in)  :: flag_aer_feedback                              ! activate aerosol radiative feedback
+  REAL,    INTENT(in)  :: cldfra(KLON,KLEV), cldemi(KLON,KLEV), cldtaupd(KLON,KLEV)
+  REAL,    INTENT(in)  :: tau_aero(KLON,KLEV,naero_grp,2)                        ! aerosol optical properties (see aeropt.F)
+  REAL,    INTENT(in)  :: piz_aero(KLON,KLEV,naero_grp,2)                        ! aerosol optical properties (see aeropt.F)
+  REAL,    INTENT(in)  :: cg_aero(KLON,KLEV,naero_grp,2)                         ! aerosol optical properties (see aeropt.F)
+!--OB
+  REAL,    INTENT(in)  :: tau_aero_sw_rrtm(KLON,KLEV,2,NSW)                 ! aerosol optical properties RRTM
+  REAL,    INTENT(in)  :: piz_aero_sw_rrtm(KLON,KLEV,2,NSW)                 ! aerosol optical properties RRTM
+  REAL,    INTENT(in)  :: cg_aero_sw_rrtm(KLON,KLEV,2,NSW)                  ! aerosol optical properties RRTM
+!--OB fin
+
+!--C. Kleinschmitt
+#ifdef CPP_RRTM
+  REAL,    INTENT(in)  :: tau_aero_lw_rrtm(KLON,KLEV,2,NLW)                 ! LW aerosol optical properties RRTM
+#else
+  REAL,    INTENT(in)  :: tau_aero_lw_rrtm(KLON,KLEV,2,nbands_lw_rrtm)
+#endif
+!--C. Kleinschmitt end
+
+  REAL,    INTENT(in)  :: cldtaupi(KLON,KLEV)                            ! cloud optical thickness for pre-industrial aerosol concentrations
+  REAL,    INTENT(in)  :: qsat(klon,klev) ! Variable pour iflag_rrtm=1
+  REAL,    INTENT(in)  :: flwc(klon,klev) ! Variable pour iflag_rrtm=1
+  REAL,    INTENT(in)  :: fiwc(klon,klev) ! Variable pour iflag_rrtm=1
+  REAL,    INTENT(in)  :: ref_liq(klon,klev) ! cloud droplet radius present-day from newmicro
+  REAL,    INTENT(in)  :: ref_ice(klon,klev) ! ice crystal radius   present-day from newmicro
+  REAL,    INTENT(in)  :: ref_liq_pi(klon,klev) ! cloud droplet radius pre-industrial from newmicro
+  REAL,    INTENT(in)  :: ref_ice_pi(klon,klev) ! ice crystal radius   pre-industrial from newmicro
+
+! Output arguments
+  REAL,    INTENT(out) :: heat(KLON,KLEV), cool(KLON,KLEV)
+  REAL,    INTENT(out) :: heat0(KLON,KLEV), cool0(KLON,KLEV)
+  REAL,    INTENT(out) :: heat_volc(KLON,KLEV), cool_volc(KLON,KLEV) !NL
+  REAL,    INTENT(out) :: topsw(KLON), toplw(KLON)
+  REAL,    INTENT(out) :: solsw(KLON), sollw(KLON), albpla(KLON)
+  REAL,    INTENT(out) :: topsw0(KLON), toplw0(KLON), solsw0(KLON), sollw0(KLON)
+  REAL,    INTENT(out) :: sollwdown(KLON)
+  REAL,    INTENT(out) :: swdn(KLON,kflev+1),swdn0(KLON,kflev+1), swdnc0(KLON,kflev+1)
+  REAL,    INTENT(out) :: swup(KLON,kflev+1),swup0(KLON,kflev+1), swupc0(KLON,kflev+1)
+  REAL,    INTENT(out) :: lwdn(KLON,kflev+1),lwdn0(KLON,kflev+1), lwdnc0(KLON,kflev+1)
+  REAL,    INTENT(out) :: lwup(KLON,kflev+1),lwup0(KLON,kflev+1), lwupc0(KLON,kflev+1)
+  REAL,    INTENT(out) :: topswad_aero(KLON), solswad_aero(KLON)         ! output: aerosol direct forcing at TOA and surface
+  REAL,    INTENT(out) :: topswai_aero(KLON), solswai_aero(KLON)         ! output: aerosol indirect forcing atTOA and surface
+  REAL,    INTENT(out) :: toplwad_aero(KLON), sollwad_aero(KLON)         ! output: LW aerosol direct forcing at TOA and surface
+  REAL,    INTENT(out) :: toplwai_aero(KLON), sollwai_aero(KLON)         ! output: LW aerosol indirect forcing atTOA and surface
+  REAL, DIMENSION(klon), INTENT(out)    :: topswad0_aero 
+  REAL, DIMENSION(klon), INTENT(out)    :: solswad0_aero
+  REAL, DIMENSION(klon), INTENT(out)    :: toplwad0_aero 
+  REAL, DIMENSION(klon), INTENT(out)    :: sollwad0_aero
+  REAL, DIMENSION(kdlon,9), INTENT(out) :: topsw_aero
+  REAL, DIMENSION(kdlon,9), INTENT(out) :: topsw0_aero
+  REAL, DIMENSION(kdlon,9), INTENT(out) :: solsw_aero
+  REAL, DIMENSION(kdlon,9), INTENT(out) :: solsw0_aero
+  REAL, DIMENSION(kdlon,3), INTENT(out) :: topswcf_aero
+  REAL, DIMENSION(kdlon,3), INTENT(out) :: solswcf_aero
+  REAL, DIMENSION(kdlon,kflev+1), INTENT(out) :: ZSWFT0_i
+  REAL, DIMENSION(kdlon,kflev+1), INTENT(out) :: ZLWFT0_i
+
+! Local variables
+  REAL(KIND=8) ZFSUP(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFSDN(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFSUP0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFSDN0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFSUPC0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFSDNC0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLUP(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLDN(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLUP0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLDN0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLUPC0(KDLON,KFLEV+1)
+  REAL(KIND=8) ZFLDNC0(KDLON,KFLEV+1)
+  REAL(KIND=8) zx_alpha1, zx_alpha2
+  INTEGER k, kk, i, j, iof, nb_gr
+  INTEGER ist,iend,ktdia,kmode
+  REAL(KIND=8) PSCT
+  REAL(KIND=8) PALBD(kdlon,2), PALBP(kdlon,2)
+!  MPL 06.01.09: pour RRTM, creation de PALBD_NEW et PALBP_NEW
+! avec NSW en deuxieme dimension       
+  REAL(KIND=8) PALBD_NEW(kdlon,NSW), PALBP_NEW(kdlon,NSW)
+  REAL(KIND=8) PEMIS(kdlon), PDT0(kdlon), PVIEW(kdlon)
+  REAL(KIND=8) PPSOL(kdlon), PDP(kdlon,KLEV)
+  REAL(KIND=8) PTL(kdlon,kflev+1), PPMB(kdlon,kflev+1)
+  REAL(KIND=8) PTAVE(kdlon,kflev)
+  REAL(KIND=8) PWV(kdlon,kflev), PQS(kdlon,kflev)
+
+  real(kind=8) POZON(kdlon, kflev, size(wo, 3)) ! mass fraction of ozone
+  ! "POZON(:, :, 1)" is for the average day-night field, 
+  ! "POZON(:, :, 2)" is for daylight time.
+!!!!! Modif MPL 6.01.09 avec RRTM, on passe de 5 a 6  
+  REAL(KIND=8) PAER(kdlon,kflev,6)
+  REAL(KIND=8) PCLDLD(kdlon,kflev)
+  REAL(KIND=8) PCLDLU(kdlon,kflev)
+  REAL(KIND=8) PCLDSW(kdlon,kflev)
+  REAL(KIND=8) PTAU(kdlon,2,kflev)
+  REAL(KIND=8) POMEGA(kdlon,2,kflev)
+  REAL(KIND=8) PCG(kdlon,2,kflev)
+  REAL(KIND=8) zfract(kdlon), zrmu0(kdlon), zdist
+  REAL(KIND=8) zheat(kdlon,kflev), zcool(kdlon,kflev)
+  REAL(KIND=8) zheat0(kdlon,kflev), zcool0(kdlon,kflev)
+  REAL(KIND=8) zheat_volc(kdlon,kflev), zcool_volc(kdlon,kflev) !NL
+  REAL(KIND=8) ztopsw(kdlon), ztoplw(kdlon)
+  REAL(KIND=8) zsolsw(kdlon), zsollw(kdlon), zalbpla(kdlon)
+  REAL(KIND=8) zsollwdown(kdlon)
+  REAL(KIND=8) ztopsw0(kdlon), ztoplw0(kdlon)
+  REAL(KIND=8) zsolsw0(kdlon), zsollw0(kdlon)
+  REAL(KIND=8) zznormcp
+  REAL(KIND=8) tauaero(kdlon,kflev,naero_grp,2)                     ! aer opt properties
+  REAL(KIND=8) pizaero(kdlon,kflev,naero_grp,2)
+  REAL(KIND=8) cgaero(kdlon,kflev,naero_grp,2)
+  REAL(KIND=8) PTAUA(kdlon,2,kflev)                         ! present-day value of cloud opt thickness (PTAU is pre-industrial value), local use
+  REAL(KIND=8) POMEGAA(kdlon,2,kflev)                       ! dito for single scatt albedo
+  REAL(KIND=8) ztopswadaero(kdlon), zsolswadaero(kdlon)     ! Aerosol direct forcing at TOAand surface
+  REAL(KIND=8) ztopswad0aero(kdlon), zsolswad0aero(kdlon)   ! Aerosol direct forcing at TOAand surface
+  REAL(KIND=8) ztopswaiaero(kdlon), zsolswaiaero(kdlon)     ! dito, indirect
+!--NL
+  REAL(KIND=8) zswadaero(kdlon,kflev+1)                       ! SW Aerosol direct forcing
+  REAL(KIND=8) zlwadaero(kdlon,kflev+1)                       ! LW Aerosol direct forcing
+!-LW by CK
+  REAL(KIND=8) ztoplwadaero(kdlon), zsollwadaero(kdlon)     ! LW Aerosol direct forcing at TOAand surface
+  REAL(KIND=8) ztoplwad0aero(kdlon), zsollwad0aero(kdlon)   ! LW Aerosol direct forcing at TOAand surface
+  REAL(KIND=8) ztoplwaiaero(kdlon), zsollwaiaero(kdlon)     ! dito, indirect
+!-end
+  REAL(KIND=8) ztopsw_aero(kdlon,9), ztopsw0_aero(kdlon,9)
+  REAL(KIND=8) zsolsw_aero(kdlon,9), zsolsw0_aero(kdlon,9)
+  REAL(KIND=8) ztopswcf_aero(kdlon,3), zsolswcf_aero(kdlon,3)     
+! real, parameter:: dobson_u = 2.1415e-05 ! Dobson unit, in kg m-2 deje declare dans physiq.F MPL 20130618
+!MPL input supplementaires pour RECMWFL
+! flwc, fiwc = Liquid Water Content & Ice Water Content (kg/kg)
+      REAL(KIND=8) GEMU(klon)
+!MPL input RECMWFL: 
+! Tableaux aux niveaux inverses pour respecter convention Arpege
+      REAL(KIND=8) ref_liq_i(klon,klev) ! cloud droplet radius present-day from newmicro (inverted)
+      REAL(KIND=8) ref_ice_i(klon,klev) ! ice crystal radius present-day from newmicro (inverted)
+!--OB
+      REAL(KIND=8) ref_liq_pi_i(klon,klev) ! cloud droplet radius pre-industrial from newmicro (inverted)
+      REAL(KIND=8) ref_ice_pi_i(klon,klev) ! ice crystal radius pre-industrial from newmicro (inverted)
+!--end OB
+      REAL(KIND=8) paprs_i(klon,klev+1)
+      REAL(KIND=8) pplay_i(klon,klev)
+      REAL(KIND=8) cldfra_i(klon,klev)
+      REAL(KIND=8) POZON_i(kdlon,kflev, size(wo, 3)) ! mass fraction of ozone 
+  ! "POZON(:, :, 1)" is for the average day-night field, 
+  ! "POZON(:, :, 2)" is for daylight time.
+!!!!! Modif MPL 6.01.09 avec RRTM, on passe de 5 a 6      
+      REAL(KIND=8) PAER_i(kdlon,kflev,6)
+      REAL(KIND=8) PDP_i(klon,klev)
+      REAL(KIND=8) t_i(klon,klev),q_i(klon,klev),qsat_i(klon,klev)
+      REAL(KIND=8) flwc_i(klon,klev),fiwc_i(klon,klev)
+!MPL output RECMWFL:
+      REAL(KIND=8) ZEMTD (klon,klev+1),ZEMTD_i (klon,klev+1)       
+      REAL(KIND=8) ZEMTU (klon,klev+1),ZEMTU_i (klon,klev+1)      
+      REAL(KIND=8) ZTRSO (klon,klev+1),ZTRSO_i (klon,klev+1)    
+      REAL(KIND=8) ZTH   (klon,klev+1),ZTH_i   (klon,klev+1)   
+      REAL(KIND=8) ZCTRSO(klon,2)       
+      REAL(KIND=8) ZCEMTR(klon,2)     
+      REAL(KIND=8) ZTRSOD(klon)        
+      REAL(KIND=8) ZLWFC (klon,2)      
+      REAL(KIND=8) ZLWFT (klon,klev+1),ZLWFT_i (klon,klev+1)    
+      REAL(KIND=8) ZSWFC (klon,2)      
+      REAL(KIND=8) ZSWFT (klon,klev+1),ZSWFT_i (klon,klev+1)
+      REAL(KIND=8) ZFLUCDWN_i(klon,klev+1),ZFLUCUP_i(klon,klev+1)
+      REAL(KIND=8) PPIZA_TOT(klon,klev,NSW)
+      REAL(KIND=8) PCGA_TOT(klon,klev,NSW)
+      REAL(KIND=8) PTAU_TOT(klon,klev,NSW)
+      REAL(KIND=8) PPIZA_NAT(klon,klev,NSW)
+      REAL(KIND=8) PCGA_NAT(klon,klev,NSW)
+      REAL(KIND=8) PTAU_NAT(klon,klev,NSW)
+#ifdef CPP_RRTM
+      REAL(KIND=8) PTAU_LW_TOT(klon,klev,NLW)
+      REAL(KIND=8) PTAU_LW_NAT(klon,klev,NLW)
+#endif
+      REAL(KIND=8) PSFSWDIR(klon,NSW)
+      REAL(KIND=8) PSFSWDIF(klon,NSW)
+      REAL(KIND=8) PFSDNN(klon)
+      REAL(KIND=8) PFSDNV(klon)
+!MPL On ne redefinit pas les tableaux ZFLUX,ZFLUC,
+!MPL ZFSDWN,ZFCDWN,ZFSUP,ZFCUP car ils existent deja
+!MPL sous les noms de ZFLDN,ZFLDN0,ZFLUP,ZFLUP0,
+!MPL ZFSDN,ZFSDN0,ZFSUP,ZFSUP0
+      REAL(KIND=8) ZFLUX_i (klon,2,klev+1)
+      REAL(KIND=8) ZFLUC_i (klon,2,klev+1)
+      REAL(KIND=8) ZFSDWN_i (klon,klev+1)
+      REAL(KIND=8) ZFCDWN_i (klon,klev+1)
+      REAL(KIND=8) ZFCCDWN_i (klon,klev+1)
+      REAL(KIND=8) ZFSUP_i (klon,klev+1)
+      REAL(KIND=8) ZFCUP_i (klon,klev+1)
+      REAL(KIND=8) ZFCCUP_i (klon,klev+1)
+      REAL(KIND=8) ZFLCCDWN_i (klon,klev+1)
+      REAL(KIND=8) ZFLCCUP_i (klon,klev+1)
+! 3 lignes suivantes a activer pour CCMVAL (MPL 20100412)
+!      REAL(KIND=8) RSUN(3,2)
+!      REAL(KIND=8) SUN(3)
+!      REAL(KIND=8) SUN_FRACT(2)
+  real, parameter:: dobson_u = 2.1415e-05 ! Dobson unit, in kg m-2
+  CHARACTER (LEN=80) :: abort_message
+  CHARACTER (LEN=80) :: modname='radlwsw_m'
+
+  call assert(size(wo, 1) == klon, size(wo, 2) == klev, "radlwsw wo")
+  ! initialisation
+  ist=1
+  iend=klon
+  ktdia=1
+  kmode=ist 
+  tauaero(:,:,:,:)=0.
+  pizaero(:,:,:,:)=0.
+  cgaero(:,:,:,:)=0.
+  lldebug=.FALSE.
+
+  ztopsw_aero(:,:)  = 0. !ym missing init : warning : not initialized in SW_AEROAR4
+  ztopsw0_aero(:,:) = 0. !ym missing init : warning : not initialized in SW_AEROAR4
+  zsolsw_aero(:,:)  = 0. !ym missing init : warning : not initialized in SW_AEROAR4
+  zsolsw0_aero(:,:) = 0. !ym missing init : warning : not initialized in SW_AEROAR4
+
+
+   ZTOPSWADAERO(:)  = 0. !ym missing init
+   ZSOLSWADAERO(:)  = 0. !ym missing init
+   ZTOPSWAD0AERO(:) = 0. !ym missing init
+   ZSOLSWAD0AERO(:) = 0. !ym missing init
+   ZTOPSWAIAERO(:)  = 0. !ym missing init 
+   ZSOLSWAIAERO(:)  = 0. !ym missing init  
+   ZTOPSWCF_AERO(:,:)= 0.!ym missing init  
+   ZSOLSWCF_AERO(:,:) =0. !ym missing init  
+
+  !
+  !-------------------------------------------
+  nb_gr = KLON / kdlon
+  IF (nb_gr*kdlon .NE. KLON) THEN
+      PRINT*, "kdlon mauvais:", KLON, kdlon, nb_gr
+      call abort_physic("radlwsw", "", 1)
+  ENDIF
+  IF (kflev .NE. KLEV) THEN
+      PRINT*, "kflev differe de KLEV, kflev, KLEV"
+      call abort_physic("radlwsw", "", 1)
+  ENDIF
+  !-------------------------------------------
+  DO k = 1, KLEV
+    DO i = 1, KLON
+      heat(i,k)=0.
+      cool(i,k)=0.
+      heat_volc(i,k)=0. !NL
+      cool_volc(i,k)=0. !NL
+      heat0(i,k)=0.
+      cool0(i,k)=0.
+    ENDDO
+  ENDDO
+  !
+  zdist = dist
+  !
+  PSCT = solaire/zdist/zdist
+
+  IF (type_trac == 'repr') THEN
+#ifdef REPROBUS
+    IF (iflag_rrtm==0) THEN
+      if(ok_SUNTIME) PSCT = solaireTIME/zdist/zdist
+      print*,'Constante solaire: ',PSCT*zdist*zdist
+    END IF
+#endif
+  END IF
+
+  DO j = 1, nb_gr
+    iof = kdlon*(j-1)
+    DO i = 1, kdlon
+      zfract(i) = fract(iof+i)
+!     zfract(i) = 1.     !!!!!!  essai MPL 19052010
+      zrmu0(i) = rmu0(iof+i)
+
+
+!albedo SB >>>
+!
+      IF (iflag_rrtm==0) THEN
+!
+        PALBD(i,1)=alb_dif(iof+i,1)
+        PALBD(i,2)=alb_dif(iof+i,2)
+        PALBP(i,1)=alb_dir(iof+i,1)
+        PALBP(i,2)=alb_dir(iof+i,2)
+!
+      ELSEIF (iflag_rrtm==1) THEn
+!
+        DO kk=1,NSW
+          PALBD_NEW(i,kk)=alb_dif(iof+i,kk)
+          PALBP_NEW(i,kk)=alb_dir(iof+i,kk)
+        ENDDO
+!
+      ENDIF
+!albedo SB <<<
+
+
+      PEMIS(i) = 1.0    !!!!! A REVOIR (MPL) 
+      PVIEW(i) = 1.66
+      PPSOL(i) = paprs(iof+i,1)
+      zx_alpha1 = (paprs(iof+i,1)-pplay(iof+i,2))/(pplay(iof+i,1)-pplay(iof+i,2))
+      zx_alpha2 = 1.0 - zx_alpha1
+      PTL(i,1) = t(iof+i,1) * zx_alpha1 + t(iof+i,2) * zx_alpha2
+      PTL(i,KLEV+1) = t(iof+i,KLEV)
+      PDT0(i) = tsol(iof+i) - PTL(i,1)
+    ENDDO
+    DO k = 2, kflev
+      DO i = 1, kdlon
+        PTL(i,k) = (t(iof+i,k)+t(iof+i,k-1))*0.5
+      ENDDO
+    ENDDO
+    DO k = 1, kflev
+      DO i = 1, kdlon
+        PDP(i,k) = paprs(iof+i,k)-paprs(iof+i,k+1)
+        PTAVE(i,k) = t(iof+i,k)
+        PWV(i,k) = MAX (q(iof+i,k), 1.0e-12)
+        PQS(i,k) = PWV(i,k)
+!       Confert from  column density of ozone in a cell, in kDU, to a mass fraction
+        POZON(i,k, :) = wo(iof+i, k, :) * RG * dobson_u * 1e3 &
+             / (paprs(iof+i, k) - paprs(iof+i, k+1))
+!       A activer pour CCMVAL on prend l'ozone impose (MPL 07042010)
+!       POZON(i,k,:) = wo(i,k,:)  
+!       print *,'RADLWSW: POZON',k, POZON(i,k,1) 
+        PCLDLD(i,k) = cldfra(iof+i,k)*cldemi(iof+i,k)
+        PCLDLU(i,k) = cldfra(iof+i,k)*cldemi(iof+i,k)
+        PCLDSW(i,k) = cldfra(iof+i,k)
+        PTAU(i,1,k) = MAX(cldtaupi(iof+i,k), 1.0e-05)! 1e-12 serait instable
+        PTAU(i,2,k) = MAX(cldtaupi(iof+i,k), 1.0e-05)! pour 32-bit machines
+        POMEGA(i,1,k) = 0.9999 - 5.0e-04 * EXP(-0.5 * PTAU(i,1,k))
+        POMEGA(i,2,k) = 0.9988 - 2.5e-03 * EXP(-0.05 * PTAU(i,2,k))
+        PCG(i,1,k) = 0.865
+        PCG(i,2,k) = 0.910
+        !-
+        ! Introduced for aerosol indirect forcings.
+        ! The following values use the cloud optical thickness calculated from
+        ! present-day aerosol concentrations whereas the quantities without the
+        ! "A" at the end are for pre-industial (natural-only) aerosol concentrations
+        !
+        PTAUA(i,1,k) = MAX(cldtaupd(iof+i,k), 1.0e-05)! 1e-12 serait instable
+        PTAUA(i,2,k) = MAX(cldtaupd(iof+i,k), 1.0e-05)! pour 32-bit machines
+        POMEGAA(i,1,k) = 0.9999 - 5.0e-04 * EXP(-0.5 * PTAUA(i,1,k))
+        POMEGAA(i,2,k) = 0.9988 - 2.5e-03 * EXP(-0.05 * PTAUA(i,2,k))
+      ENDDO
+    ENDDO
+
+    IF (type_trac == 'repr') THEN
+#ifdef REPROBUS
+       ndimozon = size(wo, 3)
+       CALL RAD_INTERACTIF(POZON,iof)
+#endif
+    END IF
+
+    !
+    DO k = 1, kflev+1
+      DO i = 1, kdlon
+        PPMB(i,k) = paprs(iof+i,k)/100.0
+      ENDDO
+    ENDDO
+    !
+!!!!! Modif MPL 6.01.09 avec RRTM, on passe de 5 a 6 
+    DO kk = 1, 6
+      DO k = 1, kflev
+        DO i = 1, kdlon
+          PAER(i,k,kk) = 1.0E-15   !!!!! A REVOIR (MPL)
+        ENDDO
+      ENDDO
+    ENDDO
+    DO k = 1, kflev
+      DO i = 1, kdlon
+        tauaero(i,k,:,1)=tau_aero(iof+i,k,:,1)
+        pizaero(i,k,:,1)=piz_aero(iof+i,k,:,1)
+        cgaero(i,k,:,1) =cg_aero(iof+i,k,:,1)
+        tauaero(i,k,:,2)=tau_aero(iof+i,k,:,2)
+        pizaero(i,k,:,2)=piz_aero(iof+i,k,:,2)
+        cgaero(i,k,:,2) =cg_aero(iof+i,k,:,2)
+      ENDDO
+    ENDDO
+
+!
+!===== iflag_rrtm ================================================
+!      
+    IF (iflag_rrtm == 0) THEN       !!!! remettre 0 juste pour tester l'ancien rayt via rrtm
+!--- Mise a zero des tableaux output du rayonnement LW-AR4 ----------              
+      DO k = 1, kflev+1
+      DO i = 1, kdlon
+!     print *,'RADLWSW: boucle mise a zero i k',i,k
+      ZFLUP(i,k)=0.
+      ZFLDN(i,k)=0.
+      ZFLUP0(i,k)=0.
+      ZFLDN0(i,k)=0.
+      ZLWFT0_i(i,k)=0.
+      ZFLUCUP_i(i,k)=0.
+      ZFLUCDWN_i(i,k)=0.
+      ENDDO
+      ENDDO
+      DO k = 1, kflev
+         DO i = 1, kdlon
+            zcool(i,k)=0.
+            zcool_volc(i,k)=0. !NL
+            zcool0(i,k)=0.
+         ENDDO
+      ENDDO
+      DO i = 1, kdlon
+      ztoplw(i)=0.
+      zsollw(i)=0.
+      ztoplw0(i)=0.
+      zsollw0(i)=0.
+      zsollwdown(i)=0.
+      ENDDO
+       ! Old radiation scheme, used for AR4 runs
+       ! average day-night ozone for longwave
+       CALL LW_LMDAR4(&
+            PPMB, PDP,&
+            PPSOL,PDT0,PEMIS,&
+            PTL, PTAVE, PWV, POZON(:, :, 1), PAER,&
+            PCLDLD,PCLDLU,&
+            PVIEW,&
+            zcool, zcool0,&
+            ztoplw,zsollw,ztoplw0,zsollw0,&
+            zsollwdown,&
+            ZFLUP, ZFLDN, ZFLUP0,ZFLDN0)
+!----- Mise a zero des tableaux output du rayonnement SW-AR4 
+      DO k = 1, kflev+1
+         DO i = 1, kdlon
+            ZFSUP(i,k)=0.
+            ZFSDN(i,k)=0.
+            ZFSUP0(i,k)=0.
+            ZFSDN0(i,k)=0.
+            ZFSUPC0(i,k)=0.
+            ZFSDNC0(i,k)=0.
+            ZFLUPC0(i,k)=0.
+            ZFLDNC0(i,k)=0.
+            ZSWFT0_i(i,k)=0.
+            ZFCUP_i(i,k)=0.
+            ZFCDWN_i(i,k)=0.
+            ZFCCUP_i(i,k)=0.
+            ZFCCDWN_i(i,k)=0.
+            ZFLCCUP_i(i,k)=0.
+            ZFLCCDWN_i(i,k)=0.
+            zswadaero(i,k)=0. !--NL
+         ENDDO
+      ENDDO
+      DO k = 1, kflev
+         DO i = 1, kdlon
+            zheat(i,k)=0.
+            zheat_volc(i,k)=0.
+            zheat0(i,k)=0.
+         ENDDO
+      ENDDO
+      DO i = 1, kdlon
+      zalbpla(i)=0.
+      ztopsw(i)=0.
+      zsolsw(i)=0.
+      ztopsw0(i)=0.
+      zsolsw0(i)=0.
+      ztopswadaero(i)=0.
+      zsolswadaero(i)=0.
+      ztopswaiaero(i)=0.
+      zsolswaiaero(i)=0.
+      ENDDO
+!     print *,'Avant SW_LMDAR4: PSCT zrmu0 zfract',PSCT, zrmu0, zfract
+       ! daylight ozone, if we have it, for short wave
+      CALL SW_AEROAR4(PSCT, zrmu0, zfract,&
+               PPMB, PDP,&
+               PPSOL, PALBD, PALBP,&
+               PTAVE, PWV, PQS, POZON(:, :, size(wo, 3)), PAER,&
+               PCLDSW, PTAU, POMEGA, PCG,&
+               zheat, zheat0,&
+               zalbpla,ztopsw,zsolsw,ztopsw0,zsolsw0,&
+               ZFSUP,ZFSDN,ZFSUP0,ZFSDN0,&
+               tauaero, pizaero, cgaero, &
+               PTAUA, POMEGAA,&
+               ztopswadaero,zsolswadaero,&
+               ztopswad0aero,zsolswad0aero,&
+               ztopswaiaero,zsolswaiaero, & 
+               ztopsw_aero,ztopsw0_aero,&
+               zsolsw_aero,zsolsw0_aero,&
+               ztopswcf_aero,zsolswcf_aero, & 
+               ok_ade, ok_aie, flag_aerosol,flag_aerosol_strat) 
+
+       ZSWFT0_i(:,:) = ZFSDN0(:,:)-ZFSUP0(:,:)
+       ZLWFT0_i(:,:) =-ZFLDN0(:,:)-ZFLUP0(:,:)
+
+       DO i=1,kdlon
+       DO k=1,kflev+1
+!        print *,'iof i k klon klev=',iof,i,k,klon,klev
+         lwdn0 ( iof+i,k)   = ZFLDN0 ( i,k)
+         lwdn  ( iof+i,k)   = ZFLDN  ( i,k)
+         lwup0 ( iof+i,k)   = ZFLUP0 ( i,k)
+         lwup  ( iof+i,k)   = ZFLUP  ( i,k)
+         swdn0 ( iof+i,k)   = ZFSDN0 ( i,k)
+         swdn  ( iof+i,k)   = ZFSDN  ( i,k)
+         swup0 ( iof+i,k)   = ZFSUP0 ( i,k)
+         swup  ( iof+i,k)   = ZFSUP  ( i,k)
+       ENDDO  
+       ENDDO  
+!          print*,'SW_AR4 ZFSDN0 1 , klev:',ZFSDN0(1:klon,1),ZFSDN0(1:klon,klev)
+!          print*,'SW_AR4 swdn0  1 , klev:',swdn0(1:klon,1),swdn0(1:klon,klev)
+!          print*,'SW_AR4 ZFSUP0 1 , klev:',ZFSUP0(1:klon,1),ZFSUP0(1:klon,klev)
+!          print*,'SW_AR4 swup0  1 , klev:',swup0(1:klon,1),swup0(1:klon,klev)
+!          print*,'SW_AR4 ZFSDN  1 , klev:',ZFSDN(1:klon,1) ,ZFSDN(1:klon,klev)
+!          print*,'SW_AR4 ZFSUP  1 , klev:',ZFSUP(1:klon,1) ,ZFSUP(1:klon,klev)
+    ELSE  
+#ifdef CPP_RRTM
+!      if (prt_level.gt.10)write(lunout,*)'CPP_RRTM=.T.' 
+!===== iflag_rrtm=1, on passe dans SW via RECMWFL ===============
+
+      DO k = 1, kflev+1
+      DO i = 1, kdlon
+      ZEMTD_i(i,k)=0.
+      ZEMTU_i(i,k)=0.
+      ZTRSO_i(i,k)=0.
+      ZTH_i(i,k)=0.
+      ZLWFT_i(i,k)=0.
+      ZSWFT_i(i,k)=0.
+      ZFLUX_i(i,1,k)=0.
+      ZFLUX_i(i,2,k)=0.
+      ZFLUC_i(i,1,k)=0.
+      ZFLUC_i(i,2,k)=0.
+      ZFSDWN_i(i,k)=0.
+      ZFCDWN_i(i,k)=0.
+      ZFCCDWN_i(i,k)=0.
+      ZFSUP_i(i,k)=0.
+      ZFCUP_i(i,k)=0.
+      ZFCCUP_i(i,k)=0.
+      ZFLCCDWN_i(i,k)=0.
+      ZFLCCUP_i(i,k)=0.
+      ENDDO
+      ENDDO
+!
+!--OB
+!--aerosol TOT  - anthropogenic+natural - index 2
+!--aerosol NAT  - natural only          - index 1
+!
+      DO i = 1, kdlon
+      DO k = 1, kflev
+      DO kk=1, NSW
+!
+      PTAU_TOT(i,kflev+1-k,kk)=tau_aero_sw_rrtm(i,k,2,kk)
+      PPIZA_TOT(i,kflev+1-k,kk)=piz_aero_sw_rrtm(i,k,2,kk)
+      PCGA_TOT(i,kflev+1-k,kk)=cg_aero_sw_rrtm(i,k,2,kk)
+!
+      PTAU_NAT(i,kflev+1-k,kk)=tau_aero_sw_rrtm(i,k,1,kk)
+      PPIZA_NAT(i,kflev+1-k,kk)=piz_aero_sw_rrtm(i,k,1,kk)
+      PCGA_NAT(i,kflev+1-k,kk)=cg_aero_sw_rrtm(i,k,1,kk)
+!
+      ENDDO
+      ENDDO
+      ENDDO
+!-end OB
+!
+!--C. Kleinschmitt
+!--aerosol TOT  - anthropogenic+natural - index 2
+!--aerosol NAT  - natural only          - index 1
+!
+      DO i = 1, kdlon
+      DO k = 1, kflev
+      DO kk=1, NLW
+!
+      PTAU_LW_TOT(i,kflev+1-k,kk)=tau_aero_lw_rrtm(i,k,2,kk)
+      PTAU_LW_NAT(i,kflev+1-k,kk)=tau_aero_lw_rrtm(i,k,1,kk)
+!
+      ENDDO
+      ENDDO
+      ENDDO
+!-end C. Kleinschmitt
+!      
+      DO i = 1, kdlon
+      ZCTRSO(i,1)=0.
+      ZCTRSO(i,2)=0.
+      ZCEMTR(i,1)=0.
+      ZCEMTR(i,2)=0.
+      ZTRSOD(i)=0.
+      ZLWFC(i,1)=0.
+      ZLWFC(i,2)=0.
+      ZSWFC(i,1)=0.
+      ZSWFC(i,2)=0.
+      PFSDNN(i)=0.
+      PFSDNV(i)=0.
+      DO kk = 1, NSW
+      PSFSWDIR(i,kk)=0.
+      PSFSWDIF(i,kk)=0.
+      ENDDO
+      ENDDO
+!----- Fin des mises a zero des tableaux output de RECMWF -------------------              
+!        GEMU(1:klon)=sin(rlatd(1:klon))
+! On met les donnees dans l'ordre des niveaux arpege
+         paprs_i(:,1)=paprs(:,klev+1)
+         do k=1,klev
+            paprs_i(1:klon,k+1) =paprs(1:klon,klev+1-k)
+            pplay_i(1:klon,k)   =pplay(1:klon,klev+1-k)
+            cldfra_i(1:klon,k)  =cldfra(1:klon,klev+1-k)
+            PDP_i(1:klon,k)     =PDP(1:klon,klev+1-k)
+            t_i(1:klon,k)       =t(1:klon,klev+1-k)
+            q_i(1:klon,k)       =q(1:klon,klev+1-k)
+            qsat_i(1:klon,k)    =qsat(1:klon,klev+1-k)
+            flwc_i(1:klon,k)    =flwc(1:klon,klev+1-k)
+            fiwc_i(1:klon,k)    =fiwc(1:klon,klev+1-k)
+            ref_liq_i(1:klon,k) =ref_liq(1:klon,klev+1-k)
+            ref_ice_i(1:klon,k) =ref_ice(1:klon,klev+1-k)
+!-OB
+            ref_liq_pi_i(1:klon,k) =ref_liq_pi(1:klon,klev+1-k)
+            ref_ice_pi_i(1:klon,k) =ref_ice_pi(1:klon,klev+1-k)
+         enddo
+         do k=1,kflev
+           POZON_i(1:klon,k,:)=POZON(1:klon,kflev+1-k,:)
+!!!            POZON_i(1:klon,k)=POZON(1:klon,k)	    !!! on laisse 1=sol et klev=top 
+!          print *,'Juste avant RECMWFL: k tsol temp',k,tsol,t(1,k)
+!!!!!!! Modif MPL 6.01.09 avec RRTM, on passe de 5 a 6      
+            do i=1,6
+            PAER_i(1:klon,k,i)=PAER(1:klon,kflev+1-k,i)
+            enddo
+         enddo
+!       print *,'RADLWSW: avant RECMWFL, RI0,rmu0=',solaire,rmu0
+
+!  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+! La version ARPEGE1D utilise differentes valeurs de la constante
+! solaire suivant le rayonnement utilise.
+! A controler ...
+! SOLAR FLUX AT THE TOP (/YOMPHY3/)
+! introduce season correction
+!--------------------------------------
+! RII0 = RIP0
+! IF(LRAYFM)
+! RII0 = RIP0M   ! =rip0m if Morcrette non-each time step call.
+! IF(LRAYFM15)
+! RII0 = RIP0M15 ! =rip0m if Morcrette non-each time step call.
+         RII0=solaire/zdist/zdist
+!print*,'+++ radlwsw: solaire ,RII0',solaire,RII0
+!  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+! Ancien appel a RECMWF (celui du cy25)
+!        CALL RECMWF (ist , iend, klon , ktdia , klev   , kmode ,
+!    s   PALBD    , PALBP   , paprs_i , pplay_i , RCO2   , cldfra_i,
+!    s   POZON_i  , PAER_i  , PDP_i   , PEMIS   , GEMU   , rmu0,
+!    s    q_i     , qsat_i  , fiwc_i  , flwc_i  , zmasq  , t_i  ,tsol,
+!    s   ZEMTD_i  , ZEMTU_i , ZTRSO_i ,
+!    s   ZTH_i    , ZCTRSO  , ZCEMTR  , ZTRSOD  ,
+!    s   ZLWFC    , ZLWFT_i , ZSWFC   , ZSWFT_i ,
+!    s   ZFLUX_i  , ZFLUC_i , ZFSDWN_i, ZFSUP_i , ZFCDWN_i,ZFCUP_i)
+!    s   'RECMWF ')
+!
+      if(lldebug) then
+        CALL writefield_phy('paprs_i',paprs_i,klev+1)
+        CALL writefield_phy('pplay_i',pplay_i,klev)
+        CALL writefield_phy('cldfra_i',cldfra_i,klev)
+        CALL writefield_phy('pozon_i',POZON_i,klev)
+        CALL writefield_phy('paer_i',PAER_i,klev)
+        CALL writefield_phy('pdp_i',PDP_i,klev)
+        CALL writefield_phy('q_i',q_i,klev)
+        CALL writefield_phy('qsat_i',qsat_i,klev)
+        CALL writefield_phy('fiwc_i',fiwc_i,klev)
+        CALL writefield_phy('flwc_i',flwc_i,klev)
+        CALL writefield_phy('t_i',t_i,klev)
+        CALL writefield_phy('palbd_new',PALBD_NEW,NSW)
+        CALL writefield_phy('palbp_new',PALBP_NEW,NSW)
+      endif
+
+! Nouvel appel a RECMWF (celui du cy32t0)
+         CALL RECMWF_AERO (ist , iend, klon , ktdia  , klev   , kmode ,&
+         PALBD_NEW,PALBP_NEW, paprs_i , pplay_i , RCO2   , cldfra_i,&
+         POZON_i  , PAER_i  , PDP_i   , PEMIS   , rmu0   ,&
+          q_i     , qsat_i  , fiwc_i  , flwc_i  , zmasq  , t_i  ,tsol,&
+         ref_liq_i, ref_ice_i, &
+         ref_liq_pi_i, ref_ice_pi_i, &   ! rajoute par OB pour diagnostiquer effet indirect
+         ZEMTD_i  , ZEMTU_i , ZTRSO_i ,&
+         ZTH_i    , ZCTRSO  , ZCEMTR  , ZTRSOD  ,&
+         ZLWFC    , ZLWFT_i , ZSWFC   , ZSWFT_i ,&
+         PSFSWDIR , PSFSWDIF, PFSDNN  , PFSDNV  ,&
+         PPIZA_TOT, PCGA_TOT,PTAU_TOT,&
+         PPIZA_NAT, PCGA_NAT,PTAU_NAT,           &  ! rajoute par OB pour diagnostiquer effet direct
+         PTAU_LW_TOT, PTAU_LW_NAT,               &  ! rajoute par C. Kleinschmitt
+         ZFLUX_i  , ZFLUC_i ,&
+         ZFSDWN_i , ZFSUP_i , ZFCDWN_i, ZFCUP_i, ZFCCDWN_i, ZFCCUP_i, ZFLCCDWN_i, ZFLCCUP_i, &
+         ZTOPSWADAERO,ZSOLSWADAERO,&  ! rajoute par OB pour diagnostics
+         ZTOPSWAD0AERO,ZSOLSWAD0AERO,&
+         ZTOPSWAIAERO,ZSOLSWAIAERO, &
+         ZTOPSWCF_AERO,ZSOLSWCF_AERO, &
+         ZSWADAERO, & !--NL
+         ZTOPLWADAERO,ZSOLLWADAERO,&  ! rajoute par C. Kleinscmitt pour LW diagnostics
+         ZTOPLWAD0AERO,ZSOLLWAD0AERO,&
+         ZTOPLWAIAERO,ZSOLLWAIAERO, &
+         ZLWADAERO, & !--NL
+         ok_ade, ok_aie, ok_volcan, flag_aerosol,flag_aerosol_strat, flag_aer_feedback) ! flags aerosols
+            
+!        print *,'RADLWSW: apres RECMWF'
+      if(lldebug) then
+        CALL writefield_phy('zemtd_i',ZEMTD_i,klev+1)
+        CALL writefield_phy('zemtu_i',ZEMTU_i,klev+1)
+        CALL writefield_phy('ztrso_i',ZTRSO_i,klev+1)
+        CALL writefield_phy('zth_i',ZTH_i,klev+1)
+        CALL writefield_phy('zctrso',ZCTRSO,2)
+        CALL writefield_phy('zcemtr',ZCEMTR,2)
+        CALL writefield_phy('ztrsod',ZTRSOD,1)
+        CALL writefield_phy('zlwfc',ZLWFC,2)
+        CALL writefield_phy('zlwft_i',ZLWFT_i,klev+1)
+        CALL writefield_phy('zswfc',ZSWFC,2)
+        CALL writefield_phy('zswft_i',ZSWFT_i,klev+1)
+        CALL writefield_phy('psfswdir',PSFSWDIR,6)
+        CALL writefield_phy('psfswdif',PSFSWDIF,6)
+        CALL writefield_phy('pfsdnn',PFSDNN,1)
+        CALL writefield_phy('pfsdnv',PFSDNV,1)
+        CALL writefield_phy('ppiza_dst',PPIZA_TOT,klev)
+        CALL writefield_phy('pcga_dst',PCGA_TOT,klev)
+        CALL writefield_phy('ptaurel_dst',PTAU_TOT,klev)
+        CALL writefield_phy('zflux_i',ZFLUX_i,klev+1)
+        CALL writefield_phy('zfluc_i',ZFLUC_i,klev+1)
+        CALL writefield_phy('zfsdwn_i',ZFSDWN_i,klev+1)
+        CALL writefield_phy('zfsup_i',ZFSUP_i,klev+1)
+        CALL writefield_phy('zfcdwn_i',ZFCDWN_i,klev+1)
+        CALL writefield_phy('zfcup_i',ZFCUP_i,klev+1)
+      endif
+! --------- output RECMWFL
+!  ZEMTD        (KPROMA,KLEV+1)  ; TOTAL DOWNWARD LONGWAVE EMISSIVITY
+!  ZEMTU        (KPROMA,KLEV+1)  ; TOTAL UPWARD   LONGWAVE EMISSIVITY
+!  ZTRSO        (KPROMA,KLEV+1)  ; TOTAL SHORTWAVE TRANSMISSIVITY
+!  ZTH          (KPROMA,KLEV+1)  ; HALF LEVEL TEMPERATURE
+!  ZCTRSO       (KPROMA,2)       ; CLEAR-SKY SHORTWAVE TRANSMISSIVITY
+!  ZCEMTR       (KPROMA,2)       ; CLEAR-SKY NET LONGWAVE EMISSIVITY
+!  ZTRSOD       (KPROMA)         ; TOTAL-SKY SURFACE SW TRANSMISSITY
+!  ZLWFC        (KPROMA,2)       ; CLEAR-SKY LONGWAVE FLUXES
+!  ZLWFT        (KPROMA,KLEV+1)  ; TOTAL-SKY LONGWAVE FLUXES
+!  ZSWFC        (KPROMA,2)       ; CLEAR-SKY SHORTWAVE FLUXES
+!  ZSWFT        (KPROMA,KLEV+1)  ; TOTAL-SKY SHORTWAVE FLUXES
+!  PPIZA_TOT    (KPROMA,KLEV,NSW); Single scattering albedo of total aerosols 
+!  PCGA_TOT     (KPROMA,KLEV,NSW); Assymetry factor for total aerosols 
+!  PTAU_TOT     (KPROMA,KLEV,NSW); Optical depth of total aerosols 
+!  PPIZA_NAT    (KPROMA,KLEV,NSW); Single scattering albedo of natural aerosols 
+!  PCGA_NAT     (KPROMA,KLEV,NSW); Assymetry factor for natural aerosols 
+!  PTAU_NAT     (KPROMA,KLEV,NSW); Optical depth of natiral aerosols
+!  PTAU_LW_TOT  (KPROMA,KLEV,NLW); LW Optical depth of total aerosols  
+!  PTAU_LW_NAT  (KPROMA,KLEV,NLW); LW Optical depth of natural aerosols  
+!  PSFSWDIR     (KPROMA,NSW)     ;
+!  PSFSWDIF     (KPROMA,NSW)     ;
+!  PFSDNN       (KPROMA)         ;
+!  PFSDNV       (KPROMA)         ;
+! ---------
+! ---------
+! On retablit l'ordre des niveaux lmd pour les tableaux de sortie
+! D autre part, on multiplie les resultats SW par fract pour etre coherent
+! avec l ancien rayonnement AR4. Si nuit, fract=0 donc pas de 
+! rayonnement SW. (MPL 260609)
+      DO k=0,klev
+         DO i=1,klon
+         ZEMTD(i,k+1)  = ZEMTD_i(i,k+1)
+         ZEMTU(i,k+1)  = ZEMTU_i(i,k+1)
+         ZTRSO(i,k+1)  = ZTRSO_i(i,k+1)
+         ZTH(i,k+1)    = ZTH_i(i,k+1)
+!        ZLWFT(i,k+1)  = ZLWFT_i(i,klev+1-k)
+!        ZSWFT(i,k+1)  = ZSWFT_i(i,klev+1-k)
+         ZFLUP(i,k+1)  = ZFLUX_i(i,1,k+1)
+         ZFLDN(i,k+1)  = ZFLUX_i(i,2,k+1)
+         ZFLUP0(i,k+1) = ZFLUC_i(i,1,k+1)
+         ZFLDN0(i,k+1) = ZFLUC_i(i,2,k+1)
+         ZFSDN(i,k+1)  = ZFSDWN_i(i,k+1)*fract(i)
+         ZFSDN0(i,k+1) = ZFCDWN_i(i,k+1)*fract(i)
+         ZFSDNC0(i,k+1)= ZFCCDWN_i(i,k+1)*fract(i)
+         ZFSUP (i,k+1) = ZFSUP_i(i,k+1)*fract(i)
+         ZFSUP0(i,k+1) = ZFCUP_i(i,k+1)*fract(i)
+         ZFSUPC0(i,k+1)= ZFCCUP_i(i,k+1)*fract(i)
+         ZFLDNC0(i,k+1)= ZFLCCDWN_i(i,k+1)
+         ZFLUPC0(i,k+1)= ZFLCCUP_i(i,k+1)
+         IF(ok_volcan) THEN
+            ZSWADAERO(i,k+1)=ZSWADAERO(i,k+1)*fract(i) !--NL
+         ENDIF
+         
+!   Nouveau calcul car visiblement ZSWFT et ZSWFC sont nuls dans RRTM cy32
+!   en sortie de radlsw.F90 - MPL 7.01.09
+         ZSWFT(i,k+1)  = (ZFSDWN_i(i,k+1)-ZFSUP_i(i,k+1))*fract(i)
+         ZSWFT0_i(i,k+1) = (ZFCDWN_i(i,k+1)-ZFCUP_i(i,k+1))*fract(i)
+!        WRITE(*,'("FSDN FSUP FCDN FCUP: ",4E12.5)') ZFSDWN_i(i,k+1),&
+!        ZFSUP_i(i,k+1),ZFCDWN_i(i,k+1),ZFCUP_i(i,k+1)
+         ZLWFT(i,k+1) =-ZFLUX_i(i,2,k+1)-ZFLUX_i(i,1,k+1)
+         ZLWFT0_i(i,k+1)=-ZFLUC_i(i,2,k+1)-ZFLUC_i(i,1,k+1)
+!        print *,'FLUX2 FLUX1 FLUC2 FLUC1',ZFLUX_i(i,2,k+1),&
+!    & ZFLUX_i(i,1,k+1),ZFLUC_i(i,2,k+1),ZFLUC_i(i,1,k+1)
+         ENDDO
+      ENDDO
+
+!--ajout OB
+      ZTOPSWADAERO(:) =ZTOPSWADAERO(:) *fract(:)
+      ZSOLSWADAERO(:) =ZSOLSWADAERO(:) *fract(:)
+      ZTOPSWAD0AERO(:)=ZTOPSWAD0AERO(:)*fract(:)
+      ZSOLSWAD0AERO(:)=ZSOLSWAD0AERO(:)*fract(:)
+      ZTOPSWAIAERO(:) =ZTOPSWAIAERO(:) *fract(:)
+      ZSOLSWAIAERO(:) =ZSOLSWAIAERO(:) *fract(:)
+      ZTOPSWCF_AERO(:,1)=ZTOPSWCF_AERO(:,1)*fract(:) 
+      ZTOPSWCF_AERO(:,2)=ZTOPSWCF_AERO(:,2)*fract(:) 
+      ZTOPSWCF_AERO(:,3)=ZTOPSWCF_AERO(:,3)*fract(:) 
+      ZSOLSWCF_AERO(:,1)=ZSOLSWCF_AERO(:,1)*fract(:)
+      ZSOLSWCF_AERO(:,2)=ZSOLSWCF_AERO(:,2)*fract(:)
+      ZSOLSWCF_AERO(:,3)=ZSOLSWCF_AERO(:,3)*fract(:)
+
+!     print*,'SW_RRTM ZFSDN0 1 , klev:',ZFSDN0(1:klon,1),ZFSDN0(1:klon,klev)
+!     print*,'SW_RRTM ZFSUP0 1 , klev:',ZFSUP0(1:klon,1),ZFSUP0(1:klon,klev)
+!     print*,'SW_RRTM ZFSDN  1 , klev:',ZFSDN(1:klon,1),ZFSDN(1:klon,klev)
+!     print*,'SW_RRTM ZFSUP  1 , klev:',ZFSUP(1:klon,1),ZFSUP(1:klon,klev)	
+!     print*,'OK1'
+! ---------
+! ---------
+! On renseigne les champs LMDz, pour avoir la meme chose qu'en sortie de
+! LW_LMDAR4 et SW_LMDAR4
+      DO i = 1, kdlon
+         zsolsw(i)    = ZSWFT(i,1)
+         zsolsw0(i)   = ZSWFT0_i(i,1)
+!        zsolsw0(i)   = ZFSDN0(i,1)     -ZFSUP0(i,1)
+         ztopsw(i)    = ZSWFT(i,klev+1)
+         ztopsw0(i)   = ZSWFT0_i(i,klev+1)
+!        ztopsw0(i)   = ZFSDN0(i,klev+1)-ZFSUP0(i,klev+1)
+!         
+!        zsollw(i)    = ZFLDN(i,1)      -ZFLUP(i,1)
+!        zsollw0(i)   = ZFLDN0(i,1)     -ZFLUP0(i,1)
+!        ztoplw(i)    = ZFLDN(i,klev+1) -ZFLUP(i,klev+1)
+!        ztoplw0(i)   = ZFLDN0(i,klev+1)-ZFLUP0(i,klev+1)
+         zsollw(i)    = ZLWFT(i,1)
+         zsollw0(i)   = ZLWFT0_i(i,1)
+         ztoplw(i)    = ZLWFT(i,klev+1)*(-1)
+         ztoplw0(i)   = ZLWFT0_i(i,klev+1)*(-1)
+!         
+           IF (fract(i) == 0.) THEN
+!!!!! A REVOIR MPL (20090630) ca n a pas de sens quand fract=0
+! pas plus que dans le sw_AR4
+          zalbpla(i)   = 1.0e+39
+         ELSE
+          zalbpla(i)   = ZFSUP(i,klev+1)/ZFSDN(i,klev+1)
+         ENDIF
+!!! 5 juin 2015
+!!! Correction MP bug RRTM
+         zsollwdown(i)= -1.*ZFLDN(i,1)
+      ENDDO
+!     print*,'OK2'
+
+! extrait de SW_AR4
+!     DO k = 1, KFLEV
+!        kpl1 = k+1
+!        DO i = 1, KDLON
+!           PHEAT(i,k) = -(ZFSUP(i,kpl1)-ZFSUP(i,k)) -(ZFSDN(i,k)-ZFSDN(i,kpl1))
+!           PHEAT(i,k) = PHEAT(i,k) * RDAY*RG/RCPD / PDP(i,k)
+! ZLWFT(klon,k),ZSWFT
+
+      do k=1,kflev
+         do i=1,kdlon
+           zheat(i,k)=(ZSWFT(i,k+1)-ZSWFT(i,k))*RDAY*RG/RCPD/PDP(i,k)
+           zheat0(i,k)=(ZSWFT0_i(i,k+1)-ZSWFT0_i(i,k))*RDAY*RG/RCPD/PDP(i,k)
+           zcool(i,k)=(ZLWFT(i,k)-ZLWFT(i,k+1))*RDAY*RG/RCPD/PDP(i,k)
+           zcool0(i,k)=(ZLWFT0_i(i,k)-ZLWFT0_i(i,k+1))*RDAY*RG/RCPD/PDP(i,k)
+           IF(ok_volcan) THEN
+              zheat_volc(i,k)=(ZSWADAERO(i,k+1)-ZSWADAERO(i,k))*RG/RCPD/PDP(i,k) !NL
+              zcool_volc(i,k)=(ZLWADAERO(i,k)-ZLWADAERO(i,k+1))*RG/RCPD/PDP(i,k) !NL
+           ENDIF
+!          print *,'heat cool heat0 cool0 ',zheat(i,k),zcool(i,k),zheat0(i,k),zcool0(i,k)
+!	   ZFLUCUP_i(i,k)=ZFLUC_i(i,1,k)
+!	   ZFLUCDWN_i(i,k)=ZFLUC_i(i,2,k)	   
+         enddo
+      enddo
+#else
+    abort_message="You should compile with -rrtm if running with iflag_rrtm=1"
+    call abort_physic(modname, abort_message, 1)
+#endif
+    ENDIF ! iflag_rrtm
+!======================================================================
+
+    DO i = 1, kdlon
+      topsw(iof+i) = ztopsw(i)
+      toplw(iof+i) = ztoplw(i)
+      solsw(iof+i) = zsolsw(i)
+      sollw(iof+i) = zsollw(i)
+      sollwdown(iof+i) = zsollwdown(i)
+      DO k = 1, kflev+1
+        lwdn0 ( iof+i,k)   = ZFLDN0 ( i,k)
+        lwdn  ( iof+i,k)   = ZFLDN  ( i,k)
+        lwup0 ( iof+i,k)   = ZFLUP0 ( i,k)
+        lwup  ( iof+i,k)   = ZFLUP  ( i,k)
+      ENDDO
+      topsw0(iof+i) = ztopsw0(i)
+      toplw0(iof+i) = ztoplw0(i)
+      solsw0(iof+i) = zsolsw0(i)
+      sollw0(iof+i) = zsollw0(i)
+      albpla(iof+i) = zalbpla(i)
+
+      DO k = 1, kflev+1
+        swdnc0( iof+i,k)   = ZFSDNC0( i,k)
+        swdn0 ( iof+i,k)   = ZFSDN0 ( i,k)
+        swdn  ( iof+i,k)   = ZFSDN  ( i,k)
+        swupc0( iof+i,k)   = ZFSUPC0( i,k)
+        swup0 ( iof+i,k)   = ZFSUP0 ( i,k)
+        swup  ( iof+i,k)   = ZFSUP  ( i,k)
+        lwdnc0( iof+i,k)   = ZFLDNC0( i,k)
+        lwupc0( iof+i,k)   = ZFLUPC0( i,k)
+      ENDDO
+    ENDDO
+    !-transform the aerosol forcings, if they have
+    ! to be calculated
+    IF (ok_ade) THEN
+        DO i = 1, kdlon
+          topswad_aero(iof+i) = ztopswadaero(i)
+          topswad0_aero(iof+i) = ztopswad0aero(i)
+          solswad_aero(iof+i) = zsolswadaero(i)
+          solswad0_aero(iof+i) = zsolswad0aero(i)
+! MS the following lines seem to be wrong, why is iof on right hand side???
+!          topsw_aero(iof+i,:) = ztopsw_aero(iof+i,:)
+!          topsw0_aero(iof+i,:) = ztopsw0_aero(iof+i,:)
+!          solsw_aero(iof+i,:) = zsolsw_aero(iof+i,:)
+!          solsw0_aero(iof+i,:) = zsolsw0_aero(iof+i,:)
+          topsw_aero(iof+i,:) = ztopsw_aero(i,:)
+          topsw0_aero(iof+i,:) = ztopsw0_aero(i,:)
+          solsw_aero(iof+i,:) = zsolsw_aero(i,:)
+          solsw0_aero(iof+i,:) = zsolsw0_aero(i,:)
+          topswcf_aero(iof+i,:) = ztopswcf_aero(i,:)
+          solswcf_aero(iof+i,:) = zsolswcf_aero(i,:)   
+          !-LW
+          toplwad_aero(iof+i) = ztoplwadaero(i)
+          toplwad0_aero(iof+i) = ztoplwad0aero(i)
+          sollwad_aero(iof+i) = zsollwadaero(i)
+          sollwad0_aero(iof+i) = zsollwad0aero(i)    
+        ENDDO
+    ELSE
+        DO i = 1, kdlon
+          topswad_aero(iof+i) = 0.0
+          solswad_aero(iof+i) = 0.0
+          topswad0_aero(iof+i) = 0.0
+          solswad0_aero(iof+i) = 0.0
+          topsw_aero(iof+i,:) = 0.
+          topsw0_aero(iof+i,:) =0.
+          solsw_aero(iof+i,:) = 0.
+          solsw0_aero(iof+i,:) = 0.
+          !-LW
+          toplwad_aero(iof+i) = 0.0
+          sollwad_aero(iof+i) = 0.0
+          toplwad0_aero(iof+i) = 0.0
+          sollwad0_aero(iof+i) = 0.0
+        ENDDO
+    ENDIF
+    IF (ok_aie) THEN
+        DO i = 1, kdlon
+          topswai_aero(iof+i) = ztopswaiaero(i)
+          solswai_aero(iof+i) = zsolswaiaero(i)
+          !-LW
+          toplwai_aero(iof+i) = ztoplwaiaero(i)
+          sollwai_aero(iof+i) = zsollwaiaero(i)
+        ENDDO
+    ELSE
+        DO i = 1, kdlon
+          topswai_aero(iof+i) = 0.0
+          solswai_aero(iof+i) = 0.0
+          !-LW
+          toplwai_aero(iof+i) = 0.0
+          sollwai_aero(iof+i) = 0.0
+        ENDDO
+    ENDIF
+    DO k = 1, kflev
+      DO i = 1, kdlon
+        !        scale factor to take into account the difference between
+        !        dry air and watter vapour scpecifi! heat capacity
+        zznormcp=1.0+RVTMP2*PWV(i,k)
+        heat(iof+i,k) = zheat(i,k)/zznormcp
+        cool(iof+i,k) = zcool(i,k)/zznormcp
+        heat0(iof+i,k) = zheat0(i,k)/zznormcp
+        cool0(iof+i,k) = zcool0(i,k)/zznormcp
+        IF(ok_volcan) THEN !NL
+           heat_volc(iof+i,k) = zheat_volc(i,k)/zznormcp
+           cool_volc(iof+i,k) = zcool_volc(i,k)/zznormcp
+        ENDIF
+      ENDDO
+    ENDDO
+
+ ENDDO ! j = 1, nb_gr
+
+END SUBROUTINE radlwsw
+
+end module radlwsw_m

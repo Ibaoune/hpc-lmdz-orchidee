@@ -1,0 +1,61 @@
+03/07/23 10:46:17 ./model LMDZOR_v6.2.2
+--- Model        : LMDZOR_v6.2.2
+--- Action       : checkout
+--- Mode         : silencious
+--- Mail address : platform-extract@listes.ipsl.fr
+---
+--- Component  : IOIPSL/tags/v2_2_5
+--- Tag        : 6058
+--- System     : svn
+--- Server     : --username icmc_users https://forge.ipsl.jussieu.fr/igcmg/svn
+--- Directory  : IOIPSL
+--- Local Dir  : modeles
+---
+--- Component  : branches/ORCHIDEE_Quest/ORCHIDEE
+--- Tag        : 7086
+--- System     : svn
+--- Server     : svn://forge.ipsl.jussieu.fr/orchidee
+--- Directory  : ORCHIDEE
+--- Local Dir  : modeles
+---
+--- Component  : LMDZ6/branches/IPSL-CM6A-MR
+--- Tag        : 3855
+--- System     : svn
+--- Server     : https://svn.lmd.jussieu.fr/LMDZ
+--- Directory  : LMDZ
+--- Local Dir  : modeles
+---
+--- Component  : XIOS/trunk
+--- Tag        : 2029
+--- System     : svn
+--- Server     : https://forge.ipsl.jussieu.fr/ioserver/svn
+--- Directory  : XIOS
+--- Local Dir  : modeles
+---
+--- Component  : CONFIG/UNIFORM/v6/LMDZOR_v6.2
+--- Tag        : 5717
+--- System     : svn
+--- Server     : --username icmc_users https://forge.ipsl.jussieu.fr/igcmg/svn
+--- Directory  : LMDZOR_v6
+--- Local Dir  : config
+---
+--- Component  : CONFIG/UNIFORM/v6/LMDZOR_v6.2/ARCH
+--- Tag        : 6129
+--- System     : svn
+--- Server     : --username icmc_users https://forge.ipsl.jussieu.fr/igcmg/svn
+--- Directory  : ARCH
+--- Local Dir  : config/LMDZOR_v6
+---
+--- Component  : branches/ORCHIDEE_Quest/ORCHIDEE_OL
+--- Tag        : 7086
+--- System     : svn
+--- Server     : svn://forge.ipsl.jussieu.fr/orchidee
+--- Directory  : ORCHIDEE_OL
+--- Local Dir  : config
+---
+--- Component  : trunk/libIGCM
+--- Tag        : 1572
+--- System     : svn
+--- Server     : --username icmc_users https://forge.ipsl.jussieu.fr/libigcm/svn
+--- Directory  : libIGCM
+--- Local Dir  : .

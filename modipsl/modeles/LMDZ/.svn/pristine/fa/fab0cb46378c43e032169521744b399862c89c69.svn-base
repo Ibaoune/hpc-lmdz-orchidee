@@ -1,0 +1,338 @@
+!
+! $Id$
+!
+MODULE ocean_forced_mod
+!
+! This module is used for both the sub-surfaces ocean and sea-ice for the case of a 
+! forced ocean,  "ocean=force".
+!
+  IMPLICIT NONE
+
+CONTAINS
+!
+!****************************************************************************************
+!
+  SUBROUTINE ocean_forced_noice( &
+       itime, dtime, jour, knon, knindex, &
+       p1lay, cdragh, cdragq, cdragm, precip_rain, precip_snow, &
+       temp_air, spechum, &
+       AcoefH, AcoefQ, BcoefH, BcoefQ, &
+       AcoefU, AcoefV, BcoefU, BcoefV, &
+       ps, u1, v1, gustiness, &
+       radsol, snow, agesno, & 
+       qsurf, evap, fluxsens, fluxlat, flux_u1, flux_v1, &
+       tsurf_new, dflux_s, dflux_l)
+!
+! This subroutine treats the "open ocean", all grid points that are not entierly covered
+! by ice.
+! The routine receives data from climatologie file limit.nc and does some calculations at the 
+! surface. 
+!
+    USE dimphy
+    USE calcul_fluxs_mod
+    USE limit_read_mod
+    USE mod_grid_phy_lmdz
+    USE indice_sol_mod
+    USE phys_output_var_mod, ONLY : sens_prec_liq_o, sens_prec_sol_o, lat_prec_liq_o, lat_prec_sol_o
+
+    INCLUDE "YOMCST.h"
+    INCLUDE "clesphys.h"
+
+
+! Input arguments
+!****************************************************************************************
+    INTEGER, INTENT(IN)                      :: itime, jour, knon
+    INTEGER, DIMENSION(klon), INTENT(IN)     :: knindex
+    REAL, INTENT(IN)                         :: dtime
+    REAL, DIMENSION(klon), INTENT(IN)        :: p1lay
+    REAL, DIMENSION(klon), INTENT(IN)        :: cdragh, cdragq, cdragm
+    REAL, DIMENSION(klon), INTENT(IN)        :: precip_rain, precip_snow
+    REAL, DIMENSION(klon), INTENT(IN)        :: temp_air, spechum
+    REAL, DIMENSION(klon), INTENT(IN)        :: AcoefH, AcoefQ, BcoefH, BcoefQ
+    REAL, DIMENSION(klon), INTENT(IN)        :: AcoefU, AcoefV, BcoefU, BcoefV
+    REAL, DIMENSION(klon), INTENT(IN)        :: ps
+    REAL, DIMENSION(klon), INTENT(IN)        :: u1, v1, gustiness
+
+! In/Output arguments
+!****************************************************************************************
+    REAL, DIMENSION(klon), INTENT(INOUT)     :: radsol
+    REAL, DIMENSION(klon), INTENT(INOUT)     :: snow
+    REAL, DIMENSION(klon), INTENT(INOUT)     :: agesno !? put to 0 in ocean
+  
+! Output arguments
+!****************************************************************************************
+    REAL, DIMENSION(klon), INTENT(OUT)       :: qsurf
+    REAL, DIMENSION(klon), INTENT(OUT)       :: evap, fluxsens, fluxlat
+    REAL, DIMENSION(klon), INTENT(OUT)       :: flux_u1, flux_v1
+    REAL, DIMENSION(klon), INTENT(OUT)       :: tsurf_new
+    REAL, DIMENSION(klon), INTENT(OUT)       :: dflux_s, dflux_l
+
+! Local variables
+!****************************************************************************************
+    INTEGER                     :: i, j
+    REAL, DIMENSION(klon)       :: cal, beta, dif_grnd
+    REAL, DIMENSION(klon)       :: alb_neig, tsurf_lim, zx_sl
+    REAL, DIMENSION(klon)       :: u0, v0
+    REAL, DIMENSION(klon)       :: u1_lay, v1_lay
+    LOGICAL                     :: check=.FALSE.
+    REAL, DIMENSION(klon) :: sens_prec_liq, sens_prec_sol    
+    REAL, DIMENSION(klon) :: lat_prec_liq, lat_prec_sol    
+
+!****************************************************************************************
+! Start calculation
+!****************************************************************************************
+    IF (check) WRITE(*,*)' Entering ocean_forced_noice'
+    
+!****************************************************************************************
+! 1)    
+! Read sea-surface temperature from file limit.nc
+!
+!****************************************************************************************
+!--sb:
+!!jyg    if (knon.eq.1) then ! single-column model
+    if (klon_glo.eq.1) then ! single-column model
+      CALL read_tsurf1d(knon,tsurf_lim) ! new
+    else ! GCM
+      CALL limit_read_sst(knon,knindex,tsurf_lim)
+    endif ! knon
+!sb--
+
+!****************************************************************************************
+! 2)
+! Flux calculation
+!
+!****************************************************************************************
+! Set some variables for calcul_fluxs
+    cal = 0.
+    beta = 1.
+    dif_grnd = 0.
+    alb_neig(:) = 0.
+    agesno(:) = 0.
+    sens_prec_liq = 0.; sens_prec_sol = 0.; lat_prec_liq = 0.; lat_prec_sol = 0.
+
+! Suppose zero surface speed
+    u0(:)=0.0
+    v0(:)=0.0
+    u1_lay(:) = u1(:) - u0(:)
+    v1_lay(:) = v1(:) - v0(:)
+
+! Calcul de tsurf_new, evap, fluxlat, fluxsens, dflux_s, dflux_l and qsurf
+    CALL calcul_fluxs(knon, is_oce, dtime, &
+         tsurf_lim, p1lay, cal, beta, cdragh, cdragq, ps, &
+         precip_rain, precip_snow, snow, qsurf,  &
+         radsol, dif_grnd, temp_air, spechum, u1_lay, v1_lay, gustiness, &
+         f_qsat_oce,AcoefH, AcoefQ, BcoefH, BcoefQ, &
+         tsurf_new, evap, fluxlat, fluxsens, dflux_s, dflux_l, &
+         sens_prec_liq, sens_prec_sol, lat_prec_liq, lat_prec_sol)
+
+    do j = 1, knon
+      i = knindex(j)
+      sens_prec_liq_o(i,1) = sens_prec_liq(j)
+      sens_prec_sol_o(i,1) = sens_prec_sol(j)
+      lat_prec_liq_o(i,1) = lat_prec_liq(j)
+      lat_prec_sol_o(i,1) = lat_prec_sol(j)
+    enddo
+
+
+! - Flux calculation at first modele level for U and V
+    CALL calcul_flux_wind(knon, dtime, &
+         u0, v0, u1, v1, gustiness, cdragm, &
+         AcoefU, AcoefV, BcoefU, BcoefV, &
+         p1lay, temp_air, &
+         flux_u1, flux_v1)  
+
+  END SUBROUTINE ocean_forced_noice
+!
+!***************************************************************************************
+!
+  SUBROUTINE ocean_forced_ice( &
+       itime, dtime, jour, knon, knindex, &
+       tsurf_in, p1lay, cdragh, cdragm, precip_rain, precip_snow, temp_air, spechum, &
+       AcoefH, AcoefQ, BcoefH, BcoefQ, &
+       AcoefU, AcoefV, BcoefU, BcoefV, &
+       ps, u1, v1, gustiness, &
+       radsol, snow, qsol, agesno, tsoil, &
+       qsurf, alb1_new, alb2_new, evap, fluxsens, fluxlat, flux_u1, flux_v1, &
+       tsurf_new, dflux_s, dflux_l)
+!
+! This subroutine treats the ocean where there is ice. 
+! The routine reads data from climatologie file and does flux calculations at the 
+! surface.
+!
+    USE dimphy
+    USE calcul_fluxs_mod
+    USE surface_data,     ONLY : calice, calsno
+    USE limit_read_mod
+    USE fonte_neige_mod,  ONLY : fonte_neige
+    USE indice_sol_mod
+    USE phys_output_var_mod, ONLY : sens_prec_liq_o, sens_prec_sol_o, lat_prec_liq_o, lat_prec_sol_o
+
+!    INCLUDE "indicesol.h"
+    INCLUDE "dimsoil.h"
+    INCLUDE "YOMCST.h"
+    INCLUDE "clesphys.h"
+
+! Input arguments
+!****************************************************************************************
+    INTEGER, INTENT(IN)                  :: itime, jour, knon
+    INTEGER, DIMENSION(klon), INTENT(IN) :: knindex
+    REAL, INTENT(IN)                     :: dtime
+    REAL, DIMENSION(klon), INTENT(IN)    :: tsurf_in
+    REAL, DIMENSION(klon), INTENT(IN)    :: p1lay
+    REAL, DIMENSION(klon), INTENT(IN)    :: cdragh, cdragm
+    REAL, DIMENSION(klon), INTENT(IN)    :: precip_rain, precip_snow
+    REAL, DIMENSION(klon), INTENT(IN)    :: temp_air, spechum
+    REAL, DIMENSION(klon), INTENT(IN)    :: AcoefH, AcoefQ, BcoefH, BcoefQ
+    REAL, DIMENSION(klon), INTENT(IN)    :: AcoefU, AcoefV, BcoefU, BcoefV
+    REAL, DIMENSION(klon), INTENT(IN)    :: ps
+    REAL, DIMENSION(klon), INTENT(IN)    :: u1, v1, gustiness
+
+! In/Output arguments
+!****************************************************************************************
+    REAL, DIMENSION(klon), INTENT(INOUT)          :: radsol
+    REAL, DIMENSION(klon), INTENT(INOUT)          :: snow, qsol
+    REAL, DIMENSION(klon), INTENT(INOUT)          :: agesno
+    REAL, DIMENSION(klon, nsoilmx), INTENT(INOUT) :: tsoil
+
+! Output arguments
+!****************************************************************************************
+    REAL, DIMENSION(klon), INTENT(OUT)            :: qsurf
+    REAL, DIMENSION(klon), INTENT(OUT)            :: alb1_new  ! new albedo in visible SW interval
+    REAL, DIMENSION(klon), INTENT(OUT)            :: alb2_new  ! new albedo in near IR interval
+    REAL, DIMENSION(klon), INTENT(OUT)            :: evap, fluxsens, fluxlat
+    REAL, DIMENSION(klon), INTENT(OUT)            :: flux_u1, flux_v1
+    REAL, DIMENSION(klon), INTENT(OUT)            :: tsurf_new
+    REAL, DIMENSION(klon), INTENT(OUT)            :: dflux_s, dflux_l      
+
+! Local variables
+!****************************************************************************************
+    LOGICAL                     :: check=.FALSE.
+    INTEGER                     :: i, j
+    REAL                        :: zfra
+    REAL, PARAMETER             :: t_grnd=271.35
+    REAL, DIMENSION(klon)       :: cal, beta, dif_grnd, capsol
+    REAL, DIMENSION(klon)       :: alb_neig, tsurf_tmp
+    REAL, DIMENSION(klon)       :: soilcap, soilflux
+    REAL, DIMENSION(klon)       :: u0, v0
+    REAL, DIMENSION(klon)       :: u1_lay, v1_lay
+    REAL, DIMENSION(klon)       :: sens_prec_liq, sens_prec_sol    
+    REAL, DIMENSION(klon)       :: lat_prec_liq, lat_prec_sol    
+
+
+!****************************************************************************************
+! Start calculation
+!****************************************************************************************
+    IF (check) WRITE(*,*)'Entering surface_seaice, knon=',knon 
+
+!****************************************************************************************
+! 1) 
+! Flux calculation : tsurf_new, evap, fluxlat, fluxsens, flux_u1, flux_v1
+!                    dflux_s, dflux_l and qsurf
+!****************************************************************************************
+
+    tsurf_tmp(:) = tsurf_in(:)
+
+! calculate the parameters cal, beta, capsol and dif_grnd
+    CALL calbeta(dtime, is_sic, knon, snow, qsol, beta, capsol, dif_grnd)
+
+    
+    IF (soil_model) THEN 
+! update tsoil and calculate soilcap and soilflux
+       CALL soil(dtime, is_sic, knon, snow, tsurf_tmp, tsoil,soilcap, soilflux)
+       cal(1:knon) = RCPD / soilcap(1:knon)
+       radsol(1:knon) = radsol(1:knon)  + soilflux(1:knon)
+       dif_grnd = 1.0 / tau_gl
+    ELSE 
+       dif_grnd = 1.0 / tau_gl
+       cal = RCPD * calice
+       WHERE (snow > 0.0) cal = RCPD * calsno 
+    ENDIF
+
+    beta = 1.0
+    sens_prec_liq = 0.; sens_prec_sol = 0.; lat_prec_liq = 0.; lat_prec_sol = 0.
+
+! Suppose zero surface speed
+    u0(:)=0.0
+    v0(:)=0.0
+    u1_lay(:) = u1(:) - u0(:)
+    v1_lay(:) = v1(:) - v0(:)
+    CALL calcul_fluxs(knon, is_sic, dtime, &
+         tsurf_tmp, p1lay, cal, beta, cdragh, cdragh, ps, &
+         precip_rain, precip_snow, snow, qsurf,  &
+         radsol, dif_grnd, temp_air, spechum, u1_lay, v1_lay, gustiness, &
+         f_qsat_oce,AcoefH, AcoefQ, BcoefH, BcoefQ, &
+         tsurf_new, evap, fluxlat, fluxsens, dflux_s, dflux_l, &
+         sens_prec_liq, sens_prec_sol, lat_prec_liq, lat_prec_sol)
+    do j = 1, knon
+      i = knindex(j)
+      sens_prec_liq_o(i,2) = sens_prec_liq(j)
+      sens_prec_sol_o(i,2) = sens_prec_sol(j)
+      lat_prec_liq_o(i,2) = lat_prec_liq(j)
+      lat_prec_sol_o(i,2) = lat_prec_sol(j)
+    enddo
+
+! - Flux calculation at first modele level for U and V
+    CALL calcul_flux_wind(knon, dtime, &
+         u0, v0, u1, v1, gustiness, cdragm, &
+         AcoefU, AcoefV, BcoefU, BcoefV, &
+         p1lay, temp_air, &
+         flux_u1, flux_v1)  
+
+!****************************************************************************************
+! 2)
+! Calculations due to snow and runoff
+!
+!****************************************************************************************
+    CALL fonte_neige( knon, is_sic, knindex, dtime, &
+         tsurf_tmp, precip_rain, precip_snow, &
+         snow, qsol, tsurf_new, evap)
+    
+! Calculation of albedo at snow (alb_neig) and update the age of snow (agesno)
+! 
+    CALL albsno(klon, knon, dtime, agesno(:), alb_neig(:), precip_snow(:))  
+
+    WHERE (snow(1:knon) .LT. 0.0001) agesno(1:knon) = 0.
+
+    alb1_new(:) = 0.0
+    DO i=1, knon
+       zfra = MAX(0.0,MIN(1.0,snow(i)/(snow(i)+10.0)))
+       alb1_new(i) = alb_neig(i) * zfra +  0.6 * (1.0-zfra)
+    ENDDO
+
+    alb2_new(:) = alb1_new(:)
+
+  END SUBROUTINE ocean_forced_ice
+
+!************************************************************************
+! 1D case
+!************************************************************************
+  SUBROUTINE read_tsurf1d(knon,sst_out)
+
+! This subroutine specifies the surface temperature to be used in 1D simulations
+
+      USE dimphy, ONLY : klon
+
+      INTEGER, INTENT(IN)                  :: knon     ! nomber of points on compressed grid
+      REAL, DIMENSION(klon), INTENT(OUT)   :: sst_out  ! tsurf used to force the single-column model
+
+       INTEGER :: i
+! COMMON defined in lmdz1d.F:
+       real ts_cur
+       common /sst_forcing/ts_cur
+
+       DO i = 1, knon
+        sst_out(i) = ts_cur
+       ENDDO
+
+      END SUBROUTINE read_tsurf1d
+
+!
+!************************************************************************
+!
+END MODULE ocean_forced_mod
+
+
+
+
+
+

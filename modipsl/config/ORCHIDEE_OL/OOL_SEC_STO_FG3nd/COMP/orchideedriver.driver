@@ -1,0 +1,95 @@
+#!/bin/ksh
+
+#-----------------------------------------------------------------
+function OOL_Initialize
+{
+    IGCM_debug_PushStack "OOL_Initialize"
+
+    IGCM_debug_PopStack "OOL_Initialize"
+}
+
+#-----------------------------------------------------------------
+function OOL_Update
+{
+    IGCM_debug_PushStack "OOL_Update"
+
+    # Set start and end date based on information from config.card
+    HumanDateBegin=$(   IGCM_date_ConvertFormatToHuman ${PeriodDateBegin} )
+    IGCM_comp_modifyDefFile nonblocker run.def START_DATE ${HumanDateBegin}" 00:00:00"
+    HumanDateEnd=$(     IGCM_date_ConvertFormatToHuman ${PeriodDateEnd} )
+    IGCM_comp_modifyDefFile nonblocker run.def END_DATE ${HumanDateEnd}" 24:00:00"
+    
+    # Set RESTART_FILEIN in run.def
+    if ( ${FirstInitialize} && [ "${config_OOL_Restart}" = "n" ] ) ; then
+	# Set RESTART_FILEIN=NONE in run.def
+	IGCM_comp_modifyDefFile blocker run.def RESTART_FILEIN NONE
+    else
+        # Default option using restart file, set RESTART_FILEIN=driver_rest_in.nc in orchidee.def
+	IGCM_comp_modifyDefFile blocker run.def RESTART_FILEIN driver_rest_in.nc
+    fi
+
+    if [ -f CO2.txt ] ; then
+        # If this file exist, then read CO2 value and set ATM_CO2 in run.def
+        IPCC_CO2=`grep Annee_${year} CO2.txt | awk -F= '{print $2}'`
+	if [ X"${IPCC_CO2}" = X ] ; then
+            # The grep returned empty variable: stop execution
+            IGCM_debug_Exit "The file CO2.txt do not contain the current year."
+            IGCM_debug_Verif_Exit
+        fi
+        IGCM_comp_modifyDefFile nonblocker run.def ATM_CO2 ${IPCC_CO2}
+    else
+	# The file is not available: take the default value from run.def. 
+	# The syntax in run.def must be respected, for example:
+        # ATM_CO2 = _AUTO_: DEFAULT = 350.
+	IGCM_comp_modifyDefFile nonblocker run.def ATM_CO2 DEFAULT
+    fi
+
+
+    # Activation of XIOS
+    if [ X${orchideedriver_UserChoices_XIOS} = Xy ] ; then
+      # Add include of orchidee context in iodef.xml
+      # In iodef.xml add on next line after "COMPONENT CONTEXT"
+      #  <context id="orchidee" src="./context_orchidee.xml"/>
+      echo '<context id="orchidee" src="./context_orchidee.xml"/>' > add.tmp
+      cp iodef.xml iodef.xml.tmp
+      sed -e "/COMPONENT CONTEXT/r add.tmp" \
+        iodef.xml.tmp > iodef.xml
+      rm iodef.xml.tmp add.tmp
+
+
+      # Special case if SBG component is not activated: deactivate stomate output files from file_def_orchidee.xml
+      # If SBG is activated, then the stomate.driver will take care of these variables
+      if [ X${config_ListOfComponents_SBG} = X ] ; then
+          # Stomate is not activated
+          IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate1 enabled .FALSE.
+          IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate1 output_freq 1mo
+          IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate2 enabled .FALSE.
+          IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate2 output_freq 1mo      
+      fi
+    fi
+
+
+    # Add LongName as global attribute in all files produced by XIOS (if LongName is not empty)
+    # Remove file_def_input_orchidee.xml from the list. 
+    if [ ! "X${config_UserChoices_LongName}" = "X" ] ; then
+	listfile=$(ls file_def*orchidee.xml | grep -v input)
+	echo "<variable id=\"LongName\" type=\"string\">${config_UserChoices_LongName}</variable>" > add.tmp
+	for file in ${listfile} ; do
+	    cp ${file} ${file}.tmp
+	    sed -e "/<file id/r add.tmp" \
+		${file}.tmp > ${file}
+	    rm ${file}.tmp 
+	done 
+	rm add.tmp
+    fi
+          
+    IGCM_debug_PopStack "OOL_Update"
+}
+
+#-----------------------------------------------------------------
+function OOL_Finalize
+{
+    IGCM_debug_PushStack "OOL_Finalize"
+    
+    IGCM_debug_PopStack "OOL_Finalize"
+}

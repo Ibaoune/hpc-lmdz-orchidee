@@ -1,0 +1,16 @@
+%COMPILER            mpif90
+%LINK                mpif90
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE FFT_MKL
+%BASE_FFLAGS         -i4 -r8 -auto -recursive -mcmodel=medium -align all -fp-model strict -xCORE-AVX2
+%PROD_FFLAGS         -O2 -ip
+%DEV_FFLAGS          -p -g -O1 -fpe0 -traceback
+%DEBUG_FFLAGS        -p -g -O0 -fpe-all=0 -ftz -ftrapuv -fp-stack-check -check bounds,format,output_conversion,pointers,uninit -debug -traceback
+%MPI_FFLAGS
+%OMP_FFLAGS          -openmp -openmp-threadprivate compat
+%BASE_LD             -i4 -r8 -auto -shared-intel -Wl,-rpath=/opt/software/libraries/netcdf/bullxmpi/netcdf-4.3.3-rc2/lib:/opt/software/libraries/netcdf/bullxmpi/netcdf-fortran-4.4.1-4.3.3-rc2/lib:/opt/software/libraries/hdf5/hdf5_with_bullxmpi/1.8.14/lib $MKL_LIBS
+%MPI_LD
+%OMP_LD              -openmp

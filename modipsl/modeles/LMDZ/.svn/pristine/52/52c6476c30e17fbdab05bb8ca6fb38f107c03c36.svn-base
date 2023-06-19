@@ -1,0 +1,17 @@
+%COMPILER            mpif90
+%LINK                mpif90
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE FFT_MKL
+#%BASE_FFLAGS        -recursive -xHost -i4 -r8 -auto -align all -I$(MKL_INC_DIR) -I$(MKL_INC_DIR)/intel64/lp64
+%BASE_FFLAGS         -i4 -r8 -auto -align all -I$(MKL_INC_DIR) -I$(MKL_INC_DIR)/intel64/lp64 
+%PROD_FFLAGS         -O3 -axAVX,SSE4.2 -fp-model fast=2
+%DEV_FFLAGS          -fp-model strict -p -g -O2 -traceback -fp-stack-check
+%DEBUG_FFLAGS        -fp-model strict -p -g -traceback -fp-stack-check -ftrapuv
+%MPI_FFLAGS
+%OMP_FFLAGS          -openmp
+%BASE_LD             -i4 -r8 -auto $MKL_LIBS
+%MPI_LD
+%OMP_LD              -openmp

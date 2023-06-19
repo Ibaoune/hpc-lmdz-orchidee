@@ -1,0 +1,1373 @@
+
+! $Id$
+
+SUBROUTINE convect2(ncum, idcum, len, nd, ndp1, nl, minorig, nk1, icb1, t1, &
+    q1, qs1, u1, v1, gz1, tv1, tp1, tvp1, clw1, h1, lv1, cpn1, p1, ph1, ft1, &
+    fq1, fu1, fv1, tnk1, qnk1, gznk1, plcl1, precip1, cbmf1, iflag1, delt, &
+    cpd, cpv, cl, rv, rd, lv0, g, sigs, sigd, elcrit, tlcrit, omtsnow, dtmax, &
+    damp, alpha, entp, coeffs, coeffr, omtrain, cu, ma)
+  ! .............................START PROLOGUE............................
+
+  ! SCCS IDENTIFICATION:  @(#)convect2.f	1.2 05/18/00
+  ! 22:06:22 /h/cm/library/nogaps4/src/sub/fcst/convect2.f_v
+
+  ! CONFIGURATION IDENTIFICATION:  None
+
+  ! MODULE NAME:  convect2
+
+  ! DESCRIPTION:
+
+  ! convect1     The Emanuel Cumulus Convection Scheme - compute tendencies
+
+  ! CONTRACT NUMBER AND TITLE:  None
+
+  ! REFERENCES: Programmers  K. Emanuel (MIT), Timothy F. Hogan, M. Peng
+  ! (NRL)
+
+  ! CLASSIFICATION:  Unclassified
+
+  ! RESTRICTIONS: None
+
+  ! COMPILER DEPENDENCIES: FORTRAN 77, FORTRAN 90
+
+  ! COMPILE OPTIONS: Fortran 77: -Zu -Wf"-ei -o aggress"
+  ! Fortran 90: -O vector3,scalar3,task1,aggress,overindex  -ei -r 2
+
+  ! LIBRARIES OF RESIDENCE: /a/ops/lib/libfcst159.a
+
+  ! USAGE: call convect2(ncum,idcum,len,nd,nl,minorig,
+  ! &                 nk1,icb1,
+  ! &                 t1,q1,qs1,u1,v1,gz1,tv1,tp1,tvp1,clw1,h1,
+  ! &                 lv1,cpn1,p1,ph1,ft1,fq1,fu1,fv1,
+  ! &                 tnk1,qnk1,gznk1,plcl1,
+  ! &                 precip1,cbmf1,iflag1,
+  ! &                 delt,cpd,cpv,cl,rv,rd,lv0,g,
+  ! &                 sigs,sigd,elcrit,tlcrit,omtsnow,dtmax,damp,
+  ! &                 alpha,entp,coeffs,coeffr,omtrain,cu)
+
+  ! PARAMETERS:
+  ! Name            Type         Usage            Description
+  ! ----------      ----------     -------  ----------------------------
+
+  ! ncum          Integer        Input        number of cumulus points
+  ! idcum         Integer        Input        index of cumulus point
+  ! len           Integer        Input        first dimension
+  ! nd            Integer        Input        total vertical dimension
+  ! ndp1          Integer        Input        nd + 1
+  ! nl            Integer        Input        vertical dimension for
+  ! convection
+  ! minorig       Integer        Input        First level where convection is
+  ! allow to begin
+  ! nk1           Integer        Input        First level of convection
+  ! ncb1          Integer        Input        Level of free convection
+  ! t1            Real           Input        temperature
+  ! q1            Real           Input        specific hum
+  ! qs1           Real           Input        sat specific hum
+  ! u1            Real           Input        u-wind
+  ! v1            Real           Input        v-wind
+  ! gz1           Real           Inout        geop
+  ! tv1           Real           Input        virtual temp
+  ! tp1           Real           Input
+  ! clw1          Real           Inout        cloud liquid water
+  ! h1            Real           Inout
+  ! lv1           Real           Inout
+  ! cpn1          Real           Inout
+  ! p1            Real           Input        full level pressure
+  ! ph1           Real           Input        half level pressure
+  ! ft1           Real           Output       temp tend
+  ! fq1           Real           Output       spec hum tend
+  ! fu1           Real           Output       u-wind tend
+  ! fv1           Real           Output       v-wind tend
+  ! precip1       Real           Output       prec
+  ! cbmf1         Real           In/Out       cumulus mass flux
+  ! iflag1        Integer        Output       iflag on latitude strip
+  ! delt          Real           Input        time step
+  ! cpd           Integer        Input        See description below
+  ! cpv           Integer        Input        See description below
+  ! cl            Integer        Input        See description below
+  ! rv            Integer        Input        See description below
+  ! rd            Integer        Input        See description below
+  ! lv0           Integer        Input        See description below
+  ! g             Integer        Input        See description below
+  ! sigs          Integer        Input        See description below
+  ! sigd          Integer        Input        See description below
+  ! elcrit        Integer        Input        See description below
+  ! tlcrit        Integer        Input        See description below
+  ! omtsnow       Integer        Input        See description below
+  ! dtmax         Integer        Input        See description below
+  ! damp          Integer        Input        See description below
+  ! alpha         Integer        Input        See description below
+  ! ent           Integer        Input        See description below
+  ! coeffs        Integer        Input        See description below
+  ! coeffr        Integer        Input        See description below
+  ! omtrain       Integer        Input        See description below
+  ! cu            Integer        Input        See description below
+
+  ! COMMON BLOCKS:
+  ! Block      Name     Type    Usage              Notes
+  ! --------  --------   ----    ------   ------------------------
+
+  ! FILES: None
+
+  ! DATA BASES: None
+
+  ! NON-FILE INPUT/OUTPUT: None
+
+  ! ERROR CONDITIONS: None
+
+  ! ADDITIONAL COMMENTS: None
+
+  ! .................MAINTENANCE SECTION................................
+
+  ! MODULES CALLED:
+  ! Name           Description
+  ! zilch        Zero out an array
+  ! -------     ----------------------
+  ! LOCAL VARIABLES AND
+  ! STRUCTURES:
+  ! Name     Type    Description
+  ! -------  ------  -----------
+  ! See Comments Below
+
+  ! i        Integer loop index
+  ! k        Integer loop index
+
+  ! METHOD:
+
+  ! See Emanuel, K. and M. Zivkovic-Rothman, 2000: Development and evaluation
+  ! of a
+  ! convective scheme for use in climate models.
+
+  ! FILES: None
+
+  ! INCLUDE FILES: None
+
+  ! MAKEFILE: /a/ops/met/nogaps/src/sub/fcst/fcst159lib.mak
+
+  ! ..............................END PROLOGUE.............................
+
+
+  USE dimphy
+  IMPLICIT NONE
+
+  INTEGER kmax2, imax2, kmin2, imin2
+  REAL ftmax2, ftmin2
+  INTEGER kmax, imax, kmin, imin
+  REAL ftmax, ftmin
+
+  INTEGER ncum
+  INTEGER len
+  INTEGER idcum(len)
+  INTEGER nd
+  INTEGER ndp1
+  INTEGER nl
+  INTEGER minorig
+  INTEGER nk1(len)
+  INTEGER icb1(len)
+  REAL t1(len, nd)
+  REAL q1(len, nd)
+  REAL qs1(len, nd)
+  REAL u1(len, nd)
+  REAL v1(len, nd)
+  REAL gz1(len, nd)
+  REAL tv1(len, nd)
+  REAL tp1(len, nd)
+  REAL tvp1(len, nd)
+  REAL clw1(len, nd)
+  REAL h1(len, nd)
+  REAL lv1(len, nd)
+  REAL cpn1(len, nd)
+  REAL p1(len, nd)
+  REAL ph1(len, ndp1)
+  REAL ft1(len, nd)
+  REAL fq1(len, nd)
+  REAL fu1(len, nd)
+  REAL fv1(len, nd)
+  REAL tnk1(len)
+  REAL qnk1(len)
+  REAL gznk1(len)
+  REAL precip1(len)
+  REAL cbmf1(len)
+  REAL plcl1(len)
+  INTEGER iflag1(len)
+  REAL delt
+  REAL cpd
+  REAL cpv
+  REAL cl
+  REAL rv
+  REAL rd
+  REAL lv0
+  REAL g
+  REAL sigs ! SIGS IS THE FRACTION OF PRECIPITATION FALLING OUTSIDE
+  REAL sigd ! SIGD IS THE FRACTIONAL AREA COVERED BY UNSATURATED DNDRAFT
+  REAL elcrit ! ELCRIT IS THE AUTOCONVERSION THERSHOLD WATER CONTENT (gm/gm)
+  REAL tlcrit ! TLCRIT IS CRITICAL TEMPERATURE BELOW WHICH THE AUTO-
+  ! CONVERSION THRESHOLD IS ASSUMED TO BE ZERO
+  REAL omtsnow ! OMTSNOW IS THE ASSUMED FALL SPEED (P/s) OF SNOW
+  REAL dtmax ! DTMAX IS THE MAXIMUM NEGATIVE TEMPERATURE PERTURBATION
+  ! A LIFTED PARCEL IS ALLOWED TO HAVE BELOW ITS LFC.
+  REAL damp
+  REAL alpha
+  REAL entp ! ENTP IS THE COEFFICIENT OF MIXING IN THE ENTRAINMENT FORMULATION
+  REAL coeffs ! COEFFS IS A COEFFICIENT GOVERNING THE RATE OF EVAPORATION OF
+  ! SNOW
+  REAL coeffr ! COEFFR IS A COEFFICIENT GOVERNING THE RATE OF EVAPORATION OF
+  ! RAIN
+  REAL omtrain ! OMTRAIN IS THE ASSUMED FALL SPEED (P/s) OF RAIN
+  REAL cu ! CU IS THE COEFFICIENT GOVERNING CONVECTIVE MOMENTUM TRANSPORT
+
+  REAL ma(len, nd)
+
+
+  ! *** ELCRIT IS THE AUTOCONVERSION THERSHOLD WATER CONTENT (gm/gm) ***
+  ! ***  TLCRIT IS CRITICAL TEMPERATURE BELOW WHICH THE AUTO-        ***
+  ! ***       CONVERSION THRESHOLD IS ASSUMED TO BE ZERO             ***
+  ! ***     (THE AUTOCONVERSION THRESHOLD VARIES LINEARLY            ***
+  ! ***               BETWEEN 0 C AND TLCRIT)                        ***
+  ! ***   ENTP IS THE COEFFICIENT OF MIXING IN THE ENTRAINMENT       ***
+  ! ***                       FORMULATION                            ***
+  ! ***  SIGD IS THE FRACTIONAL AREA COVERED BY UNSATURATED DNDRAFT  ***
+  ! ***  SIGS IS THE FRACTION OF PRECIPITATION FALLING OUTSIDE       ***
+  ! ***                        OF CLOUD                              ***
+  ! ***        OMTRAIN IS THE ASSUMED FALL SPEED (P/s) OF RAIN       ***
+  ! ***     OMTSNOW IS THE ASSUMED FALL SPEED (P/s) OF SNOW          ***
+  ! ***  COEFFR IS A COEFFICIENT GOVERNING THE RATE OF EVAPORATION   ***
+  ! ***                          OF RAIN                             ***
+  ! ***  COEFFS IS A COEFFICIENT GOVERNING THE RATE OF EVAPORATION   ***
+  ! ***                          OF SNOW                             ***
+  ! ***     CU IS THE COEFFICIENT GOVERNING CONVECTIVE MOMENTUM      ***
+  ! ***                         TRANSPORT                            ***
+  ! ***    DTMAX IS THE MAXIMUM NEGATIVE TEMPERATURE PERTURBATION    ***
+  ! ***        A LIFTED PARCEL IS ALLOWED TO HAVE BELOW ITS LFC      ***
+  ! ***    ALPHA AND DAMP ARE PARAMETERS THAT CONTROL THE RATE OF    ***
+  ! ***                 APPROACH TO QUASI-EQUILIBRIUM                ***
+  ! ***   (THEIR STANDARD VALUES ARE  0.20 AND 0.1, RESPECTIVELY)    ***
+  ! ***                   (DAMP MUST BE LESS THAN 1)                 ***
+
+  ! Local arrays.
+
+  REAL work(ncum)
+  REAL t(ncum, klev)
+  REAL q(ncum, klev)
+  REAL qs(ncum, klev)
+  REAL u(ncum, klev)
+  REAL v(ncum, klev)
+  REAL gz(ncum, klev)
+  REAL h(ncum, klev)
+  REAL lv(ncum, klev)
+  REAL cpn(ncum, klev)
+  REAL p(ncum, klev)
+  REAL ph(ncum, klev)
+  REAL ft(ncum, klev)
+  REAL fq(ncum, klev)
+  REAL fu(ncum, klev)
+  REAL fv(ncum, klev)
+  REAL precip(ncum)
+  REAL cbmf(ncum)
+  REAL plcl(ncum)
+  REAL tnk(ncum)
+  REAL qnk(ncum)
+  REAL gznk(ncum)
+  REAL tv(ncum, klev)
+  REAL tp(ncum, klev)
+  REAL tvp(ncum, klev)
+  REAL clw(ncum, klev)
+  ! real det(ncum,klev)
+  REAL dph(ncum, klev)
+  ! real wd(ncum)
+  ! real tprime(ncum)
+  ! real qprime(ncum)
+  REAL ah0(ncum)
+  REAL ep(ncum, klev)
+  REAL sigp(ncum, klev)
+  INTEGER nent(ncum, klev)
+  REAL water(ncum, klev)
+  REAL evap(ncum, klev)
+  REAL mp(ncum, klev)
+  REAL m(ncum, klev)
+  REAL qti
+  REAL wt(ncum, klev)
+  REAL hp(ncum, klev)
+  REAL lvcp(ncum, klev)
+  REAL elij(ncum, klev, klev)
+  REAL ment(ncum, klev, klev)
+  REAL sij(ncum, klev, klev)
+  REAL qent(ncum, klev, klev)
+  REAL uent(ncum, klev, klev)
+  REAL vent(ncum, klev, klev)
+  REAL qp(ncum, klev)
+  REAL up(ncum, klev)
+  REAL vp(ncum, klev)
+  REAL cape(ncum)
+  REAL capem(ncum)
+  REAL frac(ncum)
+  REAL dtpbl(ncum)
+  REAL tvpplcl(ncum)
+  REAL tvaplcl(ncum)
+  REAL dtmin(ncum)
+  REAL w3d(ncum, klev)
+  REAL am(ncum)
+  REAL ents(ncum)
+  REAL uav(ncum)
+  REAL vav(ncum)
+
+  INTEGER iflag(ncum)
+  INTEGER nk(ncum)
+  INTEGER icb(ncum)
+  INTEGER inb(ncum)
+  INTEGER inb1(ncum)
+  INTEGER jtt(ncum)
+
+  INTEGER nn, i, k, n, icbmax, nlp, j
+  INTEGER ij
+  INTEGER nn2, nn3
+  REAL clmcpv
+  REAL clmcpd
+  REAL cpdmcp
+  REAL cpvmcpd
+  REAL eps
+  REAL epsi
+  REAL epsim1
+  REAL tg, qg, s, alv, tc, ahg, denom, es, rg, ginv, rowl
+  REAL delti
+  REAL tca, elacrit
+  REAL by, defrac
+  ! real byp
+  REAL byp(ncum)
+  LOGICAL lcape(ncum)
+  REAL dbo
+  REAL bf2, anum, dei, altem, cwat, stemp
+  REAL alt, qp1, smid, sjmax, sjmin
+  REAL delp, delm
+  REAL awat, coeff, afac, revap, dhdp, fac, qstm, rat
+  REAL qsm, sigt, b6, c6
+  REAL dpinv, cpinv
+  REAL fqold, ftold, fuold, fvold
+  REAL wdtrain(ncum), xxx
+  REAL bsum(ncum, klev)
+  REAL asij(ncum)
+  REAL smin(ncum)
+  REAL scrit(ncum)
+  ! real amp1,ad
+  REAL amp1(ncum), ad(ncum)
+  LOGICAL lwork(ncum)
+  INTEGER num1, num2
+
+  ! print*,'cpd en entree de convect2 ',cpd
+  nlp = nl + 1
+
+  rowl = 1000.0
+  ginv = 1.0/g
+  delti = 1.0/delt
+
+  ! Define some thermodynamic variables.
+
+  clmcpv = cl - cpv
+  clmcpd = cl - cpd
+  cpdmcp = cpd - cpv
+  cpvmcpd = cpv - cpd
+  eps = rd/rv
+  epsi = 1.0/eps
+  epsim1 = epsi - 1.0
+
+  ! Compress the fields.
+
+  DO k = 1, nl + 1
+    nn = 0
+    DO i = 1, len
+      IF (iflag1(i)==0) THEN
+        nn = nn + 1
+        t(nn, k) = t1(i, k)
+        q(nn, k) = q1(i, k)
+        qs(nn, k) = qs1(i, k)
+        u(nn, k) = u1(i, k)
+        v(nn, k) = v1(i, k)
+        gz(nn, k) = gz1(i, k)
+        h(nn, k) = h1(i, k)
+        lv(nn, k) = lv1(i, k)
+        cpn(nn, k) = cpn1(i, k)
+        p(nn, k) = p1(i, k)
+        ph(nn, k) = ph1(i, k)
+        tv(nn, k) = tv1(i, k)
+        tp(nn, k) = tp1(i, k)
+        tvp(nn, k) = tvp1(i, k)
+        clw(nn, k) = clw1(i, k)
+      END IF
+    END DO
+    ! print*,'100 ncum,nn',ncum,nn
+  END DO
+  nn = 0
+  DO i = 1, len
+    IF (iflag1(i)==0) THEN
+      nn = nn + 1
+      cbmf(nn) = cbmf1(i)
+      plcl(nn) = plcl1(i)
+      tnk(nn) = tnk1(i)
+      qnk(nn) = qnk1(i)
+      gznk(nn) = gznk1(i)
+      nk(nn) = nk1(i)
+      icb(nn) = icb1(i)
+      iflag(nn) = iflag1(i)
+    END IF
+  END DO
+  ! print*,'150 ncum,nn',ncum,nn
+
+  ! Initialize the tendencies, det, wd, tprime, qprime.
+
+  DO k = 1, nl
+    DO i = 1, ncum
+      ! det(i,k)=0.0
+      ft(i, k) = 0.0
+      fu(i, k) = 0.0
+      fv(i, k) = 0.0
+      fq(i, k) = 0.0
+      dph(i, k) = ph(i, k) - ph(i, k+1)
+      ep(i, k) = 0.0
+      sigp(i, k) = sigs
+    END DO
+  END DO
+  DO i = 1, ncum
+    ! wd(i)=0.0
+    ! tprime(i)=0.0
+    ! qprime(i)=0.0
+    precip(i) = 0.0
+    ft(i, nl+1) = 0.0
+    fu(i, nl+1) = 0.0
+    fv(i, nl+1) = 0.0
+    fq(i, nl+1) = 0.0
+  END DO
+
+  ! Compute icbmax.
+
+  icbmax = 2
+  DO i = 1, ncum
+    icbmax = max(icbmax, icb(i))
+  END DO
+
+
+  ! =====================================================================
+  ! --- FIND THE REST OF THE LIFTED PARCEL TEMPERATURES
+  ! =====================================================================
+
+  ! ---       The procedure is to solve the equation.
+  ! cp*tp+L*qp+phi=cp*tnk+L*qnk+gznk.
+
+  ! ***  Calculate certain parcel quantities, including static energy   ***
+
+
+  DO i = 1, ncum
+    ah0(i) = (cpd*(1.-qnk(i))+cl*qnk(i))*tnk(i) + qnk(i)*(lv0-clmcpv*(tnk(i)- &
+      273.15)) + gznk(i)
+  END DO
+
+
+  ! ***  Find lifted parcel quantities above cloud base    ***
+
+
+  DO k = minorig + 1, nl
+    DO i = 1, ncum
+      IF (k>=(icb(i)+1)) THEN
+        tg = t(i, k)
+        qg = qs(i, k)
+        alv = lv0 - clmcpv*(t(i,k)-273.15)
+
+        ! First iteration.
+
+        s = cpd + alv*alv*qg/(rv*t(i,k)*t(i,k))
+        s = 1./s
+        ahg = cpd*tg + (cl-cpd)*qnk(i)*t(i, k) + alv*qg + gz(i, k)
+        tg = tg + s*(ah0(i)-ahg)
+        tg = max(tg, 35.0)
+        tc = tg - 273.15
+        denom = 243.5 + tc
+        IF (tc>=0.0) THEN
+          es = 6.112*exp(17.67*tc/denom)
+        ELSE
+          es = exp(23.33086-6111.72784/tg+0.15215*log(tg))
+        END IF
+        qg = eps*es/(p(i,k)-es*(1.-eps))
+
+        ! Second iteration.
+
+        s = cpd + alv*alv*qg/(rv*t(i,k)*t(i,k))
+        s = 1./s
+        ahg = cpd*tg + (cl-cpd)*qnk(i)*t(i, k) + alv*qg + gz(i, k)
+        tg = tg + s*(ah0(i)-ahg)
+        tg = max(tg, 35.0)
+        tc = tg - 273.15
+        denom = 243.5 + tc
+        IF (tc>=0.0) THEN
+          es = 6.112*exp(17.67*tc/denom)
+        ELSE
+          es = exp(23.33086-6111.72784/tg+0.15215*log(tg))
+        END IF
+        qg = eps*es/(p(i,k)-es*(1.-eps))
+
+        alv = lv0 - clmcpv*(t(i,k)-273.15)
+        ! print*,'cpd dans convect2 ',cpd
+        ! print*,'tp(i,k),ah0(i),cl,cpd,qnk(i),t(i,k),gz(i,k),alv,qg,cpd'
+        ! print*,tp(i,k),ah0(i),cl,cpd,qnk(i),t(i,k),gz(i,k),alv,qg,cpd
+        tp(i, k) = (ah0(i)-(cl-cpd)*qnk(i)*t(i,k)-gz(i,k)-alv*qg)/cpd
+        ! if (.not.cpd.gt.1000.) then
+        ! print*,'CPD=',cpd
+        ! stop
+        ! endif
+        clw(i, k) = qnk(i) - qg
+        clw(i, k) = max(0.0, clw(i,k))
+        rg = qg/(1.-qnk(i))
+        tvp(i, k) = tp(i, k)*(1.+rg*epsi)
+      END IF
+    END DO
+  END DO
+
+  ! =====================================================================
+  ! --- SET THE PRECIPITATION EFFICIENCIES AND THE FRACTION OF
+  ! --- PRECIPITATION FALLING OUTSIDE OF CLOUD
+  ! --- THESE MAY BE FUNCTIONS OF TP(I), P(I) AND CLW(I)
+  ! =====================================================================
+
+  DO k = minorig + 1, nl
+    DO i = 1, ncum
+      IF (k>=(nk(i)+1)) THEN
+        tca = tp(i, k) - 273.15
+        IF (tca>=0.0) THEN
+          elacrit = elcrit
+        ELSE
+          elacrit = elcrit*(1.0-tca/tlcrit)
+        END IF
+        elacrit = max(elacrit, 0.0)
+        ep(i, k) = 1.0 - elacrit/max(clw(i,k), 1.0E-8)
+        ep(i, k) = max(ep(i,k), 0.0)
+        ep(i, k) = min(ep(i,k), 1.0)
+        sigp(i, k) = sigs
+      END IF
+    END DO
+  END DO
+
+  ! =====================================================================
+  ! --- CALCULATE VIRTUAL TEMPERATURE AND LIFTED PARCEL
+  ! --- VIRTUAL TEMPERATURE
+  ! =====================================================================
+
+  DO k = minorig + 1, nl
+    DO i = 1, ncum
+      IF (k>=(icb(i)+1)) THEN
+        tvp(i, k) = tvp(i, k)*(1.0-qnk(i)+ep(i,k)*clw(i,k))
+        ! print*,'i,k,tvp(i,k),qnk(i),ep(i,k),clw(i,k)'
+        ! print*, i,k,tvp(i,k),qnk(i),ep(i,k),clw(i,k)
+      END IF
+    END DO
+  END DO
+  DO i = 1, ncum
+    tvp(i, nlp) = tvp(i, nl) - (gz(i,nlp)-gz(i,nl))/cpd
+  END DO
+
+
+  ! =====================================================================
+  ! --- NOW INITIALIZE VARIOUS ARRAYS USED IN THE COMPUTATIONS
+  ! =====================================================================
+
+  DO i = 1, ncum*nlp
+    nent(i, 1) = 0
+    water(i, 1) = 0.0
+    evap(i, 1) = 0.0
+    mp(i, 1) = 0.0
+    m(i, 1) = 0.0
+    wt(i, 1) = omtsnow
+    hp(i, 1) = h(i, 1)
+    ! if(.not.cpn(i,1).gt.900.) then
+    ! print*,'i,lv(i,1),cpn(i,1)'
+    ! print*, i,lv(i,1),cpn(i,1)
+    ! k=(i-1)/ncum+1
+    ! print*,'i,k',mod(i,ncum),k,'  cpn',cpn(mod(i,ncum),k)
+    ! stop
+    ! endif
+    lvcp(i, 1) = lv(i, 1)/cpn(i, 1)
+  END DO
+
+  DO i = 1, ncum*nlp*nlp
+    elij(i, 1, 1) = 0.0
+    ment(i, 1, 1) = 0.0
+    sij(i, 1, 1) = 0.0
+  END DO
+
+  DO k = 1, nlp
+    DO j = 1, nlp
+      DO i = 1, ncum
+        qent(i, k, j) = q(i, j)
+        uent(i, k, j) = u(i, j)
+        vent(i, k, j) = v(i, j)
+      END DO
+    END DO
+  END DO
+
+  DO i = 1, ncum
+    qp(i, 1) = q(i, 1)
+    up(i, 1) = u(i, 1)
+    vp(i, 1) = v(i, 1)
+  END DO
+  DO k = 2, nlp
+    DO i = 1, ncum
+      qp(i, k) = q(i, k-1)
+      up(i, k) = u(i, k-1)
+      vp(i, k) = v(i, k-1)
+    END DO
+  END DO
+
+  ! =====================================================================
+  ! --- FIND THE FIRST MODEL LEVEL (INB1) ABOVE THE PARCEL'S
+  ! --- HIGHEST LEVEL OF NEUTRAL BUOYANCY
+  ! --- AND THE HIGHEST LEVEL OF POSITIVE CAPE (INB)
+  ! =====================================================================
+
+  DO i = 1, ncum
+    cape(i) = 0.0
+    capem(i) = 0.0
+    inb(i) = icb(i) + 1
+    inb1(i) = inb(i)
+  END DO
+
+  ! Originial Code
+
+  ! do 530 k=minorig+1,nl-1
+  ! do 520 i=1,ncum
+  ! if(k.ge.(icb(i)+1))then
+  ! by=(tvp(i,k)-tv(i,k))*dph(i,k)/p(i,k)
+  ! byp=(tvp(i,k+1)-tv(i,k+1))*dph(i,k+1)/p(i,k+1)
+  ! cape(i)=cape(i)+by
+  ! if(by.ge.0.0)inb1(i)=k+1
+  ! if(cape(i).gt.0.0)then
+  ! inb(i)=k+1
+  ! capem(i)=cape(i)
+  ! endif
+  ! endif
+  ! 520    continue
+  ! 530  continue
+  ! do 540 i=1,ncum
+  ! byp=(tvp(i,nl)-tv(i,nl))*dph(i,nl)/p(i,nl)
+  ! cape(i)=capem(i)+byp
+  ! defrac=capem(i)-cape(i)
+  ! defrac=max(defrac,0.001)
+  ! frac(i)=-cape(i)/defrac
+  ! frac(i)=min(frac(i),1.0)
+  ! frac(i)=max(frac(i),0.0)
+  ! 540   continue
+
+  ! K Emanuel fix
+
+  ! call zilch(byp,ncum)
+  ! do 530 k=minorig+1,nl-1
+  ! do 520 i=1,ncum
+  ! if(k.ge.(icb(i)+1))then
+  ! by=(tvp(i,k)-tv(i,k))*dph(i,k)/p(i,k)
+  ! cape(i)=cape(i)+by
+  ! if(by.ge.0.0)inb1(i)=k+1
+  ! if(cape(i).gt.0.0)then
+  ! inb(i)=k+1
+  ! capem(i)=cape(i)
+  ! byp(i)=(tvp(i,k+1)-tv(i,k+1))*dph(i,k+1)/p(i,k+1)
+  ! endif
+  ! endif
+  ! 520    continue
+  ! 530  continue
+  ! do 540 i=1,ncum
+  ! inb(i)=max(inb(i),inb1(i))
+  ! cape(i)=capem(i)+byp(i)
+  ! defrac=capem(i)-cape(i)
+  ! defrac=max(defrac,0.001)
+  ! frac(i)=-cape(i)/defrac
+  ! frac(i)=min(frac(i),1.0)
+  ! frac(i)=max(frac(i),0.0)
+  ! 540   continue
+
+  ! J Teixeira fix
+
+  CALL zilch(byp, ncum)
+  DO i = 1, ncum
+    lcape(i) = .TRUE.
+  END DO
+  DO k = minorig + 1, nl - 1
+    DO i = 1, ncum
+      IF (cape(i)<0.0) lcape(i) = .FALSE.
+      IF ((k>=(icb(i)+1)) .AND. lcape(i)) THEN
+        by = (tvp(i,k)-tv(i,k))*dph(i, k)/p(i, k)
+        byp(i) = (tvp(i,k+1)-tv(i,k+1))*dph(i, k+1)/p(i, k+1)
+        cape(i) = cape(i) + by
+        IF (by>=0.0) inb1(i) = k + 1
+        IF (cape(i)>0.0) THEN
+          inb(i) = k + 1
+          capem(i) = cape(i)
+        END IF
+      END IF
+    END DO
+  END DO
+  DO i = 1, ncum
+    cape(i) = capem(i) + byp(i)
+    defrac = capem(i) - cape(i)
+    defrac = max(defrac, 0.001)
+    frac(i) = -cape(i)/defrac
+    frac(i) = min(frac(i), 1.0)
+    frac(i) = max(frac(i), 0.0)
+  END DO
+
+  ! =====================================================================
+  ! ---   CALCULATE LIQUID WATER STATIC ENERGY OF LIFTED PARCEL
+  ! =====================================================================
+
+  DO k = minorig + 1, nl
+    DO i = 1, ncum
+      IF ((k>=icb(i)) .AND. (k<=inb(i))) THEN
+        hp(i, k) = h(i, nk(i)) + (lv(i,k)+(cpd-cpv)*t(i,k))*ep(i, k)*clw(i, k &
+          )
+      END IF
+    END DO
+  END DO
+
+  ! =====================================================================
+  ! ---  CALCULATE CLOUD BASE MASS FLUX AND RATES OF MIXING, M(I),
+  ! --- AT EACH MODEL LEVEL
+  ! =====================================================================
+
+  ! tvpplcl = parcel temperature lifted adiabatically from level
+  ! icb-1 to the LCL.
+  ! tvaplcl = virtual temperature at the LCL.
+
+  DO i = 1, ncum
+    dtpbl(i) = 0.0
+    tvpplcl(i) = tvp(i, icb(i)-1) - rd*tvp(i, icb(i)-1)*(p(i,icb(i)-1)-plcl(i &
+      ))/(cpn(i,icb(i)-1)*p(i,icb(i)-1))
+    tvaplcl(i) = tv(i, icb(i)) + (tvp(i,icb(i))-tvp(i,icb(i)+1))*(plcl(i)-p(i &
+      ,icb(i)))/(p(i,icb(i))-p(i,icb(i)+1))
+  END DO
+
+  ! -------------------------------------------------------------------
+  ! --- Interpolate difference between lifted parcel and
+  ! --- environmental temperatures to lifted condensation level
+  ! -------------------------------------------------------------------
+
+  ! dtpbl = average of tvp-tv in the PBL (k=nk to icb-1).
+
+  DO k = minorig, icbmax
+    DO i = 1, ncum
+      IF ((k>=nk(i)) .AND. (k<=(icb(i)-1))) THEN
+        dtpbl(i) = dtpbl(i) + (tvp(i,k)-tv(i,k))*dph(i, k)
+      END IF
+    END DO
+  END DO
+  DO i = 1, ncum
+    dtpbl(i) = dtpbl(i)/(ph(i,nk(i))-ph(i,icb(i)))
+    dtmin(i) = tvpplcl(i) - tvaplcl(i) + dtmax + dtpbl(i)
+  END DO
+
+  ! -------------------------------------------------------------------
+  ! --- Adjust cloud base mass flux
+  ! -------------------------------------------------------------------
+
+  DO i = 1, ncum
+    work(i) = cbmf(i)
+    cbmf(i) = max(0.0, (1.0-damp)*cbmf(i)+0.1*alpha*dtmin(i))
+    IF ((work(i)==0.0) .AND. (cbmf(i)==0.0)) THEN
+      iflag(i) = 3
+    END IF
+  END DO
+
+  ! -------------------------------------------------------------------
+  ! --- Calculate rates of mixing,  m(i)
+  ! -------------------------------------------------------------------
+
+  CALL zilch(work, ncum)
+
+  DO j = minorig + 1, nl
+    DO i = 1, ncum
+      IF ((j>=(icb(i)+1)) .AND. (j<=inb(i))) THEN
+        k = min(j, inb1(i))
+        dbo = abs(tv(i,k+1)-tvp(i,k+1)-tv(i,k-1)+tvp(i,k-1)) + &
+          entp*0.04*(ph(i,k)-ph(i,k+1))
+        work(i) = work(i) + dbo
+        m(i, j) = cbmf(i)*dbo
+      END IF
+    END DO
+  END DO
+  DO k = minorig + 1, nl
+    DO i = 1, ncum
+      IF ((k>=(icb(i)+1)) .AND. (k<=inb(i))) THEN
+        m(i, k) = m(i, k)/work(i)
+      END IF
+    END DO
+  END DO
+
+
+  ! =====================================================================
+  ! --- CALCULATE ENTRAINED AIR MASS FLUX (ment), TOTAL WATER MIXING
+  ! --- RATIO (QENT), TOTAL CONDENSED WATER (elij), AND MIXING
+  ! --- FRACTION (sij)
+  ! =====================================================================
+
+
+  DO i = minorig + 1, nl
+    DO j = minorig + 1, nl
+      DO ij = 1, ncum
+        IF ((i>=(icb(ij)+1)) .AND. (j>=icb(ij)) .AND. (i<=inb(ij)) .AND. (j<= &
+            inb(ij))) THEN
+          qti = qnk(ij) - ep(ij, i)*clw(ij, i)
+          bf2 = 1. + lv(ij, j)*lv(ij, j)*qs(ij, j)/(rv*t(ij,j)*t(ij,j)*cpd)
+          anum = h(ij, j) - hp(ij, i) + (cpv-cpd)*t(ij, j)*(qti-q(ij,j))
+          denom = h(ij, i) - hp(ij, i) + (cpd-cpv)*(q(ij,i)-qti)*t(ij, j)
+          dei = denom
+          IF (abs(dei)<0.01) dei = 0.01
+          sij(ij, i, j) = anum/dei
+          sij(ij, i, i) = 1.0
+          altem = sij(ij, i, j)*q(ij, i) + (1.-sij(ij,i,j))*qti - qs(ij, j)
+          altem = altem/bf2
+          cwat = clw(ij, j)*(1.-ep(ij,j))
+          stemp = sij(ij, i, j)
+          IF ((stemp<0.0 .OR. stemp>1.0 .OR. altem>cwat) .AND. j>i) THEN
+            anum = anum - lv(ij, j)*(qti-qs(ij,j)-cwat*bf2)
+            denom = denom + lv(ij, j)*(q(ij,i)-qti)
+            IF (abs(denom)<0.01) denom = 0.01
+            sij(ij, i, j) = anum/denom
+            altem = sij(ij, i, j)*q(ij, i) + (1.-sij(ij,i,j))*qti - qs(ij, j)
+            altem = altem - (bf2-1.)*cwat
+          END IF
+          IF (sij(ij,i,j)>0.0 .AND. sij(ij,i,j)<0.9) THEN
+            qent(ij, i, j) = sij(ij, i, j)*q(ij, i) + (1.-sij(ij,i,j))*qti
+            uent(ij, i, j) = sij(ij, i, j)*u(ij, i) + &
+              (1.-sij(ij,i,j))*u(ij, nk(ij))
+            vent(ij, i, j) = sij(ij, i, j)*v(ij, i) + &
+              (1.-sij(ij,i,j))*v(ij, nk(ij))
+            elij(ij, i, j) = altem
+            elij(ij, i, j) = max(0.0, elij(ij,i,j))
+            ment(ij, i, j) = m(ij, i)/(1.-sij(ij,i,j))
+            nent(ij, i) = nent(ij, i) + 1
+          END IF
+          sij(ij, i, j) = max(0.0, sij(ij,i,j))
+          sij(ij, i, j) = min(1.0, sij(ij,i,j))
+        END IF
+      END DO
+    END DO
+
+    ! ***   If no air can entrain at level i assume that updraft detrains
+    ! ***
+    ! ***   at that level and calculate detrained air flux and properties
+    ! ***
+
+    DO ij = 1, ncum
+      IF ((i>=(icb(ij)+1)) .AND. (i<=inb(ij)) .AND. (nent(ij,i)==0)) THEN
+        ment(ij, i, i) = m(ij, i)
+        qent(ij, i, i) = q(ij, nk(ij)) - ep(ij, i)*clw(ij, i)
+        uent(ij, i, i) = u(ij, nk(ij))
+        vent(ij, i, i) = v(ij, nk(ij))
+        elij(ij, i, i) = clw(ij, i)
+        sij(ij, i, i) = 1.0
+      END IF
+    END DO
+  END DO
+
+  DO i = 1, ncum
+    sij(i, inb(i), inb(i)) = 1.0
+  END DO
+
+  ! =====================================================================
+  ! ---  NORMALIZE ENTRAINED AIR MASS FLUXES
+  ! ---  TO REPRESENT EQUAL PROBABILITIES OF MIXING
+  ! =====================================================================
+
+
+  CALL zilch(bsum, ncum*nlp)
+  DO ij = 1, ncum
+    lwork(ij) = .FALSE.
+  END DO
+  DO i = minorig + 1, nl
+
+    num1 = 0
+    DO ij = 1, ncum
+      IF ((i>=icb(ij)+1) .AND. (i<=inb(ij))) num1 = num1 + 1
+    END DO
+    IF (num1<=0) GO TO 789
+
+    DO ij = 1, ncum
+      IF ((i>=icb(ij)+1) .AND. (i<=inb(ij))) THEN
+        lwork(ij) = (nent(ij,i)/=0)
+        qp1 = q(ij, nk(ij)) - ep(ij, i)*clw(ij, i)
+        anum = h(ij, i) - hp(ij, i) - lv(ij, i)*(qp1-qs(ij,i))
+        denom = h(ij, i) - hp(ij, i) + lv(ij, i)*(q(ij,i)-qp1)
+        IF (abs(denom)<0.01) denom = 0.01
+        scrit(ij) = anum/denom
+        alt = qp1 - qs(ij, i) + scrit(ij)*(q(ij,i)-qp1)
+        IF (scrit(ij)<0.0 .OR. alt<0.0) scrit(ij) = 1.0
+        asij(ij) = 0.0
+        smin(ij) = 1.0
+      END IF
+    END DO
+    DO j = minorig, nl
+
+      num2 = 0
+      DO ij = 1, ncum
+        IF ((i>=icb(ij)+1) .AND. (i<=inb(ij)) .AND. (j>=icb( &
+          ij)) .AND. (j<=inb(ij)) .AND. lwork(ij)) num2 = num2 + 1
+      END DO
+      IF (num2<=0) GO TO 783
+
+      DO ij = 1, ncum
+        IF ((i>=icb(ij)+1) .AND. (i<=inb(ij)) .AND. (j>=icb( &
+            ij)) .AND. (j<=inb(ij)) .AND. lwork(ij)) THEN
+          IF (sij(ij,i,j)>0.0 .AND. sij(ij,i,j)<0.9) THEN
+            IF (j>i) THEN
+              smid = min(sij(ij,i,j), scrit(ij))
+              sjmax = smid
+              sjmin = smid
+              IF (smid<smin(ij) .AND. sij(ij,i,j+1)<smid) THEN
+                smin(ij) = smid
+                sjmax = min(sij(ij,i,j+1), sij(ij,i,j), scrit(ij))
+                sjmin = max(sij(ij,i,j-1), sij(ij,i,j))
+                sjmin = min(sjmin, scrit(ij))
+              END IF
+            ELSE
+              sjmax = max(sij(ij,i,j+1), scrit(ij))
+              smid = max(sij(ij,i,j), scrit(ij))
+              sjmin = 0.0
+              IF (j>1) sjmin = sij(ij, i, j-1)
+              sjmin = max(sjmin, scrit(ij))
+            END IF
+            delp = abs(sjmax-smid)
+            delm = abs(sjmin-smid)
+            asij(ij) = asij(ij) + (delp+delm)*(ph(ij,j)-ph(ij,j+1))
+            ment(ij, i, j) = ment(ij, i, j)*(delp+delm)*(ph(ij,j)-ph(ij,j+1))
+          END IF
+        END IF
+      END DO
+783 END DO
+    DO ij = 1, ncum
+      IF ((i>=icb(ij)+1) .AND. (i<=inb(ij)) .AND. lwork(ij)) THEN
+        asij(ij) = max(1.0E-21, asij(ij))
+        asij(ij) = 1.0/asij(ij)
+        bsum(ij, i) = 0.0
+      END IF
+    END DO
+    DO j = minorig, nl + 1
+      DO ij = 1, ncum
+        IF ((i>=icb(ij)+1) .AND. (i<=inb(ij)) .AND. (j>=icb( &
+            ij)) .AND. (j<=inb(ij)) .AND. lwork(ij)) THEN
+          ment(ij, i, j) = ment(ij, i, j)*asij(ij)
+          bsum(ij, i) = bsum(ij, i) + ment(ij, i, j)
+        END IF
+      END DO
+    END DO
+    DO ij = 1, ncum
+      IF ((i>=icb(ij)+1) .AND. (i<=inb(ij)) .AND. (bsum(ij, &
+          i)<1.0E-18) .AND. lwork(ij)) THEN
+        nent(ij, i) = 0
+        ment(ij, i, i) = m(ij, i)
+        qent(ij, i, i) = q(ij, nk(ij)) - ep(ij, i)*clw(ij, i)
+        uent(ij, i, i) = u(ij, nk(ij))
+        vent(ij, i, i) = v(ij, nk(ij))
+        elij(ij, i, i) = clw(ij, i)
+        sij(ij, i, i) = 1.0
+      END IF
+    END DO
+789 END DO
+
+  ! =====================================================================
+  ! --- PRECIPITATING DOWNDRAFT CALCULATION
+  ! =====================================================================
+
+  ! ***  Check whether ep(inb)=0, if so, skip precipitating    ***
+  ! ***             downdraft calculation                      ***
+
+
+  ! ***  Integrate liquid water equation to find condensed water   ***
+  ! ***                and condensed water flux                    ***
+
+
+  DO i = 1, ncum
+    jtt(i) = 2
+    IF (ep(i,inb(i))<=0.0001) iflag(i) = 2
+    IF (iflag(i)==0) THEN
+      lwork(i) = .TRUE.
+    ELSE
+      lwork(i) = .FALSE.
+    END IF
+  END DO
+
+  ! ***                    Begin downdraft loop                    ***
+
+
+  CALL zilch(wdtrain, ncum)
+  DO i = nl + 1, 1, -1
+
+    num1 = 0
+    DO ij = 1, ncum
+      IF ((i<=inb(ij)) .AND. lwork(ij)) num1 = num1 + 1
+    END DO
+    IF (num1<=0) GO TO 899
+
+
+    ! ***        Calculate detrained precipitation             ***
+
+    DO ij = 1, ncum
+      IF ((i<=inb(ij)) .AND. (lwork(ij))) THEN
+        wdtrain(ij) = g*ep(ij, i)*m(ij, i)*clw(ij, i)
+      END IF
+    END DO
+
+    IF (i>1) THEN
+      DO j = 1, i - 1
+        DO ij = 1, ncum
+          IF ((i<=inb(ij)) .AND. (lwork(ij))) THEN
+            awat = elij(ij, j, i) - (1.-ep(ij,i))*clw(ij, i)
+            awat = max(0.0, awat)
+            wdtrain(ij) = wdtrain(ij) + g*awat*ment(ij, j, i)
+          END IF
+        END DO
+      END DO
+    END IF
+
+    ! ***    Find rain water and evaporation using provisional   ***
+    ! ***              estimates of qp(i)and qp(i-1)             ***
+
+
+    ! ***  Value of terminal velocity and coeffecient of evaporation for snow
+    ! ***
+
+    DO ij = 1, ncum
+      IF ((i<=inb(ij)) .AND. (lwork(ij))) THEN
+        coeff = coeffs
+        wt(ij, i) = omtsnow
+
+        ! ***  Value of terminal velocity and coeffecient of evaporation for
+        ! rain   ***
+
+        IF (t(ij,i)>273.0) THEN
+          coeff = coeffr
+          wt(ij, i) = omtrain
+        END IF
+        qsm = 0.5*(q(ij,i)+qp(ij,i+1))
+        afac = coeff*ph(ij, i)*(qs(ij,i)-qsm)/(1.0E4+2.0E3*ph(ij,i)*qs(ij,i))
+        afac = max(afac, 0.0)
+        sigt = sigp(ij, i)
+        sigt = max(0.0, sigt)
+        sigt = min(1.0, sigt)
+        b6 = 100.*(ph(ij,i)-ph(ij,i+1))*sigt*afac/wt(ij, i)
+        c6 = (water(ij,i+1)*wt(ij,i+1)+wdtrain(ij)/sigd)/wt(ij, i)
+        revap = 0.5*(-b6+sqrt(b6*b6+4.*c6))
+        evap(ij, i) = sigt*afac*revap
+        water(ij, i) = revap*revap
+
+        ! ***  Calculate precipitating downdraft mass flux under     ***
+        ! ***              hydrostatic approximation                 ***
+
+        IF (i>1) THEN
+          dhdp = (h(ij,i)-h(ij,i-1))/(p(ij,i-1)-p(ij,i))
+          dhdp = max(dhdp, 10.0)
+          mp(ij, i) = 100.*ginv*lv(ij, i)*sigd*evap(ij, i)/dhdp
+          mp(ij, i) = max(mp(ij,i), 0.0)
+
+          ! ***   Add small amount of inertia to downdraft              ***
+
+          fac = 20.0/(ph(ij,i-1)-ph(ij,i))
+          mp(ij, i) = (fac*mp(ij,i+1)+mp(ij,i))/(1.+fac)
+
+          ! ***      Force mp to decrease linearly to zero
+          ! ***
+          ! ***      between about 950 mb and the surface
+          ! ***
+
+          IF (p(ij,i)>(0.949*p(ij,1))) THEN
+            jtt(ij) = max(jtt(ij), i)
+            mp(ij, i) = mp(ij, jtt(ij))*(p(ij,1)-p(ij,i))/ &
+              (p(ij,1)-p(ij,jtt(ij)))
+          END IF
+        END IF
+
+        ! ***       Find mixing ratio of precipitating downdraft     ***
+
+        IF (i/=inb(ij)) THEN
+          IF (i==1) THEN
+            qstm = qs(ij, 1)
+          ELSE
+            qstm = qs(ij, i-1)
+          END IF
+          IF (mp(ij,i)>mp(ij,i+1)) THEN
+            rat = mp(ij, i+1)/mp(ij, i)
+            qp(ij, i) = qp(ij, i+1)*rat + q(ij, i)*(1.0-rat) + &
+              100.*ginv*sigd*(ph(ij,i)-ph(ij,i+1))*(evap(ij,i)/mp(ij,i))
+            up(ij, i) = up(ij, i+1)*rat + u(ij, i)*(1.-rat)
+            vp(ij, i) = vp(ij, i+1)*rat + v(ij, i)*(1.-rat)
+          ELSE
+            IF (mp(ij,i+1)>0.0) THEN
+              qp(ij, i) = (gz(ij,i+1)-gz(ij,i)+qp(ij,i+1)*(lv(ij,i+1)+t(ij, &
+                i+1)*(cl-cpd))+cpd*(t(ij,i+1)-t(ij, &
+                i)))/(lv(ij,i)+t(ij,i)*(cl-cpd))
+              up(ij, i) = up(ij, i+1)
+              vp(ij, i) = vp(ij, i+1)
+            END IF
+          END IF
+          qp(ij, i) = min(qp(ij,i), qstm)
+          qp(ij, i) = max(qp(ij,i), 0.0)
+        END IF
+      END IF
+    END DO
+899 END DO
+
+  ! ***  Calculate surface precipitation in mm/day     ***
+
+  DO i = 1, ncum
+    IF (iflag(i)<=1) THEN
+      ! c            precip(i)=precip(i)+wt(i,1)*sigd*water(i,1)*3600.*24000.
+      ! c     &                /(rowl*g)
+      ! c            precip(i)=precip(i)*delt/86400.
+      precip(i) = wt(i, 1)*sigd*water(i, 1)*86400/g
+    END IF
+  END DO
+
+
+  ! ***  Calculate downdraft velocity scale and surface temperature and  ***
+  ! ***                    water vapor fluctuations                      ***
+
+  ! wd=beta*abs(mp(icb))*0.01*rd*t(icb)/(sigd*p(icb))
+  ! qprime=0.5*(qp(1)-q(1))
+  ! tprime=lv0*qprime/cpd
+
+  ! ***  Calculate tendencies of lowest level potential temperature  ***
+  ! ***                      and mixing ratio                        ***
+
+  DO i = 1, ncum
+    work(i) = 0.01/(ph(i,1)-ph(i,2))
+    am(i) = 0.0
+  END DO
+  DO k = 2, nl
+    DO i = 1, ncum
+      IF ((nk(i)==1) .AND. (k<=inb(i)) .AND. (nk(i)==1)) THEN
+        am(i) = am(i) + m(i, k)
+      END IF
+    END DO
+  END DO
+  DO i = 1, ncum
+    IF ((g*work(i)*am(i))>=delti) iflag(i) = 1
+    ft(i, 1) = ft(i, 1) + g*work(i)*am(i)*(t(i,2)-t(i,1)+(gz(i,2)-gz(i, &
+      1))/cpn(i,1))
+    ft(i, 1) = ft(i, 1) - lvcp(i, 1)*sigd*evap(i, 1)
+    ft(i, 1) = ft(i, 1) + sigd*wt(i, 2)*(cl-cpd)*water(i, 2)*(t(i,2)-t(i,1))* &
+      work(i)/cpn(i, 1)
+    fq(i, 1) = fq(i, 1) + g*mp(i, 2)*(qp(i,2)-q(i,1))*work(i) + &
+      sigd*evap(i, 1)
+    fq(i, 1) = fq(i, 1) + g*am(i)*(q(i,2)-q(i,1))*work(i)
+    fu(i, 1) = fu(i, 1) + g*work(i)*(mp(i,2)*(up(i,2)-u(i,1))+am(i)*(u(i, &
+      2)-u(i,1)))
+    fv(i, 1) = fv(i, 1) + g*work(i)*(mp(i,2)*(vp(i,2)-v(i,1))+am(i)*(v(i, &
+      2)-v(i,1)))
+  END DO
+  DO j = 2, nl
+    DO i = 1, ncum
+      IF (j<=inb(i)) THEN
+        fq(i, 1) = fq(i, 1) + g*work(i)*ment(i, j, 1)*(qent(i,j,1)-q(i,1))
+        fu(i, 1) = fu(i, 1) + g*work(i)*ment(i, j, 1)*(uent(i,j,1)-u(i,1))
+        fv(i, 1) = fv(i, 1) + g*work(i)*ment(i, j, 1)*(vent(i,j,1)-v(i,1))
+      END IF
+    END DO
+  END DO
+
+  ! ***  Calculate tendencies of potential temperature and mixing ratio  ***
+  ! ***               at levels above the lowest level                   ***
+
+  ! ***  First find the net saturated updraft and downdraft mass fluxes  ***
+  ! ***                      through each level                          ***
+
+  DO i = 2, nl + 1
+
+    num1 = 0
+    DO ij = 1, ncum
+      IF (i<=inb(ij)) num1 = num1 + 1
+    END DO
+    IF (num1<=0) GO TO 1500
+
+    CALL zilch(amp1, ncum)
+    CALL zilch(ad, ncum)
+
+    DO k = i + 1, nl + 1
+      DO ij = 1, ncum
+        IF ((i>=nk(ij)) .AND. (i<=inb(ij)) .AND. (k<=(inb(ij)+1))) THEN
+          amp1(ij) = amp1(ij) + m(ij, k)
+        END IF
+      END DO
+    END DO
+
+    DO k = 1, i
+      DO j = i + 1, nl + 1
+        DO ij = 1, ncum
+          IF ((j<=(inb(ij)+1)) .AND. (i<=inb(ij))) THEN
+            amp1(ij) = amp1(ij) + ment(ij, k, j)
+          END IF
+        END DO
+      END DO
+    END DO
+    DO k = 1, i - 1
+      DO j = i, nl + 1
+        DO ij = 1, ncum
+          IF ((i<=inb(ij)) .AND. (j<=inb(ij))) THEN
+            ad(ij) = ad(ij) + ment(ij, j, k)
+          END IF
+        END DO
+      END DO
+    END DO
+
+    DO ij = 1, ncum
+      IF (i<=inb(ij)) THEN
+        dpinv = 0.01/(ph(ij,i)-ph(ij,i+1))
+        cpinv = 1.0/cpn(ij, i)
+
+        ft(ij, i) = ft(ij, i) + g*dpinv*(amp1(ij)*(t(ij,i+1)-t(ij, &
+          i)+(gz(ij,i+1)-gz(ij,i))*cpinv)-ad(ij)*(t(ij,i)-t(ij, &
+          i-1)+(gz(ij,i)-gz(ij,i-1))*cpinv)) - sigd*lvcp(ij, i)*evap(ij, i)
+        ft(ij, i) = ft(ij, i) + g*dpinv*ment(ij, i, i)*(hp(ij,i)-h(ij,i)+t(ij &
+          ,i)*(cpv-cpd)*(q(ij,i)-qent(ij,i,i)))*cpinv
+        ft(ij, i) = ft(ij, i) + sigd*wt(ij, i+1)*(cl-cpd)*water(ij, i+1)*(t( &
+          ij,i+1)-t(ij,i))*dpinv*cpinv
+        fq(ij, i) = fq(ij, i) + g*dpinv*(amp1(ij)*(q(ij,i+1)-q(ij, &
+          i))-ad(ij)*(q(ij,i)-q(ij,i-1)))
+        fu(ij, i) = fu(ij, i) + g*dpinv*(amp1(ij)*(u(ij,i+1)-u(ij, &
+          i))-ad(ij)*(u(ij,i)-u(ij,i-1)))
+        fv(ij, i) = fv(ij, i) + g*dpinv*(amp1(ij)*(v(ij,i+1)-v(ij, &
+          i))-ad(ij)*(v(ij,i)-v(ij,i-1)))
+      END IF
+    END DO
+    DO k = 1, i - 1
+      DO ij = 1, ncum
+        IF (i<=inb(ij)) THEN
+          awat = elij(ij, k, i) - (1.-ep(ij,i))*clw(ij, i)
+          awat = max(awat, 0.0)
+          fq(ij, i) = fq(ij, i) + g*dpinv*ment(ij, k, i)*(qent(ij,k,i)-awat-q &
+            (ij,i))
+          fu(ij, i) = fu(ij, i) + g*dpinv*ment(ij, k, i)*(uent(ij,k,i)-u(ij,i &
+            ))
+          fv(ij, i) = fv(ij, i) + g*dpinv*ment(ij, k, i)*(vent(ij,k,i)-v(ij,i &
+            ))
+        END IF
+      END DO
+    END DO
+    DO k = i, nl + 1
+      DO ij = 1, ncum
+        IF ((i<=inb(ij)) .AND. (k<=inb(ij))) THEN
+          fq(ij, i) = fq(ij, i) + g*dpinv*ment(ij, k, i)*(qent(ij,k,i)-q(ij,i &
+            ))
+          fu(ij, i) = fu(ij, i) + g*dpinv*ment(ij, k, i)*(uent(ij,k,i)-u(ij,i &
+            ))
+          fv(ij, i) = fv(ij, i) + g*dpinv*ment(ij, k, i)*(vent(ij,k,i)-v(ij,i &
+            ))
+        END IF
+      END DO
+    END DO
+    DO ij = 1, ncum
+      IF (i<=inb(ij)) THEN
+        fq(ij, i) = fq(ij, i) + sigd*evap(ij, i) + g*(mp(ij,i+1)*(qp(ij, &
+          i+1)-q(ij,i))-mp(ij,i)*(qp(ij,i)-q(ij,i-1)))*dpinv
+        fu(ij, i) = fu(ij, i) + g*(mp(ij,i+1)*(up(ij,i+1)-u(ij, &
+          i))-mp(ij,i)*(up(ij,i)-u(ij,i-1)))*dpinv
+        fv(ij, i) = fv(ij, i) + g*(mp(ij,i+1)*(vp(ij,i+1)-v(ij, &
+          i))-mp(ij,i)*(vp(ij,i)-v(ij,i-1)))*dpinv
+      END IF
+    END DO
+1500 END DO
+
+  ! *** Adjust tendencies at top of convection layer to reflect  ***
+  ! ***       actual position of the level zero cape             ***
+
+  DO ij = 1, ncum
+    fqold = fq(ij, inb(ij))
+    fq(ij, inb(ij)) = fq(ij, inb(ij))*(1.-frac(ij))
+    fq(ij, inb(ij)-1) = fq(ij, inb(ij)-1) + frac(ij)*fqold*((ph(ij, &
+      inb(ij))-ph(ij,inb(ij)+1))/(ph(ij,inb(ij)-1)-ph(ij, &
+      inb(ij))))*lv(ij, inb(ij))/lv(ij, inb(ij)-1)
+    ftold = ft(ij, inb(ij))
+    ft(ij, inb(ij)) = ft(ij, inb(ij))*(1.-frac(ij))
+    ft(ij, inb(ij)-1) = ft(ij, inb(ij)-1) + frac(ij)*ftold*((ph(ij, &
+      inb(ij))-ph(ij,inb(ij)+1))/(ph(ij,inb(ij)-1)-ph(ij, &
+      inb(ij))))*cpn(ij, inb(ij))/cpn(ij, inb(ij)-1)
+    fuold = fu(ij, inb(ij))
+    fu(ij, inb(ij)) = fu(ij, inb(ij))*(1.-frac(ij))
+    fu(ij, inb(ij)-1) = fu(ij, inb(ij)-1) + frac(ij)*fuold*((ph(ij, &
+      inb(ij))-ph(ij,inb(ij)+1))/(ph(ij,inb(ij)-1)-ph(ij,inb(ij))))
+    fvold = fv(ij, inb(ij))
+    fv(ij, inb(ij)) = fv(ij, inb(ij))*(1.-frac(ij))
+    fv(ij, inb(ij)-1) = fv(ij, inb(ij)-1) + frac(ij)*fvold*((ph(ij, &
+      inb(ij))-ph(ij,inb(ij)+1))/(ph(ij,inb(ij)-1)-ph(ij,inb(ij))))
+  END DO
+
+  ! ***   Very slightly adjust tendencies to force exact   ***
+  ! ***     enthalpy, momentum and tracer conservation     ***
+
+  DO ij = 1, ncum
+    ents(ij) = 0.0
+    uav(ij) = 0.0
+    vav(ij) = 0.0
+    DO i = 1, inb(ij)
+      ents(ij) = ents(ij) + (cpn(ij,i)*ft(ij,i)+lv(ij,i)*fq(ij,i))*(ph(ij,i)- &
+        ph(ij,i+1))
+      uav(ij) = uav(ij) + fu(ij, i)*(ph(ij,i)-ph(ij,i+1))
+      vav(ij) = vav(ij) + fv(ij, i)*(ph(ij,i)-ph(ij,i+1))
+    END DO
+  END DO
+  DO ij = 1, ncum
+    ents(ij) = ents(ij)/(ph(ij,1)-ph(ij,inb(ij)+1))
+    uav(ij) = uav(ij)/(ph(ij,1)-ph(ij,inb(ij)+1))
+    vav(ij) = vav(ij)/(ph(ij,1)-ph(ij,inb(ij)+1))
+  END DO
+  DO ij = 1, ncum
+    DO i = 1, inb(ij)
+      ft(ij, i) = ft(ij, i) - ents(ij)/cpn(ij, i)
+      fu(ij, i) = (1.-cu)*(fu(ij,i)-uav(ij))
+      fv(ij, i) = (1.-cu)*(fv(ij,i)-vav(ij))
+    END DO
+  END DO
+
+  DO k = 1, nl + 1
+    DO i = 1, ncum
+      IF ((q(i,k)+delt*fq(i,k))<0.0) iflag(i) = 10
+    END DO
+  END DO
+
+
+  DO i = 1, ncum
+    IF (iflag(i)>2) THEN
+      precip(i) = 0.0
+      cbmf(i) = 0.0
+    END IF
+  END DO
+  DO k = 1, nl
+    DO i = 1, ncum
+      IF (iflag(i)>2) THEN
+        ft(i, k) = 0.0
+        fq(i, k) = 0.0
+        fu(i, k) = 0.0
+        fv(i, k) = 0.0
+      END IF
+    END DO
+  END DO
+  DO i = 1, ncum
+    precip1(idcum(i)) = precip(i)
+    cbmf1(idcum(i)) = cbmf(i)
+    iflag1(idcum(i)) = iflag(i)
+  END DO
+  DO k = 1, nl
+    DO i = 1, ncum
+      ft1(idcum(i), k) = ft(i, k)
+      fq1(idcum(i), k) = fq(i, k)
+      fu1(idcum(i), k) = fu(i, k)
+      fv1(idcum(i), k) = fv(i, k)
+    END DO
+  END DO
+
+  DO k = 1, nd
+    DO i = 1, len
+      ma(i, k) = 0.
+    END DO
+  END DO
+  DO k = nl, 1, -1
+    DO i = 1, ncum
+      ma(i, k) = ma(i, k+1) + m(i, k)
+    END DO
+  END DO
+
+  RETURN
+END SUBROUTINE convect2
+

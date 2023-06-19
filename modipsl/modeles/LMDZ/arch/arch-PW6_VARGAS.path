@@ -1,0 +1,10 @@
+NETCDF_LIBDIR="${NETCDF_LDFLAGS:--L/usr/local/pub/NetCDF/3.6.2/lib -lnetcdf}"
+NETCDF_INCDIR="${NETCDF_FFLAGS:--I/usr/local/pub/NetCDF/3.6.2/include}"
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../prism/AIX6/build/lib/psmile.$couple
+OASIS_LIBDIR=$LMDGCM/../../prism/AIX6/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/lib

@@ -1,0 +1,86 @@
+#========================================================================
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+# Physics package to use
+LMDZ_Physics=NPv6.1
+
+# Manage radiative aerosol effect and ozone 
+flag_aerosol=6
+ok_ade=y
+ok_aie=y
+aerosol_couple=n
+
+# read_climoz : interpolation of ozone files. 
+# Use read_climoz=1 for CMIP6 ozone files, 2 for CMIP5 ozone files and 0 for no interpolation
+# LMDZ6/trunk revision 3281 or later is needed for read_climoz=1 (not included in branche IPSLCM6.0.15)
+read_climoz=1
+ok_cdnc=y
+
+[InitialStateFiles]
+List= ()
+
+[BoundaryFiles]
+List= ()
+
+ListNonDel= (${R_IN}/ATM/Albedo.nc, .), \
+	(${R_IN}/ATM/ECDYN.nc.20020101, ECDYN.nc), \
+	(${R_IN}/ATM/ECDYN.nc.20020101, ECPHY.nc), \
+	(${R_IN}/ATM/Relief.nc, .), \
+	(${R_IN}/ATM/Rugos.nc, .), \
+	(${R_IN}/ATM/landiceref.nc, .) \
+	(${R_IN}/ATM/OZONE/UReading/historical.v20160711.v2/original/144x96x66/tro3_1979_2008_clim.nc, climoz.nc), \
+	(${R_IN}/ATM/LIMIT/AMIP.v20180427/original/360x180/BCS/amipbc_sst_360x180_1979_2008_clim.nc, amipbc_sst_1x1.nc), \
+	(${R_IN}/ATM/LIMIT/AMIP.v20180427/original/360x180/BCS/amipbc_sic_360x180_1979_2008_clim.nc, amipbc_sic_1x1.nc), \
+	(${R_IN}/ATM/START/eORCA1.2xLMD144x142/o2a_v3.nc, o2a.nc)
+
+# Optional: The o2a.nc file is optional and is used to fit with the coupled configuration for the land-sea mask.
+# The o2a file can be removed if it does not correspond to the resolution or zoom. In that case, Relief.nc will be used to calculate the mask land-sea.
+# Use following o2a file to fit with IPSLCM6.0.11 coupled model:
+#       (${R_IN}/ATM/START/eORCA1.2xLMD144x142/o2a_v3.nc, o2a.nc)
+# Use following o2a file for regular grid 96x95, correspond to coupled configuration IPSLCM5A2:
+#       (${R_IN}/ATM/START/ORCA2.3xLMD96x95/o2a_v3.nc, o2a.nc)
+
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/physiq.def_${LMDZ_Physics}, physiq.def), \
+	(${SUBMIT_DIR}/PARAM/gcm.def_${RESOL_ATM_XY}_${LMDZ_Physics}, gcm.def), \
+        (${SUBMIT_DIR}/PARAM/vert.def_L${RESOL_ATM_Z},   vert.def),   \
+	(${SUBMIT_DIR}/PARAM/config.def_actuel     ,  config.def),    \
+	(${SUBMIT_DIR}/PARAM/run.def, .), \
+	(${SUBMIT_DIR}/PARAM/guide.def, .), \
+	(${SUBMIT_DIR}/PARAM/traceur.def, .),\
+        (${SUBMIT_DIR}/PARAM/iodef.xml, . ),                                \
+        (${MODIPSL}/modeles/LMDZ/DefLists/context_lmdz.xml, . ),            \
+        (${MODIPSL}/modeles/LMDZ/DefLists/field_def_lmdz.xml, . ),          \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histmth_lmdz.xml, . ),   \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histmthCOSP_lmdz.xml, .),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histmthNMC_lmdz.xml, . ),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histday_lmdz.xml, . ),   \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histdayCOSP_lmdz.xml, .),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histdayNMC_lmdz.xml, . ),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histhf_lmdz.xml, . ),    \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histhfCOSP_lmdz.xml, .), \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histhfNMC_lmdz.xml, . ), \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histstn_lmdz.xml, . ),   \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histins_lmdz.xml, . ),   \
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histstrataer_lmdz.xml, . ),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histdaystrataer_lmdz.xml, . ),\
+        (${MODIPSL}/modeles/LMDZ/DefLists/file_def_histLES_lmdz.xml, . )
+
+
+[RestartFiles]
+List= (NONE)
+
+[OutputText]
+List=   (physiq.def, gcm.def, vert.def, run.def, config.def, traceur.def, guide.def, out_ce0l.e.out.0, out_ce0l.e.err.0)
+
+[OutputFiles]
+List=	( limit.nc,       ${R_OUT_ATM_O}/Boundary/${config_UserChoices_JobName}_clim_limit.nc,   NONE), \
+	( climoz_LMDZ.nc, ${R_OUT_ATM_O}/Boundary/${config_UserChoices_JobName}_climoz_LMDZ.nc,  NONE), \
+	( start.nc,       ${R_OUT_ATM_O}/Restart/${config_UserChoices_JobName}_clim_start.nc,    NONE), \
+	( startphy.nc,    ${R_OUT_ATM_O}/Restart/${config_UserChoices_JobName}_clim_startphy.nc, NONE), \
+	( grilles_gcm.nc, ${R_OUT_ATM_O}/Grid/${config_UserChoices_JobName}_grilles_gcm.nc,      NONE)
+

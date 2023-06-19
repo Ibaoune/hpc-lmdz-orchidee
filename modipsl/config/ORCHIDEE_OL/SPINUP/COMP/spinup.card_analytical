@@ -1,0 +1,144 @@
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+#
+## DEBUG mode for SPINUP 
+#
+# This mode keep all SPINUP directory in ARCHIVE
+# If disable, all ARCHIVE is automaticly cleaned.
+# 
+DEBUG_SPIN=n
+# If you don't want to keep old spinup steps, but last one
+CONSERVE=y
+
+# If you want to use the same forcing file
+DRIVER_NORESTART=n
+# If you want use config.card PeriodLength for TIME_LENGTH
+DRIVER_TIMELENGTH=y
+
+# Should we start the analytic resolution of the spinup?
+SPINUP_ANALYTIC=y
+
+#
+###-- STOMATE flag
+#
+ok_stomate=y
+
+#
+###-- CO2 flag
+#
+ok_co2=y
+
+#
+###-- LAI flag
+#
+lai_map=n
+
+#
+###-- fix végétation flag
+#
+impose_veg=n
+
+#
+###-- historical vegetation maps
+#
+land_use=y
+
+#
+###-- ROUTING flag
+#
+ok_routing=n
+
+#
+###-- NEW HYDROL CWRR flag
+#
+ok_newhydrol=n
+
+
+    # SPINUP configuration : 
+    # ----------------------
+# Initialisation for spin-up :
+# sechiba alone (!!! only if ok_stomate == n !!!)
+duree_nostomate=0
+# sechiba and stomate
+duree_inistomate=1
+# teststomate (only if duree_nostomate or duree_inistomate > 0)
+duree_offlineini=0
+
+# Loop configuration for spin-up :
+# The whole job is restarted n_iter times
+n_iter=10
+# orchidee with sechiba (and stomate if ok_stomate=y below)
+duree_sechiba=1
+# teststomate
+duree_stomate=0
+# forcesoil
+duree_carbonsol=0
+
+# Finalization for spin-up :
+# all orchidee
+duree_final=1
+# This last parameter must be non-zero.
+
+# level of the history files for each iteration of the SPINUP
+level_hist=0
+# level of the history files for the final iteration of the SPINUP
+level_hist_final=10
+
+RESOL=360x180
+
+# For FLUXNET style jobs : we should erase LAND USE file ?
+# This flag will suppress all files in option ListNonDel of section BoundaryFiles in orchidee.card of Subjobs.
+BoundaryFilesListNonDel=n
+
+# Path for all skeleton SubJob scripts to SPINUP directory
+SubJobPath=${MODIPSL}/config/ORCHIDEE_OL
+
+[SubJobForcingFile]
+# Boundary Files for ORCHIDEE subjobs :
+List= (${R_BC}/OOL/${config_UserChoices_TagName}/NCC/ncc_for_${year}.nc, forcing_file.nc)
+#List= (${R_BC}/OOL/${config_UserChoices_TagName}/CRU/force${year}.nc, .)
+ListNonDel= ()
+
+[SubJobParams]
+# You can specify here any parameters to be modified in run.def
+DEBUG_INFO=n
+LONGPRINT=n
+FORCESOIL_NB_YEAR=1
+
+[SubJobPost]
+#
+##-- TimeSeries
+#
+sechiba_TimeSeriesVars2D=(nobiofrac, alb_nir, alb_vis, bqsb, evap, fluxlat, fluxsens, gqsb, netrad, qair, rain, runoff, snow, snownobio, snowf, subli, tair, temp_sol, tsol_max, tsol_min, drainage,mrsos, mrso, mrros, mrro, prveg, evspsblveg, evspsblsoi, tran, treeFrac, grassFrac, cropFrac, baresoilFrac, residualFrac)
+sechiba_TimeSeriesVars3D=(lai, maxvegetfrac, vegetfrac, CO2FLUX, ptn, nee)
+# ALMAOUTPUT
+#sechiba_TimeSeriesVars2D = (vegetfrac, maxvegetfrac, nobiofrac, SWnet, LWnet, Qh, Qle, Qg, Qf, DelSurfHeat, DelColdCont, Snowf, Rainf, Evap, \
+#                          Qs, Qsb, Qsm, DelSoilMoist, DelSWE, DelIntercept, AvgSurfT, RadT, Albedo, SWE, SoilMoist, SoilWet, SoilTemp, PotEvap, \
+#                          ECanop, TVeg, ESoil, RootMoist, SubSnow, ACond, SnowFrac, SAlbedo, SnowDepth, dis, GPP)
+stomate_TimeSeriesVars2D=(T2M_MONTH, CONTFRAC, RESOLUTION_X, RESOLUTION_Y, CONVFLUX, CFLUX_PROD10, CFLUX_PROD100,CO2FLUX_MONTHLY_SUM,HARVEST_ABOVE)
+stomate_TimeSeriesVars3D=(CO2FLUX,LAI,VEGET,VEGET_MAX,NPP,GPP,HET_RESP,MAINT_RESP,GROWTH_RESP,AGE,HEIGHT,TOTAL_M,TOTAL_BM_LITTER,TOTAL_SOIL_CARB,ADAPTATION,REGENERATION)
+
+# !!! DO NOT MODIFY spinup.card AFTER THIS LINE !!! 
+
+[InitialStateFiles]
+List=	
+
+[BoundaryFiles]
+List=	()
+ListNonDel= ()
+
+[ParametersFiles]
+List=	()
+
+[RestartFiles]
+# For SPINUP, we don't need a restart ! the we save the output.card 
+List=	(output_out.card,  output.card,  output_in.card) 
+
+[OutputText]
+List=   ()
+
+[OutputFiles]
+List=	

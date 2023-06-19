@@ -1,0 +1,112 @@
+def sym thetitle=($01)
+let thetitle="($01)"
+def sym file1=($02)
+def sym file2=($03)
+def sym file3=($04)
+
+let var_obs_init=($05)
+let var_obs=var_obs_init[g=my_time_counter@asn]
+
+let var_model_init=($06)
+
+
+let var_model_Year=var_model[gt=yearly@ave]
+let var_model_Month=var_model[gt=monthly@ave]
+let var_model_Day=var_model[gt=daily@ave]
+let var_model_Hour=var_model[gt=hourly@ave]
+
+
+let var_obs_year=var_obs[gt=yearly@ave]
+let var_obs_month=var_obs[gt=monthly@ave]
+let var_obs_day=var_obs[gt=daily@ave]
+let var_obs_hour=var_obs[gt=hourly@ave]
+
+
+
+use "($file1)"
+go symbol_basename_and_define basefile1 "($file1)"
+!-----------
+
+use "($file2)"
+go symbol_basename_and_define basefile2 "($file2)"
+!-----------
+
+use "($file3)"
+go symbol_basename_and_define basefile3 "($file3)"
+
+
+
+define grid/like=var_model_init[d=($basefile2),k=1] my_time_counter 
+let var_model=if var_obs[d=($basefile1)] NE -9999. then var_model_init[g=my_time_counter@asn] else (-1e34) 
+let mytime=t[gt=my_time_counter] 
+let first_year= `tax_datestring(mytime[l=@min],mytime,"years")`
+let last_year= `tax_datestring(mytime[l=@max],mytime,"years")` 
+define axis/t="1-JAN-`first_year` 00:00":"1-JAN-`last_year+1` 00:00":1/units=hour/cal=gregorian/edges hourly
+define axis/t="1-JAN-`first_year` 00:00":"1-JAN-`last_year+1` 00:00":1/units=day/cal=gregorian/edges daily
+go def_monthaxis_days.jnl gregorian first_year last_year monthly
+let nbyears=last_year-first_year+1
+let indices_year = L[L=1:`1+nbyears`]
+let year = first_year + INT((indices_year-1))
+define axis/units="days"/T0="01-JAN-`first_year`"/edges/cal="GREGORIAN" yearly = DAYS1900(year,1,1)-DAYS1900(`first_year`,1,1)
+
+
+
+
+
+!************************************************************
+
+go page_new -i 1 2 0 100 0 90
+
+set v 1
+go margins_set 20 20 15 15
+
+DEFINE VIEWPORT/XLIM=0,1/YLIM= .3,1 V1
+set VIEWPORT V1
+************************************************************
+def sym ssbx=($09%1%)
+
+!--------------------
+let obs=var_obs_($07)[d=($basefile1),l=@sbx:($ssbx)]
+let myunit="($08)"
+set variable/units="`myunit`"/title="`thetitle`" obs
+!-----------
+let tag=(var_model_($07)[k=@sum,d=($basefile2),l=@sbx:($ssbx)])
+!-----------
+let new=(var_model_($07)[k=@sum,d=($basefile3),l=@sbx:($ssbx)])
+
+!---------------------
+go 3winsize.jnl obs tag new
+
+plot/grat=(dash,color=black)/line=1/title=""/set_up/vlimit=`min`:`max` obs
+go unlabels 1 8
+ppl TXTYPE,YR,MON 
+ppl TXLINT,1,1
+ppl plot
+plot/line=2/nolab/over tag 
+plot/line=3/nolab/over new
+
+!---------------------
+let diff1=tag-obs
+set variable/units="`myunit`"/title="`thetitle`" diff1
+let diff2=new-obs
+go 3winsize.jnl diff1 diff2 diff2
+
+DEFINE VIEWPORT/XLIM=0,1/YLIM=0,.35 V2
+set VIEWPORT V2
+plot/grat=(dash,color=black)/line=2/title=""/set_up/vlimit=`min`:`max` diff1
+go unlabels 1 8
+ppl TXTYPE,YR,MON 
+ppl TXLINT,1,1
+ppl plot 
+plot/line=3/nolab/over diff2
+
+!--------------------
+go textlayer_new
+go text_legend_put 10 25 34 " @AS($basefile1)" 1 
+go text_legend_put 10 25 32 " @AS($basefile2)" 2
+go text_legend_put 10 25 30 " @AS($basefile3)" 3 
+go textlayer_text_put 50 95 "@AS($thetitle)" 0 0.5
+go logo_put ipsl
+
+
+

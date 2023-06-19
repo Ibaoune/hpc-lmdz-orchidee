@@ -1,0 +1,9 @@
+#!/bin/ksh
+#---------------------------------------------------------------------
+#- Cleaning directories
+#---------------------------------------------------------------------
+
+echo ""
+echo "This script has been renamed. Now please use clean_latestPackperiod.job in libIGCM directory."
+echo "See documentation https://forge.ipsl.jussieu.fr/igcmg_doc/wiki/DocGmonitor#Unknownerror"
+echo ""

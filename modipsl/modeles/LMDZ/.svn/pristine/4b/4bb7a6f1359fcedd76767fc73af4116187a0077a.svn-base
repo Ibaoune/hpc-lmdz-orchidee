@@ -1,0 +1,17 @@
+# $Id$
+%COMPILER            mpiifort
+%LINK                mpiifort
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE FFT_MKL
+%BASE_FFLAGS         -i4 -r8 -auto -align all -fp-model strict
+%PROD_FFLAGS         -O3 -xHost -qopt-zmm-usage=high
+%DEV_FFLAGS          -p -g -O2 -traceback -fp-stack-check
+%DEBUG_FFLAGS        -p -g -O0 -traceback -fp-stack-check -ftrapuv -check bounds,noarg_temp_created,pointers,stack,uninit -debug full -init=arrays -init=snan
+%MPI_FFLAGS
+%OMP_FFLAGS          -qopenmp
+%BASE_LD             -i4 -r8 -auto -lmkl_intel_lp64 -lmkl_core -lmkl_sequential -lpthread
+%MPI_LD
+%OMP_LD              -qopenmp

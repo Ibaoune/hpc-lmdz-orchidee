@@ -1,0 +1,1681 @@
+
+! $Id: orografi.F90 2357 2015-08-31 16:25:19Z lguez $
+
+SUBROUTINE drag_noro(nlon, nlev, dtime, paprs, pplay, pmea, pstd, psig, pgam, &
+    pthe, ppic, pval, kgwd, kdx, ktest, t, u, v, pulow, pvlow, pustr, pvstr, &
+    d_t, d_u, d_v)
+
+  USE dimphy
+  IMPLICIT NONE
+  ! ======================================================================
+  ! Auteur(s): F.Lott (LMD/CNRS) date: 19950201
+  ! Objet: Frottement de la montagne Interface
+  ! ======================================================================
+  ! Arguments:
+  ! dtime---input-R- pas d'integration (s)
+  ! paprs---input-R-pression pour chaque inter-couche (en Pa)
+  ! pplay---input-R-pression pour le mileu de chaque couche (en Pa)
+  ! t-------input-R-temperature (K)
+  ! u-------input-R-vitesse horizontale (m/s)
+  ! v-------input-R-vitesse horizontale (m/s)
+
+  ! d_t-----output-R-increment de la temperature
+  ! d_u-----output-R-increment de la vitesse u
+  ! d_v-----output-R-increment de la vitesse v
+  ! ======================================================================
+  include "YOMCST.h"
+
+  ! ARGUMENTS
+
+  INTEGER nlon, nlev
+  REAL dtime
+  REAL paprs(klon, klev+1)
+  REAL pplay(klon, klev)
+  REAL pmea(nlon), pstd(nlon), psig(nlon), pgam(nlon), pthe(nlon)
+  REAL ppic(nlon), pval(nlon)
+  REAL pulow(nlon), pvlow(nlon), pustr(nlon), pvstr(nlon)
+  REAL t(nlon, nlev), u(nlon, nlev), v(nlon, nlev)
+  REAL d_t(nlon, nlev), d_u(nlon, nlev), d_v(nlon, nlev)
+
+  INTEGER i, k, kgwd, kdx(nlon), ktest(nlon)
+
+  ! Variables locales:
+
+  REAL zgeom(klon, klev)
+  REAL pdtdt(klon, klev), pdudt(klon, klev), pdvdt(klon, klev)
+  REAL pt(klon, klev), pu(klon, klev), pv(klon, klev)
+  REAL papmf(klon, klev), papmh(klon, klev+1)
+
+  ! initialiser les variables de sortie (pour securite)
+
+  DO i = 1, klon
+    pulow(i) = 0.0
+    pvlow(i) = 0.0
+    pustr(i) = 0.0
+    pvstr(i) = 0.0
+  END DO
+  DO k = 1, klev
+    DO i = 1, klon
+      d_t(i, k) = 0.0
+      d_u(i, k) = 0.0
+      d_v(i, k) = 0.0
+      pdudt(i, k) = 0.0
+      pdvdt(i, k) = 0.0
+      pdtdt(i, k) = 0.0
+    END DO
+  END DO
+
+  ! preparer les variables d'entree (attention: l'ordre des niveaux
+  ! verticaux augmente du haut vers le bas)
+
+  DO k = 1, klev
+    DO i = 1, klon
+      pt(i, k) = t(i, klev-k+1)
+      pu(i, k) = u(i, klev-k+1)
+      pv(i, k) = v(i, klev-k+1)
+      papmf(i, k) = pplay(i, klev-k+1)
+    END DO
+  END DO
+  DO k = 1, klev + 1
+    DO i = 1, klon
+      papmh(i, k) = paprs(i, klev-k+2)
+    END DO
+  END DO
+  DO i = 1, klon
+    zgeom(i, klev) = rd*pt(i, klev)*log(papmh(i,klev+1)/papmf(i,klev))
+  END DO
+  DO k = klev - 1, 1, -1
+    DO i = 1, klon
+      zgeom(i, k) = zgeom(i, k+1) + rd*(pt(i,k)+pt(i,k+1))/2.0*log(papmf(i,k+ &
+        1)/papmf(i,k))
+    END DO
+  END DO
+
+  ! appeler la routine principale
+
+  CALL orodrag(klon, klev, kgwd, kdx, ktest, dtime, papmh, papmf, zgeom, pt, &
+    pu, pv, pmea, pstd, psig, pgam, pthe, ppic, pval, pulow, pvlow, pdudt, &
+    pdvdt, pdtdt)
+
+  DO k = 1, klev
+    DO i = 1, klon
+      d_u(i, klev+1-k) = dtime*pdudt(i, k)
+      d_v(i, klev+1-k) = dtime*pdvdt(i, k)
+      d_t(i, klev+1-k) = dtime*pdtdt(i, k)
+      pustr(i) = pustr(i) &        ! IM BUG  .
+                                   ! +rg*pdudt(i,k)*(papmh(i,k+1)-papmh(i,k))
+        +pdudt(i, k)*(papmh(i,k+1)-papmh(i,k))/rg
+      pvstr(i) = pvstr(i) &        ! IM BUG  .
+                                   ! +rg*pdvdt(i,k)*(papmh(i,k+1)-papmh(i,k))
+        +pdvdt(i, k)*(papmh(i,k+1)-papmh(i,k))/rg
+    END DO
+  END DO
+
+  RETURN
+END SUBROUTINE drag_noro
+SUBROUTINE orodrag(nlon, nlev, kgwd, kdx, ktest, ptsphy, paphm1, papm1, &
+    pgeom1, ptm1, pum1, pvm1, pmea, pstd, psig, pgamma, ptheta, ppic, pval &
+  ! outputs
+    , pulow, pvlow, pvom, pvol, pte)
+
+  USE dimphy
+  IMPLICIT NONE
+
+
+
+  ! **** *gwdrag* - does the gravity wave parametrization.
+
+  ! purpose.
+  ! --------
+
+  ! this routine computes the physical tendencies of the
+  ! prognostic variables u,v  and t due to  vertical transports by
+  ! subgridscale orographically excited gravity waves
+
+  ! **   interface.
+  ! ----------
+  ! called from *callpar*.
+
+  ! the routine takes its input from the long-term storage:
+  ! u,v,t and p at t-1.
+
+  ! explicit arguments :
+  ! --------------------
+  ! ==== inputs ===
+  ! ==== outputs ===
+
+  ! implicit arguments :   none
+  ! --------------------
+
+  ! implicit logical (l)
+
+  ! method.
+  ! -------
+
+  ! externals.
+  ! ----------
+  INTEGER ismin, ismax
+  EXTERNAL ismin, ismax
+
+  ! reference.
+  ! ----------
+
+  ! author.
+  ! -------
+  ! m.miller + b.ritter   e.c.m.w.f.     15/06/86.
+
+  ! f.lott + m. miller    e.c.m.w.f.     22/11/94
+  ! -----------------------------------------------------------------------
+
+
+  include "YOMCST.h"
+  include "YOEGWD.h"
+  ! -----------------------------------------------------------------------
+
+  ! *       0.1   arguments
+  ! ---------
+
+
+  ! ym      integer nlon, nlev, klevm1
+  INTEGER nlon, nlev
+  INTEGER kgwd, jl, ilevp1, jk, ji
+  REAL zdelp, ztemp, zforc, ztend
+  REAL rover, zb, zc, zconb, zabsv
+  REAL zzd1, ratio, zbet, zust, zvst, zdis
+  REAL pte(nlon, nlev), pvol(nlon, nlev), pvom(nlon, nlev), pulow(klon), &
+    pvlow(klon)
+  REAL pum1(nlon, nlev), pvm1(nlon, nlev), ptm1(nlon, nlev), pmea(nlon), &
+    pstd(nlon), psig(nlon), pgamma(nlon), ptheta(nlon), ppic(nlon), &
+    pval(nlon), pgeom1(nlon, nlev), papm1(nlon, nlev), paphm1(nlon, nlev+1)
+
+  INTEGER kdx(nlon), ktest(nlon)
+  ! -----------------------------------------------------------------------
+
+  ! *       0.2   local arrays
+  ! ------------
+  INTEGER isect(klon), icrit(klon), ikcrith(klon), ikenvh(klon), iknu(klon), &
+    iknu2(klon), ikcrit(klon), ikhlim(klon)
+
+  REAL ztau(klon, klev+1), ztauf(klon, klev+1), zstab(klon, klev+1), &
+    zvph(klon, klev+1), zrho(klon, klev+1), zri(klon, klev+1), &
+    zpsi(klon, klev+1), zzdep(klon, klev)
+  REAL zdudt(klon), zdvdt(klon), zdtdt(klon), zdedt(klon), zvidis(klon), &
+    znu(klon), zd1(klon), zd2(klon), zdmod(klon)
+  REAL ztmst, ptsphy, zrtmst
+
+  ! ------------------------------------------------------------------
+
+  ! *         1.    initialization
+  ! --------------
+
+
+  ! ------------------------------------------------------------------
+
+  ! *         1.1   computational constants
+  ! -----------------------
+
+
+  ! ztmst=twodt
+  ! if(nstep.eq.nstart) ztmst=0.5*twodt
+  ! ym      klevm1=klev-1
+  ztmst = ptsphy
+  zrtmst = 1./ztmst
+
+  ! ------------------------------------------------------------------
+
+  ! *         1.3   check whether row contains point for printing
+  ! ---------------------------------------------
+
+
+  ! ------------------------------------------------------------------
+
+  ! *         2.     precompute basic state variables.
+  ! *                ---------- ----- ----- ----------
+  ! *                define low level wind, project winds in plane of
+  ! *                low level wind, determine sector in which to take
+  ! *                the variance and set indicator for critical levels.
+
+
+
+
+  CALL orosetup(nlon, ktest, ikcrit, ikcrith, icrit, ikenvh, iknu, iknu2, &
+    paphm1, papm1, pum1, pvm1, ptm1, pgeom1, pstd, zrho, zri, zstab, ztau, &
+    zvph, zpsi, zzdep, pulow, pvlow, ptheta, pgamma, pmea, ppic, pval, znu, &
+    zd1, zd2, zdmod)
+
+  ! ***********************************************************
+
+
+  ! *         3.      compute low level stresses using subcritical and
+  ! *                 supercritical forms.computes anisotropy coefficient
+  ! *                 as measure of orographic twodimensionality.
+
+
+  CALL gwstress(nlon, nlev, ktest, icrit, ikenvh, iknu, zrho, zstab, zvph, &
+    pstd, psig, pmea, ppic, ztau, pgeom1, zdmod)
+
+  ! *         4.      compute stress profile.
+  ! *                 ------- ------ --------
+
+
+
+  CALL gwprofil(nlon, nlev, kgwd, kdx, ktest, ikcrith, icrit, paphm1, zrho, &
+    zstab, zvph, zri, ztau, zdmod, psig, pstd)
+
+  ! *         5.      compute tendencies.
+  ! *                 -------------------
+
+
+  ! explicit solution at all levels for the gravity wave
+  ! implicit solution for the blocked levels
+
+  DO jl = kidia, kfdia
+    zvidis(jl) = 0.0
+    zdudt(jl) = 0.0
+    zdvdt(jl) = 0.0
+    zdtdt(jl) = 0.0
+  END DO
+
+  ilevp1 = klev + 1
+
+
+  DO jk = 1, klev
+
+
+    ! do 523 jl=1,kgwd
+    ! ji=kdx(jl)
+    ! Modif vectorisation 02/04/2004
+    DO ji = kidia, kfdia
+      IF (ktest(ji)==1) THEN
+
+        zdelp = paphm1(ji, jk+1) - paphm1(ji, jk)
+        ztemp = -rg*(ztau(ji,jk+1)-ztau(ji,jk))/(zvph(ji,ilevp1)*zdelp)
+        zdudt(ji) = (pulow(ji)*zd1(ji)-pvlow(ji)*zd2(ji))*ztemp/zdmod(ji)
+        zdvdt(ji) = (pvlow(ji)*zd1(ji)+pulow(ji)*zd2(ji))*ztemp/zdmod(ji)
+
+        ! controle des overshoots:
+
+        zforc = sqrt(zdudt(ji)**2+zdvdt(ji)**2) + 1.E-12
+        ztend = sqrt(pum1(ji,jk)**2+pvm1(ji,jk)**2)/ztmst + 1.E-12
+        rover = 0.25
+        IF (zforc>=rover*ztend) THEN
+          zdudt(ji) = rover*ztend/zforc*zdudt(ji)
+          zdvdt(ji) = rover*ztend/zforc*zdvdt(ji)
+        END IF
+
+        ! fin du controle des overshoots
+
+        IF (jk>=ikenvh(ji)) THEN
+          zb = 1.0 - 0.18*pgamma(ji) - 0.04*pgamma(ji)**2
+          zc = 0.48*pgamma(ji) + 0.3*pgamma(ji)**2
+          zconb = 2.*ztmst*gkwake*psig(ji)/(4.*pstd(ji))
+          zabsv = sqrt(pum1(ji,jk)**2+pvm1(ji,jk)**2)/2.
+          zzd1 = zb*cos(zpsi(ji,jk))**2 + zc*sin(zpsi(ji,jk))**2
+          ratio = (cos(zpsi(ji,jk))**2+pgamma(ji)*sin(zpsi(ji, &
+            jk))**2)/(pgamma(ji)*cos(zpsi(ji,jk))**2+sin(zpsi(ji,jk))**2)
+          zbet = max(0., 2.-1./ratio)*zconb*zzdep(ji, jk)*zzd1*zabsv
+
+          ! simplement oppose au vent
+
+          zdudt(ji) = -pum1(ji, jk)/ztmst
+          zdvdt(ji) = -pvm1(ji, jk)/ztmst
+
+          ! projection dans la direction de l'axe principal de l'orographie
+          ! mod     zdudt(ji)=-(pum1(ji,jk)*cos(ptheta(ji)*rpi/180.)
+          ! mod *              +pvm1(ji,jk)*sin(ptheta(ji)*rpi/180.))
+          ! mod *              *cos(ptheta(ji)*rpi/180.)/ztmst
+          ! mod     zdvdt(ji)=-(pum1(ji,jk)*cos(ptheta(ji)*rpi/180.)
+          ! mod *              +pvm1(ji,jk)*sin(ptheta(ji)*rpi/180.))
+          ! mod *              *sin(ptheta(ji)*rpi/180.)/ztmst
+          zdudt(ji) = zdudt(ji)*(zbet/(1.+zbet))
+          zdvdt(ji) = zdvdt(ji)*(zbet/(1.+zbet))
+        END IF
+        pvom(ji, jk) = zdudt(ji)
+        pvol(ji, jk) = zdvdt(ji)
+        zust = pum1(ji, jk) + ztmst*zdudt(ji)
+        zvst = pvm1(ji, jk) + ztmst*zdvdt(ji)
+        zdis = 0.5*(pum1(ji,jk)**2+pvm1(ji,jk)**2-zust**2-zvst**2)
+        zdedt(ji) = zdis/ztmst
+        zvidis(ji) = zvidis(ji) + zdis*zdelp
+        zdtdt(ji) = zdedt(ji)/rcpd
+        ! pte(ji,jk)=zdtdt(ji)
+
+        ! ENCORE UN TRUC POUR EVITER LES EXPLOSIONS
+
+        pte(ji, jk) = 0.0
+
+      END IF
+    END DO
+
+  END DO
+
+
+  RETURN
+END SUBROUTINE orodrag
+SUBROUTINE orosetup(nlon, ktest, kkcrit, kkcrith, kcrit, kkenvh, kknu, kknu2, &
+    paphm1, papm1, pum1, pvm1, ptm1, pgeom1, pstd, prho, pri, pstab, ptau, &
+    pvph, ppsi, pzdep, pulow, pvlow, ptheta, pgamma, pmea, ppic, pval, pnu, &
+    pd1, pd2, pdmod)
+
+  ! **** *gwsetup*
+
+  ! purpose.
+  ! --------
+
+  ! **   interface.
+  ! ----------
+  ! from *orodrag*
+
+  ! explicit arguments :
+  ! --------------------
+  ! ==== inputs ===
+  ! ==== outputs ===
+
+  ! implicit arguments :   none
+  ! --------------------
+
+  ! method.
+  ! -------
+
+
+  ! externals.
+  ! ----------
+
+
+  ! reference.
+  ! ----------
+
+  ! see ecmwf research department documentation of the "i.f.s."
+
+  ! author.
+  ! -------
+
+  ! modifications.
+  ! --------------
+  ! f.lott  for the new-gwdrag scheme november 1993
+
+  ! -----------------------------------------------------------------------
+  USE dimphy
+  IMPLICIT NONE
+
+
+  include "YOMCST.h"
+  include "YOEGWD.h"
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.1   arguments
+  ! ---------
+
+  INTEGER nlon
+  INTEGER jl, jk
+  REAL zdelp
+
+  INTEGER kkcrit(nlon), kkcrith(nlon), kcrit(nlon), ktest(nlon), kkenvh(nlon)
+
+
+  REAL paphm1(nlon, klev+1), papm1(nlon, klev), pum1(nlon, klev), &
+    pvm1(nlon, klev), ptm1(nlon, klev), pgeom1(nlon, klev), &
+    prho(nlon, klev+1), pri(nlon, klev+1), pstab(nlon, klev+1), &
+    ptau(nlon, klev+1), pvph(nlon, klev+1), ppsi(nlon, klev+1), &
+    pzdep(nlon, klev)
+  REAL pulow(nlon), pvlow(nlon), ptheta(nlon), pgamma(nlon), pnu(nlon), &
+    pd1(nlon), pd2(nlon), pdmod(nlon)
+  REAL pstd(nlon), pmea(nlon), ppic(nlon), pval(nlon)
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.2   local arrays
+  ! ------------
+
+
+  INTEGER ilevm1, ilevm2, ilevh
+  REAL zcons1, zcons2, zcons3, zhgeo
+  REAL zu, zphi, zvt1, zvt2, zst, zvar, zdwind, zwind
+  REAL zstabm, zstabp, zrhom, zrhop, alpha
+  REAL zggeenv, zggeom1, zgvar
+  LOGICAL lo
+  LOGICAL ll1(klon, klev+1)
+  INTEGER kknu(klon), kknu2(klon), kknub(klon), kknul(klon), kentp(klon), &
+    ncount(klon)
+
+  REAL zhcrit(klon, klev), zvpf(klon, klev), zdp(klon, klev)
+  REAL znorm(klon), zb(klon), zc(klon), zulow(klon), zvlow(klon), znup(klon), &
+    znum(klon)
+
+  ! ------------------------------------------------------------------
+
+  ! *         1.    initialization
+  ! --------------
+
+  ! print *,' entree gwsetup'
+
+  ! ------------------------------------------------------------------
+
+  ! *         1.1   computational constants
+  ! -----------------------
+
+
+  ilevm1 = klev - 1
+  ilevm2 = klev - 2
+  ilevh = klev/3
+
+  zcons1 = 1./rd
+  ! old  zcons2=g**2/cpd
+  zcons2 = rg**2/rcpd
+  ! old  zcons3=1.5*api
+  zcons3 = 1.5*rpi
+
+  ! ------------------------------------------------------------------
+
+  ! *         2.
+  ! --------------
+
+
+  ! ------------------------------------------------------------------
+
+  ! *         2.1     define low level wind, project winds in plane of
+  ! *                 low level wind, determine sector in which to take
+  ! *                 the variance and set indicator for critical levels.
+
+
+
+  DO jl = kidia, kfdia
+    kknu(jl) = klev
+    kknu2(jl) = klev
+    kknub(jl) = klev
+    kknul(jl) = klev
+    pgamma(jl) = max(pgamma(jl), gtsec)
+    ll1(jl, klev+1) = .FALSE.
+  END DO
+
+  ! Ajouter une initialisation (L. Li, le 23fev99):
+
+  DO jk = klev, ilevh, -1
+    DO jl = kidia, kfdia
+      ll1(jl, jk) = .FALSE.
+    END DO
+  END DO
+
+  ! *      define top of low level flow
+  ! ----------------------------
+  DO jk = klev, ilevh, -1
+    DO jl = kidia, kfdia
+      lo = (paphm1(jl,jk)/paphm1(jl,klev+1)) >= gsigcr
+      IF (lo) THEN
+        kkcrit(jl) = jk
+      END IF
+      zhcrit(jl, jk) = ppic(jl)
+      zhgeo = pgeom1(jl, jk)/rg
+      ll1(jl, jk) = (zhgeo>zhcrit(jl,jk))
+      IF (ll1(jl,jk) .NEQV. ll1(jl,jk+1)) THEN
+        kknu(jl) = jk
+      END IF
+      IF (.NOT. ll1(jl,ilevh)) kknu(jl) = ilevh
+    END DO
+  END DO
+  DO jk = klev, ilevh, -1
+    DO jl = kidia, kfdia
+      zhcrit(jl, jk) = ppic(jl) - pval(jl)
+      zhgeo = pgeom1(jl, jk)/rg
+      ll1(jl, jk) = (zhgeo>zhcrit(jl,jk))
+      IF (ll1(jl,jk) .NEQV. ll1(jl,jk+1)) THEN
+        kknu2(jl) = jk
+      END IF
+      IF (.NOT. ll1(jl,ilevh)) kknu2(jl) = ilevh
+    END DO
+  END DO
+  DO jk = klev, ilevh, -1
+    DO jl = kidia, kfdia
+      zhcrit(jl, jk) = amax1(ppic(jl)-pmea(jl), pmea(jl)-pval(jl))
+      zhgeo = pgeom1(jl, jk)/rg
+      ll1(jl, jk) = (zhgeo>zhcrit(jl,jk))
+      IF (ll1(jl,jk) .NEQV. ll1(jl,jk+1)) THEN
+        kknub(jl) = jk
+      END IF
+      IF (.NOT. ll1(jl,ilevh)) kknub(jl) = ilevh
+    END DO
+  END DO
+
+  DO jl = kidia, kfdia
+    kknu(jl) = min(kknu(jl), nktopg)
+    kknu2(jl) = min(kknu2(jl), nktopg)
+    kknub(jl) = min(kknub(jl), nktopg)
+    kknul(jl) = klev
+  END DO
+
+  ! c*     initialize various arrays
+
+  DO jl = kidia, kfdia
+    prho(jl, klev+1) = 0.0
+    pstab(jl, klev+1) = 0.0
+    pstab(jl, 1) = 0.0
+    pri(jl, klev+1) = 9999.0
+    ppsi(jl, klev+1) = 0.0
+    pri(jl, 1) = 0.0
+    pvph(jl, 1) = 0.0
+    pulow(jl) = 0.0
+    pvlow(jl) = 0.0
+    zulow(jl) = 0.0
+    zvlow(jl) = 0.0
+    kkcrith(jl) = klev
+    kkenvh(jl) = klev
+    kentp(jl) = klev
+    kcrit(jl) = 1
+    ncount(jl) = 0
+    ll1(jl, klev+1) = .FALSE.
+  END DO
+
+  ! *     define low-level flow
+  ! ---------------------
+
+  DO jk = klev, 2, -1
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        zdp(jl, jk) = papm1(jl, jk) - papm1(jl, jk-1)
+        prho(jl, jk) = 2.*paphm1(jl, jk)*zcons1/(ptm1(jl,jk)+ptm1(jl,jk-1))
+        pstab(jl, jk) = 2.*zcons2/(ptm1(jl,jk)+ptm1(jl,jk-1))* &
+          (1.-rcpd*prho(jl,jk)*(ptm1(jl,jk)-ptm1(jl,jk-1))/zdp(jl,jk))
+        pstab(jl, jk) = max(pstab(jl,jk), gssec)
+      END IF
+    END DO
+  END DO
+
+  ! ********************************************************************
+
+  ! *     define blocked flow
+  ! -------------------
+  DO jk = klev, ilevh, -1
+    DO jl = kidia, kfdia
+      IF (jk>=kknub(jl) .AND. jk<=kknul(jl)) THEN
+        pulow(jl) = pulow(jl) + pum1(jl, jk)*(paphm1(jl,jk+1)-paphm1(jl,jk))
+        pvlow(jl) = pvlow(jl) + pvm1(jl, jk)*(paphm1(jl,jk+1)-paphm1(jl,jk))
+      END IF
+    END DO
+  END DO
+  DO jl = kidia, kfdia
+    pulow(jl) = pulow(jl)/(paphm1(jl,kknul(jl)+1)-paphm1(jl,kknub(jl)))
+    pvlow(jl) = pvlow(jl)/(paphm1(jl,kknul(jl)+1)-paphm1(jl,kknub(jl)))
+    znorm(jl) = max(sqrt(pulow(jl)**2+pvlow(jl)**2), gvsec)
+    pvph(jl, klev+1) = znorm(jl)
+  END DO
+
+  ! *******  setup orography axes and define plane of profiles  *******
+
+  DO jl = kidia, kfdia
+    lo = (pulow(jl)<gvsec) .AND. (pulow(jl)>=-gvsec)
+    IF (lo) THEN
+      zu = pulow(jl) + 2.*gvsec
+    ELSE
+      zu = pulow(jl)
+    END IF
+    zphi = atan(pvlow(jl)/zu)
+    ppsi(jl, klev+1) = ptheta(jl)*rpi/180. - zphi
+    zb(jl) = 1. - 0.18*pgamma(jl) - 0.04*pgamma(jl)**2
+    zc(jl) = 0.48*pgamma(jl) + 0.3*pgamma(jl)**2
+    pd1(jl) = zb(jl) - (zb(jl)-zc(jl))*(sin(ppsi(jl,klev+1))**2)
+    pd2(jl) = (zb(jl)-zc(jl))*sin(ppsi(jl,klev+1))*cos(ppsi(jl,klev+1))
+    pdmod(jl) = sqrt(pd1(jl)**2+pd2(jl)**2)
+  END DO
+
+  ! ************ define flow in plane of lowlevel stress *************
+
+  DO jk = 1, klev
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        zvt1 = pulow(jl)*pum1(jl, jk) + pvlow(jl)*pvm1(jl, jk)
+        zvt2 = -pvlow(jl)*pum1(jl, jk) + pulow(jl)*pvm1(jl, jk)
+        zvpf(jl, jk) = (zvt1*pd1(jl)+zvt2*pd2(jl))/(znorm(jl)*pdmod(jl))
+      END IF
+      ptau(jl, jk) = 0.0
+      pzdep(jl, jk) = 0.0
+      ppsi(jl, jk) = 0.0
+      ll1(jl, jk) = .FALSE.
+    END DO
+  END DO
+  DO jk = 2, klev
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        zdp(jl, jk) = papm1(jl, jk) - papm1(jl, jk-1)
+        pvph(jl, jk) = ((paphm1(jl,jk)-papm1(jl,jk-1))*zvpf(jl,jk)+(papm1(jl, &
+          jk)-paphm1(jl,jk))*zvpf(jl,jk-1))/zdp(jl, jk)
+        IF (pvph(jl,jk)<gvsec) THEN
+          pvph(jl, jk) = gvsec
+          kcrit(jl) = jk
+        END IF
+      END IF
+    END DO
+  END DO
+
+  ! *         2.2     brunt-vaisala frequency and density at half levels.
+
+
+  DO jk = ilevh, klev
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        IF (jk>=(kknub(jl)+1) .AND. jk<=kknul(jl)) THEN
+          zst = zcons2/ptm1(jl, jk)*(1.-rcpd*prho(jl,jk)*(ptm1(jl, &
+            jk)-ptm1(jl,jk-1))/zdp(jl,jk))
+          pstab(jl, klev+1) = pstab(jl, klev+1) + zst*zdp(jl, jk)
+          pstab(jl, klev+1) = max(pstab(jl,klev+1), gssec)
+          prho(jl, klev+1) = prho(jl, klev+1) + paphm1(jl, jk)*2.*zdp(jl, jk) &
+            *zcons1/(ptm1(jl,jk)+ptm1(jl,jk-1))
+        END IF
+      END IF
+    END DO
+  END DO
+
+  DO jl = kidia, kfdia
+    pstab(jl, klev+1) = pstab(jl, klev+1)/(papm1(jl,kknul(jl))-papm1(jl,kknub &
+      (jl)))
+    prho(jl, klev+1) = prho(jl, klev+1)/(papm1(jl,kknul(jl))-papm1(jl,kknub( &
+      jl)))
+    zvar = pstd(jl)
+  END DO
+
+  ! *         2.3     mean flow richardson number.
+  ! *                 and critical height for froude layer
+
+
+  DO jk = 2, klev
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        zdwind = max(abs(zvpf(jl,jk)-zvpf(jl,jk-1)), gvsec)
+        pri(jl, jk) = pstab(jl, jk)*(zdp(jl,jk)/(rg*prho(jl,jk)*zdwind))**2
+        pri(jl, jk) = max(pri(jl,jk), grcrit)
+      END IF
+    END DO
+  END DO
+
+
+
+  ! *      define top of 'envelope' layer
+  ! ----------------------------
+
+  DO jl = kidia, kfdia
+    pnu(jl) = 0.0
+    znum(jl) = 0.0
+  END DO
+
+  DO jk = 2, klev - 1
+    DO jl = kidia, kfdia
+
+      IF (ktest(jl)==1) THEN
+
+        IF (jk>=kknub(jl)) THEN
+
+          znum(jl) = pnu(jl)
+          zwind = (pulow(jl)*pum1(jl,jk)+pvlow(jl)*pvm1(jl,jk))/ &
+            max(sqrt(pulow(jl)**2+pvlow(jl)**2), gvsec)
+          zwind = max(sqrt(zwind**2), gvsec)
+          zdelp = paphm1(jl, jk+1) - paphm1(jl, jk)
+          zstabm = sqrt(max(pstab(jl,jk),gssec))
+          zstabp = sqrt(max(pstab(jl,jk+1),gssec))
+          zrhom = prho(jl, jk)
+          zrhop = prho(jl, jk+1)
+          pnu(jl) = pnu(jl) + (zdelp/rg)*((zstabp/zrhop+zstabm/zrhom)/2.)/ &
+            zwind
+          IF ((znum(jl)<=gfrcrit) .AND. (pnu(jl)>gfrcrit) .AND. (kkenvh( &
+            jl)==klev)) kkenvh(jl) = jk
+
+        END IF
+
+      END IF
+
+    END DO
+  END DO
+
+  ! calculation of a dynamical mixing height for the breaking
+  ! of gravity waves:
+
+
+  DO jl = kidia, kfdia
+    znup(jl) = 0.0
+    znum(jl) = 0.0
+  END DO
+
+  DO jk = klev - 1, 2, -1
+    DO jl = kidia, kfdia
+
+      IF (ktest(jl)==1) THEN
+
+        znum(jl) = znup(jl)
+        zwind = (pulow(jl)*pum1(jl,jk)+pvlow(jl)*pvm1(jl,jk))/ &
+          max(sqrt(pulow(jl)**2+pvlow(jl)**2), gvsec)
+        zwind = max(sqrt(zwind**2), gvsec)
+        zdelp = paphm1(jl, jk+1) - paphm1(jl, jk)
+        zstabm = sqrt(max(pstab(jl,jk),gssec))
+        zstabp = sqrt(max(pstab(jl,jk+1),gssec))
+        zrhom = prho(jl, jk)
+        zrhop = prho(jl, jk+1)
+        znup(jl) = znup(jl) + (zdelp/rg)*((zstabp/zrhop+zstabm/zrhom)/2.)/ &
+          zwind
+        IF ((znum(jl)<=rpi/2.) .AND. (znup(jl)>rpi/2.) .AND. (kkcrith( &
+          jl)==klev)) kkcrith(jl) = jk
+
+      END IF
+
+    END DO
+  END DO
+
+  DO jl = kidia, kfdia
+    kkcrith(jl) = min0(kkcrith(jl), kknu2(jl))
+    kkcrith(jl) = max0(kkcrith(jl), ilevh*2)
+  END DO
+
+  ! directional info for flow blocking *************************
+
+  DO jk = ilevh, klev
+    DO jl = kidia, kfdia
+      IF (jk>=kkenvh(jl)) THEN
+        lo = (pum1(jl,jk)<gvsec) .AND. (pum1(jl,jk)>=-gvsec)
+        IF (lo) THEN
+          zu = pum1(jl, jk) + 2.*gvsec
+        ELSE
+          zu = pum1(jl, jk)
+        END IF
+        zphi = atan(pvm1(jl,jk)/zu)
+        ppsi(jl, jk) = ptheta(jl)*rpi/180. - zphi
+      END IF
+    END DO
+  END DO
+  ! forms the vertical 'leakiness' **************************
+
+  alpha = 3.
+
+  DO jk = ilevh, klev
+    DO jl = kidia, kfdia
+      IF (jk>=kkenvh(jl)) THEN
+        zggeenv = amax1(1., (pgeom1(jl,kkenvh(jl))+pgeom1(jl, &
+          kkenvh(jl)-1))/2.)
+        zggeom1 = amax1(pgeom1(jl,jk), 1.)
+        zgvar = amax1(pstd(jl)*rg, 1.)
+        ! mod    pzdep(jl,jk)=sqrt((zggeenv-zggeom1)/(zggeom1+zgvar))
+        pzdep(jl, jk) = (pgeom1(jl,kkenvh(jl)-1)-pgeom1(jl,jk))/ &
+          (pgeom1(jl,kkenvh(jl)-1)-pgeom1(jl,klev))
+      END IF
+    END DO
+  END DO
+
+  RETURN
+END SUBROUTINE orosetup
+SUBROUTINE gwstress(nlon, nlev, ktest, kcrit, kkenvh, kknu, prho, pstab, &
+    pvph, pstd, psig, pmea, ppic, ptau, pgeom1, pdmod)
+
+  ! **** *gwstress*
+
+  ! purpose.
+  ! --------
+
+  ! **   interface.
+  ! ----------
+  ! call *gwstress*  from *gwdrag*
+
+  ! explicit arguments :
+  ! --------------------
+  ! ==== inputs ===
+  ! ==== outputs ===
+
+  ! implicit arguments :   none
+  ! --------------------
+
+  ! method.
+  ! -------
+
+
+  ! externals.
+  ! ----------
+
+
+  ! reference.
+  ! ----------
+
+  ! see ecmwf research department documentation of the "i.f.s."
+
+  ! author.
+  ! -------
+
+  ! modifications.
+  ! --------------
+  ! f. lott put the new gwd on ifs      22/11/93
+
+  ! -----------------------------------------------------------------------
+  USE dimphy
+  IMPLICIT NONE
+  include "YOMCST.h"
+  include "YOEGWD.h"
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.1   arguments
+  ! ---------
+
+  INTEGER nlon, nlev
+  INTEGER kcrit(nlon), ktest(nlon), kkenvh(nlon), kknu(nlon)
+
+  REAL prho(nlon, nlev+1), pstab(nlon, nlev+1), ptau(nlon, nlev+1), &
+    pvph(nlon, nlev+1), pgeom1(nlon, nlev), pstd(nlon)
+
+  REAL psig(nlon)
+  REAL pmea(nlon), ppic(nlon)
+  REAL pdmod(nlon)
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.2   local arrays
+  ! ------------
+  INTEGER jl
+  REAL zblock, zvar, zeff
+  LOGICAL lo
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.3   functions
+  ! ---------
+  ! ------------------------------------------------------------------
+
+  ! *         1.    initialization
+  ! --------------
+
+
+  ! *         3.1     gravity wave stress.
+
+
+
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+
+      ! effective mountain height above the blocked flow
+
+      IF (kkenvh(jl)==klev) THEN
+        zblock = 0.0
+      ELSE
+        zblock = (pgeom1(jl,kkenvh(jl))+pgeom1(jl,kkenvh(jl)+1))/2./rg
+      END IF
+
+      zvar = ppic(jl) - pmea(jl)
+      zeff = amax1(0., zvar-zblock)
+
+      ptau(jl, klev+1) = prho(jl, klev+1)*gkdrag*psig(jl)*zeff**2/4./ &
+        pstd(jl)*pvph(jl, klev+1)*pdmod(jl)*sqrt(pstab(jl,klev+1))
+
+      ! too small value of stress or  low level flow include critical level
+      ! or low level flow:  gravity wave stress nul.
+
+      lo = (ptau(jl,klev+1)<gtsec) .OR. (kcrit(jl)>=kknu(jl)) .OR. &
+        (pvph(jl,klev+1)<gvcrit)
+      ! if(lo) ptau(jl,klev+1)=0.0
+
+    ELSE
+
+      ptau(jl, klev+1) = 0.0
+
+    END IF
+
+  END DO
+
+  RETURN
+END SUBROUTINE gwstress
+SUBROUTINE gwprofil(nlon, nlev, kgwd, kdx, ktest, kkcrith, kcrit, paphm1, &
+    prho, pstab, pvph, pri, ptau, pdmod, psig, pvar)
+
+  ! **** *GWPROFIL*
+
+  ! PURPOSE.
+  ! --------
+
+  ! **   INTERFACE.
+  ! ----------
+  ! FROM *GWDRAG*
+
+  ! EXPLICIT ARGUMENTS :
+  ! --------------------
+  ! ==== INPUTS ===
+  ! ==== OUTPUTS ===
+
+  ! IMPLICIT ARGUMENTS :   NONE
+  ! --------------------
+
+  ! METHOD:
+  ! -------
+  ! THE STRESS PROFILE FOR GRAVITY WAVES IS COMPUTED AS FOLLOWS:
+  ! IT IS CONSTANT (NO GWD) AT THE LEVELS BETWEEN THE GROUND
+  ! AND THE TOP OF THE BLOCKED LAYER (KKENVH).
+  ! IT DECREASES LINEARLY WITH HEIGHTS FROM THE TOP OF THE
+  ! BLOCKED LAYER TO 3*VAROR (kKNU), TO SIMULATES LEE WAVES OR
+  ! NONLINEAR GRAVITY WAVE BREAKING.
+  ! ABOVE IT IS CONSTANT, EXCEPT WHEN THE WAVE ENCOUNTERS A CRITICAL
+  ! LEVEL (KCRIT) OR WHEN IT BREAKS.
+
+
+
+  ! EXTERNALS.
+  ! ----------
+
+
+  ! REFERENCE.
+  ! ----------
+
+  ! SEE ECMWF RESEARCH DEPARTMENT DOCUMENTATION OF THE "I.F.S."
+
+  ! AUTHOR.
+  ! -------
+
+  ! MODIFICATIONS.
+  ! --------------
+  ! PASSAGE OF THE NEW GWDRAG TO I.F.S. (F. LOTT, 22/11/93)
+  ! -----------------------------------------------------------------------
+  USE dimphy
+  IMPLICIT NONE
+
+
+
+
+  include "YOMCST.h"
+  include "YOEGWD.h"
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.1   ARGUMENTS
+  ! ---------
+
+  INTEGER nlon, nlev
+  INTEGER kkcrith(nlon), kcrit(nlon), kdx(nlon), ktest(nlon)
+
+
+  REAL paphm1(nlon, nlev+1), pstab(nlon, nlev+1), prho(nlon, nlev+1), &
+    pvph(nlon, nlev+1), pri(nlon, nlev+1), ptau(nlon, nlev+1)
+
+  REAL pdmod(nlon), psig(nlon), pvar(nlon)
+
+  ! -----------------------------------------------------------------------
+
+  ! *       0.2   LOCAL ARRAYS
+  ! ------------
+
+  INTEGER ilevh, ji, kgwd, jl, jk
+  REAL zsqr, zalfa, zriw, zdel, zb, zalpha, zdz2n
+  REAL zdelp, zdelpt
+  REAL zdz2(klon, klev), znorm(klon), zoro(klon)
+  REAL ztau(klon, klev+1)
+
+  ! -----------------------------------------------------------------------
+
+  ! *         1.    INITIALIZATION
+  ! --------------
+
+  ! print *,' entree gwprofil'
+
+
+  ! *    COMPUTATIONAL CONSTANTS.
+  ! ------------- ----------
+
+  ilevh = klev/3
+
+  ! DO 400 ji=1,kgwd
+  ! jl=kdx(ji)
+  ! Modif vectorisation 02/04/2004
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+      zoro(jl) = psig(jl)*pdmod(jl)/4./max(pvar(jl), 1.0)
+      ztau(jl, klev+1) = ptau(jl, klev+1)
+    END IF
+  END DO
+
+
+  DO jk = klev, 2, -1
+
+    ! *         4.1    CONSTANT WAVE STRESS UNTIL TOP OF THE
+    ! BLOCKING LAYER.
+
+    ! DO 411 ji=1,kgwd
+    ! jl=kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        IF (jk>kkcrith(jl)) THEN
+          ptau(jl, jk) = ztau(jl, klev+1)
+          ! ENDIF
+          ! IF(JK.EQ.KKCRITH(JL)) THEN
+        ELSE
+          ptau(jl, jk) = grahilo*ztau(jl, klev+1)
+        END IF
+      END IF
+    END DO
+
+    ! *         4.15   CONSTANT SHEAR STRESS UNTIL THE TOP OF THE
+    ! LOW LEVEL FLOW LAYER.
+
+
+    ! *         4.2    WAVE DISPLACEMENT AT NEXT LEVEL.
+
+
+    ! DO 421 ji=1,kgwd
+    ! jl=kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        IF (jk<kkcrith(jl)) THEN
+          znorm(jl) = gkdrag*prho(jl, jk)*sqrt(pstab(jl,jk))*pvph(jl, jk)* &
+            zoro(jl)
+          zdz2(jl, jk) = ptau(jl, jk+1)/max(znorm(jl), gssec)
+        END IF
+      END IF
+    END DO
+
+    ! *         4.3    WAVE RICHARDSON NUMBER, NEW WAVE DISPLACEMENT
+    ! *                AND STRESS:  BREAKING EVALUATION AND CRITICAL
+    ! LEVEL
+
+
+    ! DO 431 ji=1,kgwd
+    ! jl=Kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+
+        IF (jk<kkcrith(jl)) THEN
+          IF ((ptau(jl,jk+1)<gtsec) .OR. (jk<=kcrit(jl))) THEN
+            ptau(jl, jk) = 0.0
+          ELSE
+            zsqr = sqrt(pri(jl,jk))
+            zalfa = sqrt(pstab(jl,jk)*zdz2(jl,jk))/pvph(jl, jk)
+            zriw = pri(jl, jk)*(1.-zalfa)/(1+zalfa*zsqr)**2
+            IF (zriw<grcrit) THEN
+              zdel = 4./zsqr/grcrit + 1./grcrit**2 + 4./grcrit
+              zb = 1./grcrit + 2./zsqr
+              zalpha = 0.5*(-zb+sqrt(zdel))
+              zdz2n = (pvph(jl,jk)*zalpha)**2/pstab(jl, jk)
+              ptau(jl, jk) = znorm(jl)*zdz2n
+            ELSE
+              ptau(jl, jk) = znorm(jl)*zdz2(jl, jk)
+            END IF
+            ptau(jl, jk) = min(ptau(jl,jk), ptau(jl,jk+1))
+          END IF
+        END IF
+      END IF
+    END DO
+
+  END DO
+
+  ! REORGANISATION OF THE STRESS PROFILE AT LOW LEVEL
+
+  ! DO 530 ji=1,kgwd
+  ! jl=kdx(ji)
+  ! Modif vectorisation 02/04/2004
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+      ztau(jl, kkcrith(jl)) = ptau(jl, kkcrith(jl))
+      ztau(jl, nstra) = ptau(jl, nstra)
+    END IF
+  END DO
+
+  DO jk = 1, klev
+
+    ! DO 532 ji=1,kgwd
+    ! jl=kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+
+
+        IF (jk>kkcrith(jl)) THEN
+
+          zdelp = paphm1(jl, jk) - paphm1(jl, klev+1)
+          zdelpt = paphm1(jl, kkcrith(jl)) - paphm1(jl, klev+1)
+          ptau(jl, jk) = ztau(jl, klev+1) + (ztau(jl,kkcrith(jl))-ztau(jl, &
+            klev+1))*zdelp/zdelpt
+
+        END IF
+
+      END IF
+    END DO
+
+    ! REORGANISATION IN THE STRATOSPHERE
+
+    ! DO 533 ji=1,kgwd
+    ! jl=kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+
+
+        IF (jk<nstra) THEN
+
+          zdelp = paphm1(jl, nstra)
+          zdelpt = paphm1(jl, jk)
+          ptau(jl, jk) = ztau(jl, nstra)*zdelpt/zdelp
+
+        END IF
+
+      END IF
+    END DO
+
+    ! REORGANISATION IN THE TROPOSPHERE
+
+    ! DO 534 ji=1,kgwd
+    ! jl=kdx(ji)
+    ! Modif vectorisation 02/04/2004
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+
+
+        IF (jk<kkcrith(jl) .AND. jk>nstra) THEN
+
+          zdelp = paphm1(jl, jk) - paphm1(jl, kkcrith(jl))
+          zdelpt = paphm1(jl, nstra) - paphm1(jl, kkcrith(jl))
+          ptau(jl, jk) = ztau(jl, kkcrith(jl)) + (ztau(jl,nstra)-ztau(jl, &
+            kkcrith(jl)))*zdelp/zdelpt
+
+        END IF
+      END IF
+    END DO
+
+
+  END DO
+
+
+  RETURN
+END SUBROUTINE gwprofil
+SUBROUTINE lift_noro(nlon, nlev, dtime, paprs, pplay, plat, pmea, pstd, ppic, &
+    ktest, t, u, v, pulow, pvlow, pustr, pvstr, d_t, d_u, d_v)
+
+  USE dimphy
+  IMPLICIT NONE
+  ! ======================================================================
+  ! Auteur(s): F.Lott (LMD/CNRS) date: 19950201
+  ! Objet: Frottement de la montagne Interface
+  ! ======================================================================
+  ! Arguments:
+  ! dtime---input-R- pas d'integration (s)
+  ! paprs---input-R-pression pour chaque inter-couche (en Pa)
+  ! pplay---input-R-pression pour le mileu de chaque couche (en Pa)
+  ! t-------input-R-temperature (K)
+  ! u-------input-R-vitesse horizontale (m/s)
+  ! v-------input-R-vitesse horizontale (m/s)
+
+  ! d_t-----output-R-increment de la temperature
+  ! d_u-----output-R-increment de la vitesse u
+  ! d_v-----output-R-increment de la vitesse v
+  ! ======================================================================
+  include "YOMCST.h"
+
+  ! ARGUMENTS
+
+  INTEGER nlon, nlev
+  REAL dtime
+  REAL paprs(klon, klev+1)
+  REAL pplay(klon, klev)
+  REAL plat(nlon), pmea(nlon)
+  REAL pstd(nlon)
+  REAL ppic(nlon)
+  REAL pulow(nlon), pvlow(nlon), pustr(nlon), pvstr(nlon)
+  REAL t(nlon, nlev), u(nlon, nlev), v(nlon, nlev)
+  REAL d_t(nlon, nlev), d_u(nlon, nlev), d_v(nlon, nlev)
+
+  INTEGER i, k, ktest(nlon)
+
+  ! Variables locales:
+
+  REAL zgeom(klon, klev)
+  REAL pdtdt(klon, klev), pdudt(klon, klev), pdvdt(klon, klev)
+  REAL pt(klon, klev), pu(klon, klev), pv(klon, klev)
+  REAL papmf(klon, klev), papmh(klon, klev+1)
+
+  ! initialiser les variables de sortie (pour securite)
+
+  DO i = 1, klon
+    pulow(i) = 0.0
+    pvlow(i) = 0.0
+    pustr(i) = 0.0
+    pvstr(i) = 0.0
+  END DO
+  DO k = 1, klev
+    DO i = 1, klon
+      d_t(i, k) = 0.0
+      d_u(i, k) = 0.0
+      d_v(i, k) = 0.0
+      pdudt(i, k) = 0.0
+      pdvdt(i, k) = 0.0
+      pdtdt(i, k) = 0.0
+    END DO
+  END DO
+
+  ! preparer les variables d'entree (attention: l'ordre des niveaux
+  ! verticaux augmente du haut vers le bas)
+
+  DO k = 1, klev
+    DO i = 1, klon
+      pt(i, k) = t(i, klev-k+1)
+      pu(i, k) = u(i, klev-k+1)
+      pv(i, k) = v(i, klev-k+1)
+      papmf(i, k) = pplay(i, klev-k+1)
+    END DO
+  END DO
+  DO k = 1, klev + 1
+    DO i = 1, klon
+      papmh(i, k) = paprs(i, klev-k+2)
+    END DO
+  END DO
+  DO i = 1, klon
+    zgeom(i, klev) = rd*pt(i, klev)*log(papmh(i,klev+1)/papmf(i,klev))
+  END DO
+  DO k = klev - 1, 1, -1
+    DO i = 1, klon
+      zgeom(i, k) = zgeom(i, k+1) + rd*(pt(i,k)+pt(i,k+1))/2.0*log(papmf(i,k+ &
+        1)/papmf(i,k))
+    END DO
+  END DO
+
+  ! appeler la routine principale
+
+  CALL orolift(klon, klev, ktest, dtime, papmh, zgeom, pt, pu, pv, plat, &
+    pmea, pstd, ppic, pulow, pvlow, pdudt, pdvdt, pdtdt)
+
+  DO k = 1, klev
+    DO i = 1, klon
+      d_u(i, klev+1-k) = dtime*pdudt(i, k)
+      d_v(i, klev+1-k) = dtime*pdvdt(i, k)
+      d_t(i, klev+1-k) = dtime*pdtdt(i, k)
+      pustr(i) = pustr(i) &        ! IM BUG .
+                                   ! +RG*pdudt(i,k)*(papmh(i,k+1)-papmh(i,k))
+        +pdudt(i, k)*(papmh(i,k+1)-papmh(i,k))/rg
+      pvstr(i) = pvstr(i) &        ! IM BUG .
+                                   ! +RG*pdvdt(i,k)*(papmh(i,k+1)-papmh(i,k))
+        +pdvdt(i, k)*(papmh(i,k+1)-papmh(i,k))/rg
+    END DO
+  END DO
+
+  RETURN
+END SUBROUTINE lift_noro
+SUBROUTINE orolift(nlon, nlev, ktest, ptsphy, paphm1, pgeom1, ptm1, pum1, &
+    pvm1, plat, pmea, pvaror, ppic & ! OUTPUTS
+    , pulow, pvlow, pvom, pvol, pte)
+
+
+  ! **** *OROLIFT: SIMULATE THE GEOSTROPHIC LIFT.
+
+  ! PURPOSE.
+  ! --------
+
+  ! **   INTERFACE.
+  ! ----------
+  ! CALLED FROM *lift_noro
+  ! ----------
+
+  ! AUTHOR.
+  ! -------
+  ! F.LOTT  LMD 22/11/95
+
+  USE dimphy
+  IMPLICIT NONE
+
+
+  include "YOMCST.h"
+  include "YOEGWD.h"
+  ! -----------------------------------------------------------------------
+
+  ! *       0.1   ARGUMENTS
+  ! ---------
+
+
+  INTEGER nlon, nlev
+  REAL pte(nlon, nlev), pvol(nlon, nlev), pvom(nlon, nlev), pulow(nlon), &
+    pvlow(nlon)
+  REAL pum1(nlon, nlev), pvm1(nlon, nlev), ptm1(nlon, nlev), plat(nlon), &
+    pmea(nlon), pvaror(nlon), ppic(nlon), pgeom1(nlon, nlev), &
+    paphm1(nlon, nlev+1)
+
+  INTEGER ktest(nlon)
+  REAL ptsphy
+  ! -----------------------------------------------------------------------
+
+  ! *       0.2   LOCAL ARRAYS
+  ! ------------
+  LOGICAL lifthigh
+  ! ym      integer klevm1, jl, ilevh, jk
+  INTEGER jl, ilevh, jk
+  REAL zcons1, ztmst, zrtmst, zpi, zhgeo
+  REAL zdelp, zslow, zsqua, zscav, zbet
+  INTEGER iknub(klon), iknul(klon)
+  LOGICAL ll1(klon, klev+1)
+
+  REAL ztau(klon, klev+1), ztav(klon, klev+1), zrho(klon, klev+1)
+  REAL zdudt(klon), zdvdt(klon)
+  REAL zhcrit(klon, klev)
+  CHARACTER (LEN=20) :: modname = 'orografi'
+  CHARACTER (LEN=80) :: abort_message
+  ! -----------------------------------------------------------------------
+
+  ! *         1.1  INITIALIZATIONS
+  ! ---------------
+
+  lifthigh = .FALSE.
+
+  IF (nlon/=klon .OR. nlev/=klev) THEN
+    abort_message = 'pb dimension'
+    CALL abort_physic(modname, abort_message, 1)
+  END IF
+  zcons1 = 1./rd
+  ! ym      KLEVM1=KLEV-1
+  ztmst = ptsphy
+  zrtmst = 1./ztmst
+  zpi = acos(-1.)
+
+  DO jl = kidia, kfdia
+    zrho(jl, klev+1) = 0.0
+    pulow(jl) = 0.0
+    pvlow(jl) = 0.0
+    iknub(jl) = klev
+    iknul(jl) = klev
+    ilevh = klev/3
+    ll1(jl, klev+1) = .FALSE.
+    DO jk = 1, klev
+      pvom(jl, jk) = 0.0
+      pvol(jl, jk) = 0.0
+      pte(jl, jk) = 0.0
+    END DO
+  END DO
+
+
+  ! *         2.1     DEFINE LOW LEVEL WIND, PROJECT WINDS IN PLANE OF
+  ! *                 LOW LEVEL WIND, DETERMINE SECTOR IN WHICH TO TAKE
+  ! *                 THE VARIANCE AND SET INDICATOR FOR CRITICAL LEVELS.
+
+
+
+  DO jk = klev, 1, -1
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        zhcrit(jl, jk) = amax1(ppic(jl)-pmea(jl), 100.)
+        zhgeo = pgeom1(jl, jk)/rg
+        ll1(jl, jk) = (zhgeo>zhcrit(jl,jk))
+        IF (ll1(jl,jk) .NEQV. ll1(jl,jk+1)) THEN
+          iknub(jl) = jk
+        END IF
+      END IF
+    END DO
+  END DO
+
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+      iknub(jl) = max(iknub(jl), klev/2)
+      iknul(jl) = max(iknul(jl), 2*klev/3)
+      IF (iknub(jl)>nktopg) iknub(jl) = nktopg
+      IF (iknub(jl)==nktopg) iknul(jl) = klev
+      IF (iknub(jl)==iknul(jl)) iknub(jl) = iknul(jl) - 1
+    END IF
+  END DO
+
+  ! do 2011 jl=kidia,kfdia
+  ! IF(KTEST(JL).EQ.1) THEN
+  ! print *,' iknul= ',iknul(jl),'  iknub=',iknub(jl)
+  ! ENDIF
+  ! 2011 continue
+
+  ! PRINT *,'  DANS OROLIFT: 2010'
+
+  DO jk = klev, 2, -1
+    DO jl = kidia, kfdia
+      zrho(jl, jk) = 2.*paphm1(jl, jk)*zcons1/(ptm1(jl,jk)+ptm1(jl,jk-1))
+    END DO
+  END DO
+  ! PRINT *,'  DANS OROLIFT: 223'
+
+  ! ********************************************************************
+
+  ! *     DEFINE LOW LEVEL FLOW
+  ! -------------------
+  DO jk = klev, 1, -1
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        IF (jk>=iknub(jl) .AND. jk<=iknul(jl)) THEN
+          pulow(jl) = pulow(jl) + pum1(jl, jk)*(paphm1(jl,jk+1)-paphm1(jl,jk) &
+            )
+          pvlow(jl) = pvlow(jl) + pvm1(jl, jk)*(paphm1(jl,jk+1)-paphm1(jl,jk) &
+            )
+          zrho(jl, klev+1) = zrho(jl, klev+1) + zrho(jl, jk)*(paphm1(jl,jk+1) &
+            -paphm1(jl,jk))
+        END IF
+      END IF
+    END DO
+  END DO
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+      pulow(jl) = pulow(jl)/(paphm1(jl,iknul(jl)+1)-paphm1(jl,iknub(jl)))
+      pvlow(jl) = pvlow(jl)/(paphm1(jl,iknul(jl)+1)-paphm1(jl,iknub(jl)))
+      zrho(jl, klev+1) = zrho(jl, klev+1)/(paphm1(jl,iknul(jl)+1)-paphm1(jl, &
+        iknub(jl)))
+    END IF
+  END DO
+
+  ! ***********************************************************
+
+  ! *         3.      COMPUTE MOUNTAIN LIFT
+
+
+  DO jl = kidia, kfdia
+    IF (ktest(jl)==1) THEN
+      ztau(jl, klev+1) = -gklift*zrho(jl, klev+1)*2.*romega* & ! *
+                                                               ! (2*PVAROR(JL)+PMEA(JL))*
+        2*pvaror(jl)*sin(zpi/180.*plat(jl))*pvlow(jl)
+      ztav(jl, klev+1) = gklift*zrho(jl, klev+1)*2.*romega* & ! *
+                                                              ! (2*PVAROR(JL)+PMEA(JL))*
+        2*pvaror(jl)*sin(zpi/180.*plat(jl))*pulow(jl)
+    ELSE
+      ztau(jl, klev+1) = 0.0
+      ztav(jl, klev+1) = 0.0
+    END IF
+  END DO
+
+  ! *         4.      COMPUTE LIFT PROFILE
+  ! *                 --------------------
+
+
+
+  DO jk = 1, klev
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        ztau(jl, jk) = ztau(jl, klev+1)*paphm1(jl, jk)/paphm1(jl, klev+1)
+        ztav(jl, jk) = ztav(jl, klev+1)*paphm1(jl, jk)/paphm1(jl, klev+1)
+      ELSE
+        ztau(jl, jk) = 0.0
+        ztav(jl, jk) = 0.0
+      END IF
+    END DO
+  END DO
+
+
+  ! *         5.      COMPUTE TENDENCIES.
+  ! *                 -------------------
+  IF (lifthigh) THEN
+    ! PRINT *,'  DANS OROLIFT: 500'
+
+    ! EXPLICIT SOLUTION AT ALL LEVELS
+
+    DO jk = 1, klev
+      DO jl = kidia, kfdia
+        IF (ktest(jl)==1) THEN
+          zdelp = paphm1(jl, jk+1) - paphm1(jl, jk)
+          zdudt(jl) = -rg*(ztau(jl,jk+1)-ztau(jl,jk))/zdelp
+          zdvdt(jl) = -rg*(ztav(jl,jk+1)-ztav(jl,jk))/zdelp
+        END IF
+      END DO
+    END DO
+
+    ! PROJECT PERPENDICULARLY TO U NOT TO DESTROY ENERGY
+
+    DO jk = 1, klev
+      DO jl = kidia, kfdia
+        IF (ktest(jl)==1) THEN
+
+          zslow = sqrt(pulow(jl)**2+pvlow(jl)**2)
+          zsqua = amax1(sqrt(pum1(jl,jk)**2+pvm1(jl,jk)**2), gvsec)
+          zscav = -zdudt(jl)*pvm1(jl, jk) + zdvdt(jl)*pum1(jl, jk)
+          IF (zsqua>gvsec) THEN
+            pvom(jl, jk) = -zscav*pvm1(jl, jk)/zsqua**2
+            pvol(jl, jk) = zscav*pum1(jl, jk)/zsqua**2
+          ELSE
+            pvom(jl, jk) = 0.0
+            pvol(jl, jk) = 0.0
+          END IF
+          zsqua = sqrt(pum1(jl,jk)**2+pum1(jl,jk)**2)
+          IF (zsqua<zslow) THEN
+            pvom(jl, jk) = zsqua/zslow*pvom(jl, jk)
+            pvol(jl, jk) = zsqua/zslow*pvol(jl, jk)
+          END IF
+
+        END IF
+      END DO
+    END DO
+
+    ! 6.  LOW LEVEL LIFT, SEMI IMPLICIT:
+    ! ----------------------------------
+
+  ELSE
+
+    DO jl = kidia, kfdia
+      IF (ktest(jl)==1) THEN
+        DO jk = klev, iknub(jl), -1
+          zbet = gklift*2.*romega*sin(zpi/180.*plat(jl))*ztmst* &
+            (pgeom1(jl,iknub(jl)-1)-pgeom1(jl,jk))/ &
+            (pgeom1(jl,iknub(jl)-1)-pgeom1(jl,klev))
+          zdudt(jl) = -pum1(jl, jk)/ztmst/(1+zbet**2)
+          zdvdt(jl) = -pvm1(jl, jk)/ztmst/(1+zbet**2)
+          pvom(jl, jk) = zbet**2*zdudt(jl) - zbet*zdvdt(jl)
+          pvol(jl, jk) = zbet*zdudt(jl) + zbet**2*zdvdt(jl)
+        END DO
+      END IF
+    END DO
+
+  END IF
+
+  RETURN
+END SUBROUTINE orolift
+
+
+SUBROUTINE sugwd(nlon, nlev, paprs, pplay)
+  USE dimphy
+  USE mod_phys_lmdz_para
+  USE mod_grid_phy_lmdz
+  ! USE parallel
+
+  ! **** *SUGWD* INITIALIZE COMMON YOEGWD CONTROLLING GRAVITY WAVE DRAG
+
+  ! PURPOSE.
+  ! --------
+  ! INITIALIZE YOEGWD, THE COMMON THAT CONTROLS THE
+  ! GRAVITY WAVE DRAG PARAMETRIZATION.
+
+  ! **   INTERFACE.
+  ! ----------
+  ! CALL *SUGWD* FROM *SUPHEC*
+  ! -----        ------
+
+  ! EXPLICIT ARGUMENTS :
+  ! --------------------
+  ! PSIG        : VERTICAL COORDINATE TABLE
+  ! NLEV        : NUMBER OF MODEL LEVELS
+
+  ! IMPLICIT ARGUMENTS :
+  ! --------------------
+  ! COMMON YOEGWD
+
+  ! METHOD.
+  ! -------
+  ! SEE DOCUMENTATION
+
+  ! EXTERNALS.
+  ! ----------
+  ! NONE
+
+  ! REFERENCE.
+  ! ----------
+  ! ECMWF Research Department documentation of the IFS
+
+  ! AUTHOR.
+  ! -------
+  ! MARTIN MILLER             *ECMWF*
+
+  ! MODIFICATIONS.
+  ! --------------
+  ! ORIGINAL : 90-01-01
+  ! ------------------------------------------------------------------
+  IMPLICIT NONE
+
+  ! -----------------------------------------------------------------
+  include "YOEGWD.h"
+  ! ----------------------------------------------------------------
+
+  INTEGER nlon, nlev, jk
+  REAL paprs(nlon, nlev+1)
+  REAL pplay(nlon, nlev)
+  REAL zpr, zstra, zsigt, zpm1r
+  REAL :: pplay_glo(klon_glo, nlev)
+  REAL :: paprs_glo(klon_glo, nlev+1)
+
+  ! *       1.    SET THE VALUES OF THE PARAMETERS
+  ! --------------------------------
+
+
+  PRINT *, ' DANS SUGWD NLEV=', nlev
+  ghmax = 10000.
+
+  zpr = 100000.
+  zstra = 0.1
+  zsigt = 0.94
+  ! old  ZPR=80000.
+  ! old  ZSIGT=0.85
+
+
+  CALL gather(pplay, pplay_glo)
+  CALL bcast(pplay_glo)
+  CALL gather(paprs, paprs_glo)
+  CALL bcast(paprs_glo)
+
+
+  DO jk = 1, nlev
+    zpm1r = pplay_glo((klon_glo/2)+1, jk)/paprs_glo((klon_glo/2)+1, 1)
+    IF (zpm1r>=zsigt) THEN
+      nktopg = jk
+    END IF
+    zpm1r = pplay_glo((klon_glo/2)+1, jk)/paprs_glo((klon_glo/2)+1, 1)
+    IF (zpm1r>=zstra) THEN
+      nstra = jk
+    END IF
+  END DO
+
+
+
+  ! inversion car dans orodrag on compte les niveaux a l'envers
+  nktopg = nlev - nktopg + 1
+  nstra = nlev - nstra
+  PRINT *, ' DANS SUGWD nktopg=', nktopg
+  PRINT *, ' DANS SUGWD nstra=', nstra
+
+  gsigcr = 0.80
+
+!  Values now specified in run.def, or conf_phys_m.F90
+!  gkdrag = 0.2
+!  grahilo = 1.
+!  grcrit = 0.01
+!  gfrcrit = 1.0
+!  gkwake = 0.50
+! gklift = 0.50
+  gvcrit = 0.0
+
+  ! ----------------------------------------------------------------
+
+  ! *       2.    SET VALUES OF SECURITY PARAMETERS
+  ! ---------------------------------
+
+
+  gvsec = 0.10
+  gssec = 1.E-12
+
+  gtsec = 1.E-07
+
+  ! ----------------------------------------------------------------
+
+  RETURN
+END SUBROUTINE sugwd

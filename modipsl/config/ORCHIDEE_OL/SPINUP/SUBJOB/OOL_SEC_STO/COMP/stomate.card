@@ -1,0 +1,52 @@
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+stomate_LEVEL=10
+SPINUP_ANALYTIC=n
+
+[InitialStateFiles]
+List=   ()
+
+[BoundaryFiles]
+List=	()
+ListNonDel= (${R_IN}/SRF/reftemp.nc, .)
+
+[SmoothFiles]
+List=	()
+
+[ParametersFiles]
+List=   (${SUBMIT_DIR}/PARAM/run.def, .)
+
+[RestartFiles]
+# List restart that have to be saved/restored each loop (file out, saved, and in) :
+List=	(stomate_rest_out.nc, stomate_rest.nc, stomate_rest_in.nc)
+# \
+#	(stomate_forcing.nc, stomate_forcing.nc, stomate_forcing.nc) \
+#	(stomate_Cforcing.nc, stomate_Cforcing.nc, stomate_Cforcing.nc)
+
+
+[OutputText]
+List=   (used_run.def)
+
+[OutputFiles]
+List=	(stomate_history.nc, ${R_OUT_SBG_O_M}/${PREFIX}_1M_stomate_history.nc, Post_1M_stomate_history) \
+    (stomate_ipcc_history.nc, ${R_OUT_SBG_O_M}/${PREFIX}_1M_stomate_ipcc_history.nc, Post_1M_stomate_ipcc_history)
+
+[Post_1M_stomate_history]
+Patches= ()
+GatherWithInternal= (lon, lat, PFT, time_counter, Areas)
+TimeSeriesVars2D= (T2M_MONTH,CONTFRAC,RESOLUTION_X,RESOLUTION_Y,CONVFLUX,CFLUX_PROD10,CFLUX_PROD100,HARVEST_ABOVE)
+ChunckJob2D = NONE
+TimeSeriesVars3D= (CO2FLUX,LAI,VEGET_MAX,NPP,GPP,HET_RESP,MAINT_RESP,GROWTH_RESP,AGE,HEIGHT,TOTAL_M,TOTAL_BM_LITTER,TOTAL_SOIL_CARB,ADAPTATION,REGENERATION)
+ChunckJob3D = NONE
+Seasonal=ON
+
+[Post_1M_stomate_ipcc_history]
+Patches= ()
+GatherWithInternal= (lon, lat, PFT, time_counter, Areas)
+TimeSeriesVars2D=(cVeg, cLitter, cSoil, cProduct, cMassVariation, lai, gpp, ra, npp, rh, fFire, fHarvest, fLuc, nbp, fVegLitter, fLitterSoil, cLeaf, cWood, cRoot, cMisc, cLitterAbove, cLitterBelow, cSoilFast, cSoilMedium, cSoilSlow, landCoverFrac, treeFracPrimDec, treeFracPrimEver, c3PftFrac, c4PftFrac, rGrowth, rMaint, nppLeaf, nppWood, nppRoot, nep)
+ChunckJob2D = NONE
+TimeSeriesVars3D=()
+ChunckJob3D = NONE
+Seasonal=ON

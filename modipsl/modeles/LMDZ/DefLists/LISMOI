@@ -1,0 +1,9 @@
+#Verififaction de la concordance entre les physiq.def de DefList
+#et ceux du 1D
+
+for i in physiq* ; do phys=`echo $i | awk -F_ ' { print $NF } '` ; diff $i ~/LMDZ/LMDZ20170306.trunk2825/1D/INPUT/PHYS/$phys/physiq.def ; done | more
+
+# Ajouter dans les physiques se trouvant dans DefList mais pas
+# dans le 1D (sur ../../../../1D/INPUT/PHYS)
+for i in physiq* ; do phys=`echo $i | awk -F_ ' { print $NF } '` ; dd=../../../../1D/INPUT/PHYS ; if [ ! -d $dd/$phys ] ; then mkdir $dd/$phys ; cp $i $dd/$phys/physiq.def ; cp $dd/NPv5.70/traceur.def $dd/$phys/traceur.def ; fi ; done
+

@@ -1,0 +1,12 @@
+NETCDF_LIBDIR="-L/usr/local/install/netcdf-4.3.2p/lib -lnetcdff -lnetcdf -L/usr/local/install/hdf5-1.8.9p/lib -lhdf5_hl -lhdf5 -lhdf5 -lz -lcurl"
+NETCDF_INCDIR=-I/usr/local/install/netcdf-4.3.2p/include
+IOIPSL_INCDIR="$LMDGCM/../../lib -I$LMDGCM/../IOIPSL/inc"
+IOIPSL_LIBDIR="$LMDGCM/../../lib -lioipsl -L$LMDGCM/../IOIPSL/lib" 
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=
+OASIS_LIBDIR=
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/inc
+XIOS_INCDIR=$LMDGCM/../XIOS/inc
+XIOS_LIBDIR=$LMDGCM/../XIOS/lib

@@ -1,0 +1,309 @@
+SUBROUTINE GSTATS(KNUM,KSWITCH)
+
+!**** *GSTATS*  - Gather timing statistics
+
+!     PURPOSE.
+!     --------
+!       To gather timings for subsequent output by routine STATS_OUTPUT 
+
+
+!**   INTERFACE.
+!     ----------
+!       *CALL* *GSTATS(KNUM,KSWITCH)
+
+!        EXPLICIT ARGUMENTS
+!        --------------------
+!        KNUM - timing event number (for list of already defined events
+!               see routine STATS_OUTPUT)
+!        KSWITCH  - KSWITCH=0 - switch on timer
+!                   KSWITCH=1 - switch off timer
+!                   KSWITCH=2 - suspend timer
+!                   KSWITCH=3 - resume  timer
+
+!        IMPLICIT ARGUMENTS
+!        --------------------
+!        Module YOMSTATS
+
+!     METHOD.
+!     -------
+
+
+!     EXTERNALS.   USER_CLOCK - timing routine
+!     ----------   MPL_BARRIER - syncronization of processors
+
+!     REFERENCE.
+!     ----------
+!        ECMWF Research Department documentation of the IFS
+
+!     AUTHOR.
+!     -------
+!        Mats Hamrud ECMWF
+
+!     MODIFICATIONS.
+!     --------------
+!        ORIGINAL : 98-11-15
+!        D.Salmond: 02-02-25  Return if not master thread when called from a 
+!                             parallel region. 
+!        J.Hague:   03-06-11  Memory tracing (for NSTATS_MEM MPI tasks)
+!     ------------------------------------------------------------------
+
+USE PARKIND1  ,ONLY : JPIM     ,JPRB     ,JPIB
+USE YOMHOOK   ,ONLY : LHOOK, DR_HOOK
+
+USE YOMGSTATS  
+!USE MPL_MODULE   ! MPL 28.11.08
+USE YOMOML
+
+IMPLICIT NONE
+
+INTEGER(KIND=JPIM),INTENT(IN) :: KNUM
+INTEGER(KIND=JPIM),INTENT(IN) :: KSWITCH
+
+INTEGER(KIND=JPIM) :: IMOD,ICALL
+INTEGER(KIND=JPIM) :: IIMEM, IIPAG, IIMEMC
+INTEGER(KIND=JPIB) :: IMEM, IMEMH, IMEMS, IMEMC, IPAG, INUM
+INTEGER(KIND=JPIB) :: GETRSS, GETHWM, GETSTK, GETCURHEAP, GETPAG
+EXTERNAL GETRSS, GETHWM, GETSTK, GETCURHEAP, GETPAG
+REAL(KIND=JPRB) :: ZTIMED,ZCLOCK,ZTIME,ZTCPU,ZVCPU
+REAL(KIND=JPRB) :: ZLAST_PAR_TIME
+LOGICAL :: LLFIRST=.TRUE.
+LOGICAL :: LLMFIRST=.TRUE.
+  CHARACTER(LEN=32), SAVE :: CCDESC_DRHOOK(JPMAXSTAT)
+  CHARACTER(LEN=32), SAVE :: CCDESC_BARR(JPMAXSTAT)
+SAVE ZLAST_PAR_TIME
+SAVE IIMEM, IIPAG, IIMEMC
+
+INTEGER(KIND=JPIM),SAVE :: NUM_THREADS
+REAL(KIND=JPRB),ALLOCATABLE,SAVE :: ZHOOK_HANDLE(:)
+REAL(KIND=JPRB),SAVE :: ZHOOK_HANDLE_COMMS, ZHOOK_HANDLE_COMMS1
+REAL(KIND=JPRB),SAVE :: ZHOOK_HANDLE_TRANS
+REAL(KIND=JPRB),SAVE :: ZHOOK_HANDLE_BARR
+CHARACTER*4 CC
+
+INTEGER(KIND=JPIM) :: NMAX_STATS, KULNAM
+
+INTERFACE
+#include "user_clock.h"
+END INTERFACE
+
+! write(0,*) "GSTATS:LSTATS,JPMAXSTAT,LGSTATS_LABEL,KNUM=",LSTATS,JPMAXSTAT,LGSTATS_LABEL,KNUM
+
+IF(LSTATS) THEN
+
+  IF(.NOT.ALLOCATED(ZHOOK_HANDLE))THEN
+    NUM_THREADS=OML_MAX_THREADS()
+    ALLOCATE(ZHOOK_HANDLE(NUM_THREADS))
+  ENDIF
+
+  IF(LGSTATS_LABEL)THEN
+    DO INUM=1,JPMAXSTAT
+      WRITE(CC,'(I4)')INUM
+      CCDESC_BARR(INUM)='>BAR-'//CCDESC(INUM)(1:21)//'('//CC//')'
+    ENDDO
+    DO INUM=1,JPMAXSTAT
+      WRITE(CC,'(I4)')INUM
+!     write(6,*) inum,cctype(inum)
+      IF(CCTYPE(INUM).EQ."TRS".OR.CCTYPE(INUM).EQ.'MP-'.OR.CCTYPE(INUM).EQ.'MPL'&
+                            & .OR.CCTYPE(INUM).EQ.'BAR'.OR.CCTYPE(INUM).EQ.'OMP') THEN
+        CCDESC_DRHOOK(INUM)='>'//CCTYPE(INUM)//'-'//CCDESC(INUM)(1:21)//'('//CC//')'
+      ENDIF
+    ENDDO
+    LGSTATS_LABEL=.FALSE.
+  ENDIF
+!     ------------------------------------------------------------------
+
+!J  IF((KNUM > 1000 .AND.KNUM < 2001).AND.(.NOT.LSTATS_OMP))GOTO 99999
+!J  IF((KNUM > 500  .AND.KNUM < 1001).AND.(.NOT.LSTATS_COMMS))GOTO 99999
+  IF(OML_MY_THREAD() > 1)GOTO 99999
+
+!J  IF(KNUM/=0) THEN
+!J    IF(LSYNCSTATS .AND.(KSWITCH==0.OR. KSWITCH==2)) THEN
+!J      IF(.NOT.OML_IN_PARALLEL().AND. KNUM < 500 )THEN
+!J        IF(LHOOK)CALL DR_HOOK(CCDESC_BARR(KNUM),0,ZHOOK_HANDLE_BARR)
+!J        CALL MPL_BARRIER(CDSTRING='GSTATS:')
+!J        IF(LHOOK)CALL DR_HOOK(CCDESC_BARR(KNUM),1,ZHOOK_HANDLE_BARR)
+!J      ENDIF
+!J    ENDIF
+!J  ENDIF
+
+  IF (LHOOK .AND. (KSWITCH == 0 .OR. KSWITCH == 1)) THEN
+!   write(0,*) "KNUM,SWITCH=",KNUM,KSWITCH
+!   write(0,*) "CCTYPE=",CCTYPE(KNUM)
+!   write(0,*) "CCDESC_DRHOOK=",CCDESC_DRHOOK(KNUM)
+    IF(CCTYPE(KNUM).EQ."TRS")THEN
+      CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZHOOK_HANDLE_TRANS)
+    ELSEIF(CCTYPE(KNUM).EQ.'MP-')THEN
+      CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZHOOK_HANDLE_COMMS)
+    ELSEIF(CCTYPE(KNUM).EQ.'MPL'.AND.KNUM.NE.682)THEN
+      CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZHOOK_HANDLE_COMMS1)
+    ELSEIF(CCTYPE(KNUM).EQ.'OMP')THEN
+!     CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZHOOK_HANDLE)
+! MPL 1.12.08 : erreur a la compilation car zhook_handle est un tableau et non un
+! scalaire (PKEY)
+      CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZTIME)
+    ELSEIF(CCTYPE(KNUM).EQ.'BAR')THEN
+      CALL DR_HOOK(CCDESC_DRHOOK(KNUM),KSWITCH,ZHOOK_HANDLE_BARR)
+    ENDIF
+  ENDIF
+
+  CALL USER_CLOCK(PELAPSED_TIME=ZCLOCK)
+  IF (LSTATSCPU.OR.KNUM==0) THEN
+    CALL USER_CLOCK(PTOTAL_CP=ZTCPU,PVECTOR_CP=ZVCPU)
+  ELSE
+    ZTCPU = 0.0_JPRB
+    ZVCPU = 0.0_JPRB
+  ENDIF
+
+  IF (LLFIRST) THEN
+
+!   write(0,*) "JPMAXSTAT:2=",JPMAXSTAT
+
+    NCALLS(:) = 0
+    TIMESUM(:) = 0.0_JPRB
+    TIMESQSUM(:) = 0.0_JPRB
+    TIMEMAX(:) = 0.0_JPRB
+    TIMESUMB(:) = 0.0_JPRB
+    TTCPUSUM(:) = 0.0_JPRB
+    TVCPUSUM(:) = 0.0_JPRB
+    TIMELCALL(:) = ZCLOCK
+    CCDESC=""
+    CCTYPE=""
+    NTMEM      = 0
+    NTMEM(:,5) = 99999999
+    IIMEM=0
+    IIPAG=0
+    IIMEMC=0
+    TIME_LAST_CALL = ZCLOCK
+    ZLAST_PAR_TIME=ZCLOCK
+    LLFIRST = .FALSE.
+  ENDIF
+
+  IF(KNUM < 0.OR. KNUM > JPMAXSTAT) CALL ABOR1('GSTATS')
+  IF(KSWITCH == 0.OR. KSWITCH == 1) THEN
+    NCALLS(KNUM) = NCALLS(KNUM)+1
+  ENDIF
+  IMOD = MOD(NCALLS(KNUM),2)
+  IF(.NOT.((KSWITCH == 0.AND. IMOD == 1) .OR.&
+   &(KSWITCH == 2.AND. IMOD == 1) .OR.&
+   &(KSWITCH == 3.AND. IMOD == 1) .OR.&
+   &(KSWITCH == 1.AND. IMOD == 0))) THEN
+    WRITE(JPERR,*) 'KNUM,KSWITCH,IMOD,NCALLS(KNUM)',&
+     &KNUM,KSWITCH,IMOD,NCALLS(KNUM)
+    CALL ABOR1('GSTATS')
+  ENDIF
+
+  IF( KSWITCH == 0 ) THEN
+! Start timing event
+    IF(KNUM < 500) THEN
+      ZTIMED = ZCLOCK-TIME_LAST_CALL
+    ELSE
+      ZTIMED = ZCLOCK - ZLAST_PAR_TIME
+    ENDIF
+    TIMESUMB(KNUM) = TIMESUMB(KNUM)+ZTIMED
+    THISTIME(KNUM) = 0.0_JPRB
+    TIMELCALL(KNUM) = ZCLOCK
+    TTCPULCALL(KNUM) = ZTCPU
+    TVCPULCALL(KNUM) = ZVCPU
+    THISTCPU(KNUM) = 0.0_JPRB
+    THISVCPU(KNUM) = 0.0_JPRB
+    IF(MYPROC_STATS.LE.NSTATS_MEM.AND.MYPROC_STATS.NE.0) THEN
+!     CALL getrss(IMEM)
+!     IMEM = getrss()/1024
+      IPAG = getpag()
+      IMEMH = gethwm()/1024
+      IMEMS = getstk()/1024
+      IMEMC = 0
+      IF(LSTATS_ALLOC) IMEMC = GETCURHEAP()/1024
+      IF(IMEM > IIMEM.OR.IPAG > IIPAG.OR.(LSTATS_ALLOC.AND.(IMEMC.NE.IIMEMC))) THEN
+        IF(LLMFIRST) THEN
+          WRITE(0,*) ".---------------------------------------------------------"
+          WRITE(0,*) "| Memory trace details"
+          WRITE(0,*) "| --------------------"
+          WRITE(0,*) "| Memory examined at each GSTATS call if NSTATS_MEM>0."
+          WRITE(0,*) "| Header for each trace line is:"    
+          WRITE(0,*) "|"
+          WRITE(0,*) "|   RSS_INC: Increase in RSS_MAX (KB)"
+          WRITE(0,*) "|   RSS_MAX: Maximum real working set so far (KB)"
+          WRITE(0,*) "|   HEAP_MX: High Water Mark for heap so far (KB)"
+          WRITE(0,*) "|   STK:     Current Stack usage (KB)"
+          WRITE(0,*) "|   PGS:     Page faults w I/O since last trace line"
+          WRITE(0,*) "|   CALL:    Number of gstats call"
+          WRITE(0,*) "|   HEAP:    Current malloc'd total (KB)"
+          WRITE(0,*) "|" 
+          WRITE(0,*) "| Trace line written for NSTATS_MEM MPI tasks if RSS_MAX"
+          WRITE(0,*) "| RSS_MAX increases, PGS>0, or HEAP changed"
+          WRITE(0,*) "| (if LTATS_ALLOC=.TRUE.)"
+          WRITE(0,*) "`---------------------------------------------------------"
+          WRITE(0,*) ""
+          WRITE(0,'(A10,A5,21X,A7,2A8,A7,A5,A5,A8)') &
+           & "MEMORY    "," KNUM","RSS_INC"," RSS_MAX"," HEAP_MX","    STK", &
+           & "  PGS"," CALL","    HEAP"
+          LLMFIRST=.FALSE.
+        ENDIF
+        WRITE(0,'(A10,I5,1X,A20,1X,I6,2(1X,I7),1X,I6,1X,I4,1X,I4,1X,I7)') &
+             & "MEMORY bfr",KNUM,CCDESC(KNUM),IMEM-IIMEM,IMEM,IMEMH,IMEMS, &
+             & IPAG-IIPAG,(NCALLS(KNUM)+1)/2,IMEMC
+      ENDIF
+      NTMEM(KNUM,2)=IMEM
+      IIMEM=IMEM
+      IIPAG=IPAG
+      IIMEMC=IMEMC
+    ENDIF
+  ELSEIF( KSWITCH == 1 ) THEN
+! Finish timing event
+    ZTIME = THISTIME(KNUM)+(ZCLOCK-TIMELCALL(KNUM))
+    TIMESUM(KNUM) = TIMESUM(KNUM)+ZTIME
+    TIMESQSUM(KNUM) = TIMESQSUM(KNUM)+ZTIME**2
+    TIMEMAX(KNUM) = MAX(TIMEMAX(KNUM),ZTIME)
+    TTCPUSUM(KNUM) = TTCPUSUM(KNUM)+THISTCPU(KNUM)+ZTCPU-TTCPULCALL(KNUM)
+    TVCPUSUM(KNUM) = TVCPUSUM(KNUM)+THISVCPU(KNUM)+ZVCPU-TVCPULCALL(KNUM)
+    IF(MYPROC_STATS.LE.NSTATS_MEM.AND.MYPROC_STATS.NE.0) THEN
+!     CALL getrss(IMEM)
+      IMEM = GETRSS()/1024
+      IPAG = GETPAG()
+      IMEMH = GETHWM()/1024
+      IMEMS = GETSTK()/1024
+      IMEMC = 0
+      IF(LSTATS_ALLOC) IMEMC = GETCURHEAP()/1024
+      IF(IMEM > IIMEM.OR.IPAG > IIPAG.OR.(LSTATS_ALLOC.AND.(IMEMC.NE.IIMEMC))) THEN
+        WRITE(0,'(A10,I5,1X,A20,1X,I6,2(1X,I7),1X,I6,1X,I4,1X,I4,1X,I7)') &
+             & "MEMORY aft ",KNUM,CCDESC(KNUM),IMEM-IIMEM,IMEM,IMEMH,IMEMS, &
+             & IPAG-IIPAG,NCALLS(KNUM)/2,IMEMC
+      ENDIF
+      IIMEM=IMEM
+      IIPAG=IPAG
+      IIMEMC=IMEMC 
+      IMEM=IMEM-NTMEM(KNUM,2)
+      NTMEM(KNUM,4)=NTMEM(KNUM,4)+IMEM
+      IF(IMEM > NTMEM(KNUM,1)) THEN
+        NTMEM(KNUM,1)=IMEM
+        NTMEM(KNUM,3)=NCALLS(KNUM)
+      ENDIF
+      IF(IMEM < NTMEM(KNUM,5)) NTMEM(KNUM,5)=IMEM
+    ENDIF
+  ELSEIF( KSWITCH == 2 ) THEN
+! Suspend timing event
+    ZTIMED = ZCLOCK-TIMELCALL(KNUM)
+    THISTIME(KNUM) = THISTIME(KNUM)+ZTIMED
+    THISTCPU(KNUM) = THISTCPU(KNUM)+ZTCPU-TTCPULCALL(KNUM)
+    THISVCPU(KNUM) = THISVCPU(KNUM)+ZVCPU-TVCPULCALL(KNUM)
+  ELSEIF( KSWITCH == 3 ) THEN
+! Resume timing event
+    TIMELCALL(KNUM) = ZCLOCK
+    TTCPULCALL(KNUM) = ZTCPU
+    TVCPULCALL(KNUM) = ZVCPU
+  ENDIF
+  TIME_LAST_CALL = ZCLOCK
+  IF(KNUM > 500.OR.KNUM == 102.OR.KNUM == 103) ZLAST_PAR_TIME = ZCLOCK
+!   Trace stats
+  NCALLS_TOTAL = NCALLS_TOTAL+1
+  IF (LTRACE_STATS .AND. NCALLS_TOTAL <= NTRACE_STATS) THEN
+    ICALL = NCALLS_TOTAL
+    TIME_TRACE(ICALL) = ZCLOCK
+    NCALL_TRACE(ICALL) = (JPMAXSTAT+1)*KSWITCH+KNUM
+  ENDIF
+
+ENDIF
+
+99999 CONTINUE
+END SUBROUTINE GSTATS

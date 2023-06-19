@@ -1,0 +1,214 @@
+#!/bin/ksh
+## Driver for the component SRF corresponding to the sechiba part of ORCHIDEE
+
+#-----------------------------------------------------------------
+function SRF_Initialize
+{
+    IGCM_debug_PushStack "SRF_Initialize"
+
+    IGCM_debug_PopStack "SRF_Initialize"
+}
+
+#-----------------------------------------------------------------
+function SRF_Update
+{
+    IGCM_debug_PushStack "SRF_Update"
+
+    ## 1. Modifications in run.def parameter file
+
+    # Activate STOMATE if the compontent SBG=stomate is set in config.card
+    if [ X${config_ListOfComponents_SBG} = Xstomate ] ; then
+	# Activate stomate in run.def
+        IGCM_comp_modifyDefFile blocker run.def STOMATE_OK_STOMATE y
+    else
+	# Deactivate stomate in run.def
+	IGCM_comp_modifyDefFile blocker run.def STOMATE_OK_STOMATE n
+ 	# Deactivate output files for stomate
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate1 enabled .FALSE.
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate1 output_level 0
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate1 output_freq 1mo
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate2 enabled .FALSE.
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate2 output_level 0
+        IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml stomate2 output_freq 1mo
+    fi
+
+    # Define in run.def if restart file should be used
+    if ( [ ${CumulPeriod} -eq 1 ] && [ "${config_SRF_Restart}" = "n" ] ) ; then
+	IGCM_comp_modifyDefFile blocker run.def SECHIBA_restart_in NONE
+
+	# Check if running executable teststomate. In that case sechiba restart file is mandatory.
+	if [ -f teststomate ] ; then
+	    IGCM_debug_Print 1 "Error in launching teststomate !"
+	    IGCM_debug_Exit    "YOU MUST USE EXISTING RESTART FILE FOR SECHIBA WITH JOB TESTSTOMATE!" 
+	    IGCM_debug_Verif_Exit	    
+	fi
+    else
+	IGCM_comp_modifyDefFile blocker run.def SECHIBA_restart_in sechiba_rest_in.nc
+    fi
+
+
+    # Modify in run.def VEGET_UPDATE if it is set in sechiba.card section UserChoices
+    # VEGET_UPDATE inidcates if the vegetation map should be updated and at which frequency
+    if [ ! X${sechiba_UserChoices_VEGET_UPDATE} = X ] ; then
+	# Take the value from sechiba.card
+	IGCM_comp_modifyDefFile nonblocker run.def VEGET_UPDATE   ${sechiba_UserChoices_VEGET_UPDATE}
+    else
+        # Set default value 0Y
+        IGCM_comp_modifyDefFile nonblocker run.def VEGET_UPDATE 0Y
+    fi
+
+
+    # Activate the creation of river_desc.nc file only during the first execution in the simulation.
+    if [ ${CumulPeriod} -eq 1 ] ; then
+        IGCM_comp_modifyDefFile nonblocker run.def RIVER_DESC y
+    else
+        IGCM_comp_modifyDefFile nonblocker run.def RIVER_DESC n
+    fi
+
+
+
+    ## 2. Mangement of output and modifications of related xml files
+
+    # Set default values for sechiba1_enabled and sechiba1_freq.
+    # These variables are used only to modify file_def_orchidee.xml if XIOS=y
+    sechiba1_enabled=.FALSE.
+    sechiba2_enabled=.FALSE.
+    sechiba1_freq=0s
+    sechiba2_freq=0s
+    # These variables are used if XIOS=n
+    SECHIBA_WRITE_STEP=0
+    SECHIBA_WRITE_STEP2=0
+
+    if [ X${orchidee_ol_UserChoices_XIOS} = Xy ] ; then
+      # Activate XIOS output
+      IGCM_comp_modifyDefFile blocker run.def XIOS_ORCHIDEE_OK y
+      # Deactivate IOIPSL output
+      IGCM_comp_modifyDefFile nonblocker run.def WRITE_STEP 0
+    else
+      # Deactivate XIOS output
+      IGCM_comp_modifyDefFile blocker run.def XIOS_ORCHIDEE_OK n
+    fi
+
+    # Get WriteFrenquecy for SRF (SECHIBA) from config.card
+    # 1 or 2 frequencies can be set in WriteFrenquecy for SRF
+    # The first frequency will always be used for the sechiba_history file and the 
+    # second frequency will be used for the sechiba_out_2.nc file. 
+    # The files are activated only if its corresponding frequency is set in WriteFrequency
+    ifreq=0
+    for frequency in ${config_SRF_WriteFrequency} ; do
+	case ${frequency} in
+	    *Y|*y) 
+		NbYears=$( echo ${frequency} | awk -F '[yY]' '{print $1}' )
+		NbDaysYear=$( IGCM_date_DaysInYear ${year} )
+		file_enabled=.TRUE.
+		file_freq=${NbYears}y
+		(( file_WRITE_STEP = NbYears * NbDaysYear * 86400 )) ;;
+	    *M|*m)
+		NbMonths=$( echo ${frequency} | awk -F '[mM]' '{print $1}' )
+		file_enabled=.TRUE.
+		file_freq=${NbMonths}mo
+		# Note only 1M possible with IOIPSL!
+		file_WRITE_STEP=-1. ;;
+	    *D|*d)
+		NbDays=$( echo ${frequency} | awk -F '[dD]' '{print $1}' )
+		file_enabled=.TRUE.
+		file_freq=${NbDays}d
+ 		(( file_WRITE_STEP = NbDays * 86400 )) ;;
+	    *s)
+		WriteInSeconds=$( echo ${frequency} | awk -F '[s]' '{print $1}' )
+		file_enabled=.TRUE.
+		file_freq=${WriteInSeconds}s
+		(( file_WRITE_STEP = WriteInSeconds )) ;;
+            HF|hf) 
+		file_enabled=.TRUE. 
+		file_freq=10800s 
+		(( file_WRITE_STEP = 10800 )) ;;
+	    *) 
+		IGCM_debug_Exit "SRF_Update " ${frequency} " invalid WriteFrequency : choose in xY, xM, xD, xs and HF" 
+		IGCM_debug_Verif_Exit ;;
+	esac
+
+	(( ifreq = ifreq + 1 ))
+	case ${ifreq} in
+	    1)
+		sechiba1_enabled=${file_enabled}
+		SECHIBA_WRITE_STEP=${file_WRITE_STEP} ;;
+	    2)
+                sechiba2_enabled=${file_enabled}
+		SECHIBA_WRITE_STEP2=${file_WRITE_STEP} ;;
+            *)
+		IGCM_debug_Exit "SRF_Update: It is not possible to set more than 2 output files for sechiba from config.card"
+		IGCM_debug_Exit "You must correct WriteFrequancy in SRF secion in config.card."
+		IGCM_debug_Exit "Adapt file_def_orchidee.xml directly if you want more output files"
+		IGCM_debug_Verif_Exit ;;
+	esac
+    done
+
+    # Modify file_def_orchidee.xml if XIOS is activated
+    # Settings in config.card WriteFrequency are not used any more. The section above is only used for IOIPSL.
+    if [ X${orchidee_ol_UserChoices_XIOS} = Xy ] ; then
+	# Modify file_def_orchidee.xml file using settings from sechiba.card/orchidee.card
+	# We here suppose that for each file, in sechiba.card/orchidee.card UserChoices section, if the parameter 
+	# output_level_filename is set, then also output_freq_filename must be set. The existance of output_freq_filename will not be checked. 
+	# If output_level_filename=NONE or if it is not set, the corresponding file will be deactivated.
+
+	if [ X${sechiba_UserChoices_output_level_sechiba_history} = X ] || [ X${sechiba_UserChoices_output_level_sechiba_history} = XNONE ] ; then
+	    # output_level_sechiba_history is not set in sechiba.card or it is set to NONE.
+	    # Deactivate the file.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 enabled .FALSE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 output_level 0
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 output_freq 1mo
+	else
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 enabled      .TRUE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 output_level ${sechiba_UserChoices_output_level_sechiba_history}
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba1 output_freq  ${sechiba_UserChoices_output_freq_sechiba_history}
+	fi
+
+	if [ X${sechiba_UserChoices_output_level_sechiba_out_2} = X ] || [ X${sechiba_UserChoices_output_level_sechiba_out_2} = XNONE ] ; then
+	    # output_level_sechiba_out_2 is not set in sechiba.card or it is set to NONE.
+	    # Deactivate the file.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 enabled .FALSE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 output_level 0
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 output_freq 1mo
+	else
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 enabled      .TRUE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 output_level ${sechiba_UserChoices_output_level_sechiba_out_2}
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba2 output_freq  ${sechiba_UserChoices_output_freq_sechiba_out_2}
+	fi
+
+  	if [ X${sechiba_UserChoices_output_level_sechiba_history_4dim} = X ] || [ X${sechiba_UserChoices_output_level_sechiba_history_4dim} = XNONE ] ; then
+	    # output_level_sechiba_history_4dim is not set in sechiba.card or it is set to NONE.
+	    # Deactivate the file.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 enabled .FALSE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 output_level 0
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 output_freq 1mo
+	else
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 enabled      .TRUE.
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 output_level ${sechiba_UserChoices_output_level_sechiba_history_4dim}
+	    IGCM_comp_modifyXmlFile nonblocker file_def_orchidee.xml sechiba3 output_freq  ${sechiba_UserChoices_output_freq_sechiba_history_4dim}
+	fi
+    fi
+
+
+    # Set IOIPSL output in run.def. This is done for all cases only to avoid AUTO variables during run time. 
+    IGCM_comp_modifyDefFile nonblocker run.def WRITE_STEP ${SECHIBA_WRITE_STEP}
+    IGCM_comp_modifyDefFile nonblocker run.def WRITE_STEP2 ${SECHIBA_WRITE_STEP2}
+
+    # Outputs HF in HISTFILE2 if required
+    if [ ${sechiba2_enabled} = .TRUE. ] ; then
+ 	IGCM_comp_modifyDefFile nonblocker run.def SECHIBA_HISTFILE2 y
+    else
+	IGCM_comp_modifyDefFile nonblocker run.def SECHIBA_HISTFILE2 n
+    fi
+
+
+    IGCM_debug_PopStack "SRF_Update"
+}
+
+#-----------------------------------------------------------------
+function SRF_Finalize
+{
+    IGCM_debug_PushStack "SRF_Finalize"
+
+    IGCM_debug_PopStack "SRF_Finalize"
+}

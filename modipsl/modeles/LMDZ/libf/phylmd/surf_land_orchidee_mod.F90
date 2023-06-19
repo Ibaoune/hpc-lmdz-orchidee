@@ -1,0 +1,852 @@
+!
+MODULE surf_land_orchidee_mod
+#ifndef ORCHIDEE_NOOPENMP
+#ifndef ORCHIDEE_NOZ0H
+#ifndef ORCHIDEE_NOFREIN
+#ifndef ORCHIDEE_NOUNSTRUCT
+!
+! This module controles the interface towards the model ORCHIDEE.
+!
+! Compatibility with ORCHIDIEE :
+! The current version can be used with ORCHIDEE/trunk from revision 4465.
+! This interface is used if none of the cpp keys ORCHIDEE_NOOPENMP, 
+! ORCHIDEE_NOZ0H or ORCHIDEE_NOFREIN is set.
+!
+! Subroutines in this module : surf_land_orchidee
+!                              Init_orchidee_index
+!                              Get_orchidee_communicator
+!                              Init_neighbours
+
+  USE dimphy
+#ifdef CPP_VEGET
+  USE intersurf     ! module d'ORCHIDEE
+#endif
+  USE cpl_mod,      ONLY : cpl_send_land_fields
+  USE surface_data, ONLY : type_ocean
+  USE geometry_mod, ONLY : dx, dy, boundslon, boundslat,longitude, latitude, cell_area,  ind_cell_glo
+  USE mod_grid_phy_lmdz
+  USE mod_phys_lmdz_para, mpi_root_rank=>mpi_master
+  USE carbon_cycle_mod, ONLY : nbcf_in_orc, nbcf_out, fields_in, yfields_in, yfields_out, cfname_in, cfname_out
+  USE nrtype, ONLY : PI
+  
+  IMPLICIT NONE
+
+  PRIVATE
+  PUBLIC  :: surf_land_orchidee
+
+CONTAINS
+!
+!****************************************************************************************
+!  
+  SUBROUTINE surf_land_orchidee(itime, dtime, date0, knon, &
+       knindex, rlon, rlat, yrmu0, pctsrf, &
+       debut, lafin, &
+       plev,  u1_lay, v1_lay, gustiness, temp_air, spechum, epot_air, ccanopy, & 
+       tq_cdrag, petAcoef, peqAcoef, petBcoef, peqBcoef, &
+       precip_rain, precip_snow, lwdown, swnet, swdown, &
+       ps, q2m, t2m, &
+       evap, fluxsens, fluxlat, &              
+       tsol_rad, tsurf_new, alb1_new, alb2_new, &
+       emis_new, z0m_new, z0h_new, qsurf, &
+       veget, lai, height )
+
+    USE mod_surf_para
+    USE mod_synchro_omp
+    USE carbon_cycle_mod
+    USE indice_sol_mod
+    USE print_control_mod, ONLY: lunout
+    USE mod_grid_phy_lmdz, ONLY: nbp_lon, nbp_lat
+#ifdef CPP_VEGET
+    USE time_phylmdz_mod, ONLY: itau_phy 
+#endif
+!    
+! Cette routine sert d'interface entre le modele atmospherique et le 
+! modele de sol continental. Appel a sechiba
+!
+! L. Fairhead 02/2000
+!
+! input:
+!   itime        numero du pas de temps
+!   dtime        pas de temps de la physique (en s)
+!   nisurf       index de la surface a traiter (1 = sol continental)
+!   knon         nombre de points de la surface a traiter
+!   knindex      index des points de la surface a traiter
+!   rlon         longitudes de la grille entiere
+!   rlat         latitudes de la grille entiere
+!   pctsrf       tableau des fractions de surface de chaque maille
+!   debut        logical: 1er appel a la physique (lire les restart)
+!   lafin        logical: dernier appel a la physique (ecrire les restart)
+!                     (si false calcul simplifie des fluxs sur les continents)
+!   plev         hauteur de la premiere couche (Pa)      
+!   u1_lay       vitesse u 1ere couche
+!   v1_lay       vitesse v 1ere couche
+!   temp_air     temperature de l'air 1ere couche
+!   spechum      humidite specifique 1ere couche
+!   epot_air     temp pot de l'air
+!   ccanopy      concentration CO2 canopee, correspond au co2_send de 
+!                carbon_cycle_mod ou valeur constant co2_ppm
+!   tq_cdrag     cdrag
+!   petAcoef     coeff. A de la resolution de la CL pour t
+!   peqAcoef     coeff. A de la resolution de la CL pour q
+!   petBcoef     coeff. B de la resolution de la CL pour t
+!   peqBcoef     coeff. B de la resolution de la CL pour q
+!   precip_rain  precipitation liquide
+!   precip_snow  precipitation solide
+!   lwdown       flux IR descendant a la surface
+!   swnet        flux solaire net
+!   swdown       flux solaire entrant a la surface
+!   ps           pression au sol
+!   radsol       rayonnement net aus sol (LW + SW)
+!
+! output:
+!   evap         evaporation totale
+!   fluxsens     flux de chaleur sensible
+!   fluxlat      flux de chaleur latente
+!   tsol_rad     
+!   tsurf_new    temperature au sol
+!   alb1_new     albedo in visible SW interval
+!   alb2_new     albedo in near IR interval
+!   emis_new     emissivite
+!   z0m_new      surface roughness for momentum
+!   z0h_new      surface roughness for heat
+!   qsurf        air moisture at surface
+!
+    INCLUDE "YOMCST.h"
+    INCLUDE "dimpft.h"
+!
+! Parametres d'entree
+!****************************************************************************************
+    INTEGER, INTENT(IN)                       :: itime
+    REAL, INTENT(IN)                          :: dtime
+    REAL, INTENT(IN)                          :: date0
+    INTEGER, INTENT(IN)                       :: knon
+    INTEGER, DIMENSION(klon), INTENT(IN)      :: knindex
+    LOGICAL, INTENT(IN)                       :: debut, lafin
+    REAL, DIMENSION(klon,nbsrf), INTENT(IN)   :: pctsrf
+    REAL, DIMENSION(klon), INTENT(IN)         :: rlon, rlat
+    REAL, DIMENSION(klon), INTENT(IN)         :: yrmu0 ! cosine of solar zenith angle
+    REAL, DIMENSION(klon), INTENT(IN)         :: plev
+    REAL, DIMENSION(klon), INTENT(IN)         :: u1_lay, v1_lay, gustiness
+    REAL, DIMENSION(klon), INTENT(IN)         :: temp_air, spechum
+    REAL, DIMENSION(klon), INTENT(IN)         :: epot_air, ccanopy
+    REAL, DIMENSION(klon), INTENT(IN)         :: tq_cdrag
+    REAL, DIMENSION(klon), INTENT(IN)         :: petAcoef, peqAcoef
+    REAL, DIMENSION(klon), INTENT(IN)         :: petBcoef, peqBcoef
+    REAL, DIMENSION(klon), INTENT(IN)         :: precip_rain, precip_snow
+    REAL, DIMENSION(klon), INTENT(IN)         :: lwdown, swnet, swdown, ps
+    REAL, DIMENSION(klon), INTENT(IN)         :: q2m, t2m
+
+! Parametres de sortie
+!****************************************************************************************
+    REAL, DIMENSION(klon), INTENT(OUT)        :: evap, fluxsens, fluxlat, qsurf
+    REAL, DIMENSION(klon), INTENT(OUT)        :: tsol_rad, tsurf_new
+    REAL, DIMENSION(klon), INTENT(OUT)        :: alb1_new, alb2_new
+    REAL, DIMENSION(klon), INTENT(OUT)        :: emis_new, z0m_new, z0h_new
+    REAL, DIMENSION(klon,nvm_lmdz), INTENT(OUT) :: veget
+    REAL, DIMENSION(klon,nvm_lmdz), INTENT(OUT) :: lai
+    REAL, DIMENSION(klon,nvm_lmdz), INTENT(OUT) :: height
+
+! Local
+!****************************************************************************************
+    INTEGER                                   :: ij, jj, igrid, ireal, index, nb
+    INTEGER                                   :: error
+    REAL, DIMENSION(klon)                     :: swdown_vrai
+    CHARACTER (len = 20)                      :: modname = 'surf_land_orchidee'
+    CHARACTER (len = 80)                      :: abort_message
+    LOGICAL,SAVE                              :: check = .FALSE.
+    !$OMP THREADPRIVATE(check)
+
+! type de couplage dans sechiba
+!  character (len=10)   :: coupling = 'implicit' 
+! drapeaux controlant les appels dans SECHIBA
+!  type(control_type), save   :: control_in
+! Preserved albedo
+    REAL, ALLOCATABLE, DIMENSION(:), SAVE     :: albedo_keep, zlev
+    !$OMP THREADPRIVATE(albedo_keep,zlev)
+! coordonnees geographiques
+    REAL, ALLOCATABLE, DIMENSION(:,:), SAVE   :: lalo
+    !$OMP THREADPRIVATE(lalo)
+! boundaries of cells
+    REAL, ALLOCATABLE, DIMENSION(:,:,:), SAVE   :: bounds_lalo
+    !$OMP THREADPRIVATE(bounds_lalo)
+! pts voisins
+    INTEGER,ALLOCATABLE, DIMENSION(:,:), SAVE :: neighbours
+    !$OMP THREADPRIVATE(neighbours)
+! fractions continents
+    REAL,ALLOCATABLE, DIMENSION(:), SAVE      :: contfrac
+    !$OMP THREADPRIVATE(contfrac)
+! resolution de la grille
+    REAL, ALLOCATABLE, DIMENSION (:,:), SAVE  :: resolution
+    !$OMP THREADPRIVATE(resolution)
+
+    REAL, ALLOCATABLE, DIMENSION (:,:), SAVE  :: lon_scat, lat_scat  
+    !$OMP THREADPRIVATE(lon_scat,lat_scat)
+
+! area of cells
+    REAL, ALLOCATABLE, DIMENSION (:), SAVE  :: area  
+    !$OMP THREADPRIVATE(area)
+
+    LOGICAL, SAVE                             :: lrestart_read = .TRUE.
+    !$OMP THREADPRIVATE(lrestart_read)
+    LOGICAL, SAVE                             :: lrestart_write = .FALSE.
+    !$OMP THREADPRIVATE(lrestart_write)
+
+    REAL, DIMENSION(knon,2)                   :: albedo_out
+
+! Pb de nomenclature
+    REAL, DIMENSION(klon)                     :: petA_orc, peqA_orc
+    REAL, DIMENSION(klon)                     :: petB_orc, peqB_orc
+! Pb de correspondances de grilles
+    INTEGER, DIMENSION(:), SAVE, ALLOCATABLE  :: ig, jg
+    !$OMP THREADPRIVATE(ig,jg)
+    INTEGER :: indi, indj
+    INTEGER, SAVE, ALLOCATABLE,DIMENSION(:)   :: ktindex
+    !$OMP THREADPRIVATE(ktindex)
+
+! Essai cdrag
+    REAL, DIMENSION(klon)                     :: cdrag
+    INTEGER,SAVE                              :: offset
+    !$OMP THREADPRIVATE(offset)
+
+    REAL, DIMENSION(klon_glo)                 :: rlon_g,rlat_g
+    INTEGER, SAVE                             :: orch_comm
+    !$OMP THREADPRIVATE(orch_comm)
+
+    REAL, ALLOCATABLE, DIMENSION(:), SAVE     :: coastalflow
+    !$OMP THREADPRIVATE(coastalflow)
+    REAL, ALLOCATABLE, DIMENSION(:), SAVE     :: riverflow
+    !$OMP THREADPRIVATE(riverflow)
+    
+    INTEGER :: orch_mpi_rank
+    INTEGER :: orch_mpi_size
+    INTEGER :: orch_omp_rank
+    INTEGER :: orch_omp_size
+
+    REAL, ALLOCATABLE, DIMENSION(:)         :: longitude_glo
+    REAL, ALLOCATABLE, DIMENSION(:)         :: latitude_glo
+    REAL, ALLOCATABLE, DIMENSION(:,:)       :: boundslon_glo
+    REAL, ALLOCATABLE, DIMENSION(:,:)       :: boundslat_glo
+    INTEGER, ALLOCATABLE, DIMENSION(:)      :: ind_cell_glo_glo
+    INTEGER, ALLOCATABLE, SAVE,DIMENSION(:) :: ind_cell
+    !$OMP THREADPRIVATE(ind_cell)
+    INTEGER :: begin, end
+!
+! Fin definition
+!****************************************************************************************
+
+    IF (check) WRITE(lunout,*)'Entree ', modname
+  
+! Initialisation
+  
+    IF (debut) THEN
+! Test of coherence between variable ok_veget and cpp key CPP_VEGET
+#ifndef CPP_VEGET
+       abort_message='Pb de coherence: ok_veget = .true. mais CPP_VEGET = .false.'
+       CALL abort_physic(modname,abort_message,1)
+#endif
+
+       CALL Init_surf_para(knon)
+       ALLOCATE(ktindex(knon))
+       IF ( .NOT. ALLOCATED(albedo_keep)) THEN
+!ym          ALLOCATE(albedo_keep(klon))
+!ym bizarre que non alloué en knon precedement
+          ALLOCATE(albedo_keep(knon))
+          ALLOCATE(zlev(knon))
+       ENDIF
+! Pb de correspondances de grilles
+       ALLOCATE(ig(klon))
+       ALLOCATE(jg(klon))
+       ig(1) = 1
+       jg(1) = 1
+       indi = 0
+       indj = 2
+       DO igrid = 2, klon - 1
+          indi = indi + 1
+          IF ( indi > nbp_lon) THEN
+             indi = 1
+             indj = indj + 1
+          ENDIF
+          ig(igrid) = indi
+          jg(igrid) = indj
+       ENDDO
+       ig(klon) = 1
+       jg(klon) = nbp_lat
+
+       IF ((.NOT. ALLOCATED(area))) THEN
+          ALLOCATE(area(knon), stat = error)
+          IF (error /= 0) THEN
+             abort_message='Pb allocation area'
+             CALL abort_physic(modname,abort_message,1)
+          ENDIF
+       ENDIF
+       DO igrid = 1, knon
+          area(igrid) = cell_area(knindex(igrid))
+       ENDDO
+       
+       IF (grid_type==unstructured) THEN
+
+
+         IF ((.NOT. ALLOCATED(lon_scat))) THEN
+            ALLOCATE(lon_scat(nbp_lon,nbp_lat), stat = error)
+            IF (error /= 0) THEN
+               abort_message='Pb allocation lon_scat'
+               CALL abort_physic(modname,abort_message,1)
+            ENDIF
+         ENDIF
+ 
+         IF ((.NOT. ALLOCATED(lat_scat))) THEN
+            ALLOCATE(lat_scat(nbp_lon,nbp_lat), stat = error)
+            IF (error /= 0) THEN
+               abort_message='Pb allocation lat_scat'
+               CALL abort_physic(modname,abort_message,1)
+            ENDIF
+         ENDIF
+         CALL Gather(rlon,rlon_g)
+         CALL Gather(rlat,rlat_g)
+
+         IF (is_mpi_root) THEN
+            index = 1
+            DO jj = 2, nbp_lat-1
+               DO ij = 1, nbp_lon
+                  index = index + 1
+                  lon_scat(ij,jj) = rlon_g(index)
+                  lat_scat(ij,jj) = rlat_g(index)
+               ENDDO
+            ENDDO
+            lon_scat(:,1) = lon_scat(:,2)
+            lat_scat(:,1) = rlat_g(1)
+            lon_scat(:,nbp_lat) = lon_scat(:,2)
+            lat_scat(:,nbp_lat) = rlat_g(klon_glo)
+         ENDIF
+     
+         CALL bcast(lon_scat)
+         CALL bcast(lat_scat)
+                
+       ELSE IF (grid_type==regular_lonlat) THEN
+
+         IF ((.NOT. ALLOCATED(lalo))) THEN
+            ALLOCATE(lalo(knon,2), stat = error)
+            IF (error /= 0) THEN
+               abort_message='Pb allocation lalo'
+               CALL abort_physic(modname,abort_message,1)
+            ENDIF
+         ENDIF
+       
+         IF ((.NOT. ALLOCATED(bounds_lalo))) THEN
+           ALLOCATE(bounds_lalo(knon,nvertex,2), stat = error)
+           IF (error /= 0) THEN
+             abort_message='Pb allocation lalo'
+             CALL abort_physic(modname,abort_message,1)
+           ENDIF
+         ENDIF
+       
+         IF ((.NOT. ALLOCATED(lon_scat))) THEN
+            ALLOCATE(lon_scat(nbp_lon,nbp_lat), stat = error)
+            IF (error /= 0) THEN
+               abort_message='Pb allocation lon_scat'
+               CALL abort_physic(modname,abort_message,1)
+            ENDIF
+         ENDIF
+         IF ((.NOT. ALLOCATED(lat_scat))) THEN
+            ALLOCATE(lat_scat(nbp_lon,nbp_lat), stat = error)
+            IF (error /= 0) THEN
+               abort_message='Pb allocation lat_scat'
+               CALL abort_physic(modname,abort_message,1)
+            ENDIF
+         ENDIF
+         lon_scat = 0.
+         lat_scat = 0.
+         DO igrid = 1, knon
+            index = knindex(igrid)
+            lalo(igrid,2) = rlon(index)
+            lalo(igrid,1) = rlat(index)
+            bounds_lalo(igrid,:,2)=boundslon(index,:)*180./PI
+            bounds_lalo(igrid,:,1)=boundslat(index,:)*180./PI
+         ENDDO
+
+       
+       
+         CALL Gather(rlon,rlon_g)
+         CALL Gather(rlat,rlat_g)
+
+         IF (is_mpi_root) THEN
+            index = 1
+            DO jj = 2, nbp_lat-1
+               DO ij = 1, nbp_lon
+                  index = index + 1
+                  lon_scat(ij,jj) = rlon_g(index)
+                  lat_scat(ij,jj) = rlat_g(index)
+               ENDDO
+            ENDDO
+            lon_scat(:,1) = lon_scat(:,2)
+            lat_scat(:,1) = rlat_g(1)
+            lon_scat(:,nbp_lat) = lon_scat(:,2)
+            lat_scat(:,nbp_lat) = rlat_g(klon_glo)
+         ENDIF
+   
+         CALL bcast(lon_scat)
+         CALL bcast(lat_scat)
+       
+       ENDIF
+!
+! Allouer et initialiser le tableau des voisins et des fraction de continents
+!
+       IF (( .NOT. ALLOCATED(contfrac))) THEN
+          ALLOCATE(contfrac(knon), stat = error)
+          IF (error /= 0) THEN
+             abort_message='Pb allocation contfrac'
+             CALL abort_physic(modname,abort_message,1)
+          ENDIF
+       ENDIF
+
+       DO igrid = 1, knon
+          ireal = knindex(igrid)
+          contfrac(igrid) = pctsrf(ireal,is_ter)
+       ENDDO
+
+
+       IF (grid_type==regular_lonlat) THEN
+ 
+         IF ( (.NOT.ALLOCATED(neighbours))) THEN
+          ALLOCATE(neighbours(knon,8), stat = error)
+          IF (error /= 0) THEN
+             abort_message='Pb allocation neighbours'
+             CALL abort_physic(modname,abort_message,1)
+          ENDIF
+         ENDIF
+         neighbours = -1.
+         CALL Init_neighbours(knon,neighbours,knindex,pctsrf(:,is_ter))
+
+       ELSE IF (grid_type==unstructured) THEN
+ 
+         IF ( (.NOT.ALLOCATED(neighbours))) THEN
+          ALLOCATE(neighbours(knon,12), stat = error)
+          IF (error /= 0) THEN
+             abort_message='Pb allocation neighbours'
+             CALL abort_physic(modname,abort_message,1)
+          ENDIF
+         ENDIF
+         neighbours = -1.
+ 
+       ENDIF
+         
+
+!
+!  Allocation et calcul resolutions
+       IF ( (.NOT.ALLOCATED(resolution))) THEN
+          ALLOCATE(resolution(knon,2), stat = error)
+          IF (error /= 0) THEN
+             abort_message='Pb allocation resolution'
+             CALL abort_physic(modname,abort_message,1)
+          ENDIF
+       ENDIF
+       
+       IF (grid_type==regular_lonlat) THEN
+         DO igrid = 1, knon
+            ij = knindex(igrid)
+            resolution(igrid,1) = dx(ij)
+           resolution(igrid,2) = dy(ij)
+         ENDDO
+       ENDIF
+        
+       ALLOCATE(coastalflow(klon), stat = error)
+       IF (error /= 0) THEN
+          abort_message='Pb allocation coastalflow'
+          CALL abort_physic(modname,abort_message,1)
+       ENDIF
+       
+       ALLOCATE(riverflow(klon), stat = error)
+       IF (error /= 0) THEN
+          abort_message='Pb allocation riverflow'
+          CALL abort_physic(modname,abort_message,1)
+       ENDIF
+!
+! carbon_cycle_cpl not possible with this interface and version of ORHCHIDEE
+!
+! >> PC
+!       IF (carbon_cycle_cpl) THEN
+!          abort_message='carbon_cycle_cpl not yet possible with this interface of ORCHIDEE'
+!          CALL abort_physic(modname,abort_message,1)
+!       END IF
+! << PC
+       
+    ENDIF                          ! (fin debut) 
+ 
+! 
+! Appel a la routine sols continentaux
+!
+    IF (lafin) lrestart_write = .TRUE.
+    IF (check) WRITE(lunout,*)'lafin ',lafin,lrestart_write
+     
+    petA_orc(1:knon) = petBcoef(1:knon) * dtime
+    petB_orc(1:knon) = petAcoef(1:knon)
+    peqA_orc(1:knon) = peqBcoef(1:knon) * dtime
+    peqB_orc(1:knon) = peqAcoef(1:knon)
+
+    cdrag = 0.
+    cdrag(1:knon) = tq_cdrag(1:knon)
+
+! zlev(1:knon) = (100.*plev(1:knon))/((ps(1:knon)/287.05*temp_air(1:knon))*9.80665)
+!    zlev(1:knon) = (100.*plev(1:knon))/((ps(1:knon)/RD*temp_air(1:knon))*RG)
+     zlev(1:knon) = plev(1:knon)*RD*temp_air(1:knon)/((ps(1:knon)*100.0)*RG)
+
+
+! PF et PASB
+!   where(cdrag > 0.01) 
+!     cdrag = 0.01
+!   endwhere
+!  write(*,*)'Cdrag = ',minval(cdrag),maxval(cdrag)
+
+  
+    IF (debut) THEN
+       CALL Init_orchidee_index(knon,knindex,offset,ktindex)
+       CALL Get_orchidee_communicator(orch_comm,orch_mpi_size,orch_mpi_rank, orch_omp_size,orch_omp_rank)
+
+       IF (grid_type==unstructured) THEN
+         IF (knon==0) THEN
+           begin=1
+           end=0
+         ELSE
+           begin=offset+1
+           end=offset+ktindex(knon)
+         ENDIF
+        
+         IF (orch_mpi_rank==orch_mpi_size-1 .AND. orch_omp_rank==orch_omp_size-1) end=nbp_lon*nbp_lat 
+          
+         ALLOCATE(lalo(end-begin+1,2))
+         ALLOCATE(bounds_lalo(end-begin+1,nvertex,2))
+         ALLOCATE(ind_cell(end-begin+1))
+         
+         ALLOCATE(longitude_glo(klon_glo))
+         CALL gather(longitude,longitude_glo)
+         CALL bcast(longitude_glo)
+         lalo(:,2)=longitude_glo(begin:end)*180./PI
+ 
+         ALLOCATE(latitude_glo(klon_glo))
+         CALL gather(latitude,latitude_glo)
+         CALL bcast(latitude_glo)
+         lalo(:,1)=latitude_glo(begin:end)*180./PI
+
+         ALLOCATE(boundslon_glo(klon_glo,nvertex))
+         CALL gather(boundslon,boundslon_glo)
+         CALL bcast(boundslon_glo)
+         bounds_lalo(:,:,2)=boundslon_glo(begin:end,:)*180./PI
+ 
+         ALLOCATE(boundslat_glo(klon_glo,nvertex))
+         CALL gather(boundslat,boundslat_glo)
+         CALL bcast(boundslat_glo)
+         bounds_lalo(:,:,1)=boundslat_glo(begin:end,:)*180./PI
+         
+         ALLOCATE(ind_cell_glo_glo(klon_glo))
+         CALL gather(ind_cell_glo,ind_cell_glo_glo)
+         CALL bcast(ind_cell_glo_glo)
+         ind_cell(:)=ind_cell_glo_glo(begin:end)
+         
+       ENDIF
+       CALL Init_synchro_omp
+
+!$OMP BARRIER
+       
+       IF (knon > 0) THEN
+#ifdef CPP_VEGET
+         CALL Init_intersurf(nbp_lon,nbp_lat,knon,ktindex,offset,orch_omp_size,orch_omp_rank,orch_comm,grid=grid_type)
+#endif
+       ENDIF
+
+       CALL Synchro_omp
+
+       
+       IF (knon > 0) THEN 
+
+#ifdef CPP_VEGET
+
+         CALL intersurf_initialize_gathered (itime+itau_phy-1, nbp_lon, nbp_lat, knon, ktindex, dtime, &
+               lrestart_read, lrestart_write, lalo, contfrac, neighbours, resolution, date0, &
+               zlev,  u1_lay, v1_lay, spechum, temp_air, epot_air, &
+               cdrag, petA_orc, peqA_orc, petB_orc, peqB_orc, &
+               precip_rain, precip_snow, lwdown, swnet, swdown, ps, &
+               evap, fluxsens, fluxlat, coastalflow, riverflow, &
+               tsol_rad, tsurf_new, qsurf, albedo_out, emis_new, z0m_new, &    
+               lon_scat, lat_scat, q2m(1:knon), t2m(1:knon), z0h_new(1:knon), nvm_orch, &
+               grid=grid_type, bounds_latlon=bounds_lalo, cell_area=area, ind_cell_glo=ind_cell, &
+               field_out_names=cfname_out, field_in_names=cfname_in(1:nbcf_in_orc))
+#endif         
+       ENDIF
+
+       CALL Synchro_omp
+
+       albedo_keep(1:knon) = (albedo_out(1:knon,1)+albedo_out(1:knon,2))/2.
+
+    ENDIF
+    
+!  swdown_vrai(1:knon) = swnet(1:knon)/(1. - albedo_keep(1:knon))
+    swdown_vrai(1:knon) = swdown(1:knon)
+!$OMP BARRIER
+
+    IF (knon > 0) THEN
+#ifdef CPP_VEGET    
+       IF (nvm_orch .NE. nvm_lmdz ) THEN
+          abort_message='Pb de dimensiosn PFT: nvm_orch et nvm_lmdz differents.'
+          CALL abort_physic(modname,abort_message,1)
+       ENDIF
+
+       CALL intersurf_main_gathered (itime+itau_phy, nbp_lon, nbp_lat, knon, ktindex, dtime,  &
+            lrestart_read, lrestart_write, lalo, &
+            contfrac, neighbours, resolution, date0, &
+            zlev,  u1_lay(1:knon), v1_lay(1:knon), spechum(1:knon), temp_air(1:knon), epot_air(1:knon), ccanopy(1:knon), &
+            cdrag(1:knon), petA_orc(1:knon), peqA_orc(1:knon), petB_orc(1:knon), peqB_orc(1:knon), &
+            precip_rain(1:knon), precip_snow(1:knon), lwdown(1:knon), swnet(1:knon), swdown_vrai(1:knon), ps(1:knon), &
+            evap(1:knon), fluxsens(1:knon), fluxlat(1:knon), coastalflow(1:knon), riverflow(1:knon), &
+            tsol_rad(1:knon), tsurf_new(1:knon), qsurf(1:knon), albedo_out(1:knon,:), emis_new(1:knon), z0m_new(1:knon), &
+            lon_scat, lat_scat, q2m(1:knon), t2m(1:knon), z0h_new(1:knon),&
+            veget(1:knon,:),lai(1:knon,:),height(1:knon,:),&
+            fields_out=yfields_out(1:knon,1:nbcf_out),  &
+            fields_in=yfields_in(1:knon,1:nbcf_in_orc), &
+            coszang=yrmu0(1:knon))
+#endif       
+    ENDIF
+
+    CALL Synchro_omp
+    
+    albedo_keep(1:knon) = (albedo_out(1:knon,1)+albedo_out(1:knon,2))/2.
+
+!* Send to coupler
+!
+    IF (type_ocean=='couple') THEN
+       CALL cpl_send_land_fields(itime, knon, knindex, &
+            riverflow, coastalflow)
+    ENDIF
+
+    alb1_new(1:knon) = albedo_out(1:knon,1) 
+    alb2_new(1:knon) = albedo_out(1:knon,2)
+
+! Convention orchidee: positif vers le haut
+    fluxsens(1:knon) = -1. * fluxsens(1:knon)
+    fluxlat(1:knon)  = -1. * fluxlat(1:knon)
+    
+!  evap     = -1. * evap
+
+    IF (debut) lrestart_read = .FALSE.
+    
+    IF (debut) CALL Finalize_surf_para
+
+! >> PC
+! Decompressing variables into LMDz for the module carbon_cycle_mod
+! nbcf_in can be zero, in which case the loop does not operate
+! fields_in can then used elsewhere in the model
+     
+     fields_in(:,:)=0.0
+
+     DO nb=1, nbcf_in_orc
+       DO igrid = 1, knon
+        ireal = knindex(igrid)
+        fields_in(ireal,nb)=yfields_in(igrid,nb)
+       ENDDO
+       WRITE(*,*) 'surf_land_orchidee_mod --- yfields_in :',cfname_in(nb)
+     ENDDO
+! >> PC
+    
+  END SUBROUTINE surf_land_orchidee
+!
+!****************************************************************************************
+!
+  SUBROUTINE Init_orchidee_index(knon,knindex,offset,ktindex)
+  USE mod_surf_para
+  USE mod_grid_phy_lmdz
+  
+    INTEGER,INTENT(IN)    :: knon
+    INTEGER,INTENT(IN)    :: knindex(klon)    
+    INTEGER,INTENT(OUT)   :: offset
+    INTEGER,INTENT(OUT)   :: ktindex(klon)
+    
+    INTEGER               :: ktindex_glo(knon_glo)
+    INTEGER               :: offset_para(0:omp_size*mpi_size-1)
+    INTEGER               :: LastPoint
+    INTEGER               :: task
+    
+    ktindex(1:knon)=knindex(1:knon)+(klon_mpi_begin-1)+(klon_omp_begin-1)+nbp_lon-1
+    
+    CALL gather_surf(ktindex(1:knon),ktindex_glo) 
+    
+    IF (is_mpi_root .AND. is_omp_root) THEN
+      LastPoint=0
+      DO Task=0,mpi_size*omp_size-1
+        IF (knon_glo_para(Task)>0) THEN
+           offset_para(task)= LastPoint-MOD(LastPoint,nbp_lon)
+           LastPoint=ktindex_glo(knon_glo_end_para(task))
+        ENDIF
+      ENDDO
+    ENDIF
+    
+    CALL bcast(offset_para)
+    
+    offset=offset_para(omp_size*mpi_rank+omp_rank)
+    
+    ktindex(1:knon)=ktindex(1:knon)-offset
+
+  END SUBROUTINE Init_orchidee_index
+
+!
+!************************* ***************************************************************
+! 
+
+  SUBROUTINE Get_orchidee_communicator(orch_comm, orch_mpi_size, orch_mpi_rank, orch_omp_size,orch_omp_rank)
+  USE  mod_surf_para
+      
+#ifdef CPP_MPI
+    INCLUDE 'mpif.h'
+#endif    
+
+    INTEGER,INTENT(OUT) :: orch_comm
+    INTEGER,INTENT(OUT) :: orch_mpi_size
+    INTEGER,INTENT(OUT) :: orch_mpi_rank
+    INTEGER,INTENT(OUT) :: orch_omp_size
+    INTEGER,INTENT(OUT) :: orch_omp_rank
+    INTEGER             :: color
+    INTEGER             :: i,ierr
+!
+! End definition
+!****************************************************************************************
+    
+    IF (is_omp_root) THEN          
+      
+      IF (knon_mpi==0) THEN 
+         color = 0
+      ELSE 
+         color = 1
+      ENDIF
+    
+#ifdef CPP_MPI    
+      CALL MPI_COMM_SPLIT(COMM_LMDZ_PHY,color,mpi_rank,orch_comm,ierr)
+      CALL MPI_COMM_SIZE(orch_comm,orch_mpi_size,ierr)
+      CALL MPI_COMM_RANK(orch_comm,orch_mpi_rank,ierr)
+#endif
+    
+    ENDIF
+    CALL bcast_omp(orch_comm)
+    
+    IF (knon_mpi /= 0) THEN
+      orch_omp_size=0
+      DO i=0,omp_size-1
+        IF (knon_omp_para(i) /=0) THEN
+          orch_omp_size=orch_omp_size+1
+          IF (i==omp_rank) orch_omp_rank=orch_omp_size-1
+        ENDIF
+      ENDDO
+    ENDIF
+    
+  END SUBROUTINE Get_orchidee_communicator
+!
+!****************************************************************************************
+!  
+
+  SUBROUTINE Init_neighbours(knon,neighbours,knindex,pctsrf)
+    USE mod_grid_phy_lmdz
+    USE mod_surf_para    
+    USE indice_sol_mod
+
+#ifdef CPP_MPI
+    INCLUDE 'mpif.h'
+#endif    
+
+! Input arguments
+!****************************************************************************************
+    INTEGER, INTENT(IN)                     :: knon
+    INTEGER, DIMENSION(klon), INTENT(IN)    :: knindex
+    REAL, DIMENSION(klon), INTENT(IN)       :: pctsrf
+    
+! Output arguments
+!****************************************************************************************
+    INTEGER, DIMENSION(knon,8), INTENT(OUT) :: neighbours
+
+! Local variables
+!****************************************************************************************
+    INTEGER                              :: i, igrid, jj, ij, iglob
+    INTEGER                              :: ierr, ireal, index
+    INTEGER, DIMENSION(8,3)              :: off_ini
+    INTEGER, DIMENSION(8)                :: offset  
+    INTEGER, DIMENSION(nbp_lon,nbp_lat)  :: correspond
+    INTEGER, DIMENSION(knon_glo)         :: ktindex_glo
+    INTEGER, DIMENSION(knon_glo,8)       :: neighbours_glo
+    REAL, DIMENSION(klon_glo)            :: pctsrf_glo
+    INTEGER                              :: ktindex(klon)
+!
+! End definition
+!****************************************************************************************
+
+    ktindex(1:knon)=knindex(1:knon)+(klon_mpi_begin-1)+(klon_omp_begin-1)+nbp_lon-1
+    
+    CALL gather_surf(ktindex(1:knon),ktindex_glo)
+    CALL gather(pctsrf,pctsrf_glo)
+    
+    IF (is_mpi_root .AND. is_omp_root) THEN
+      neighbours_glo(:,:)=-1
+!  Initialisation des offset    
+!
+! offset bord ouest
+       off_ini(1,1) = - nbp_lon   ; off_ini(2,1) = - nbp_lon + 1     ; off_ini(3,1) = 1
+       off_ini(4,1) = nbp_lon + 1 ; off_ini(5,1) = nbp_lon           ; off_ini(6,1) = 2 * nbp_lon - 1
+       off_ini(7,1) = nbp_lon -1  ; off_ini(8,1) = - 1 
+! offset point normal
+       off_ini(1,2) = - nbp_lon   ; off_ini(2,2) = - nbp_lon + 1     ; off_ini(3,2) = 1
+       off_ini(4,2) = nbp_lon + 1 ; off_ini(5,2) = nbp_lon           ; off_ini(6,2) = nbp_lon - 1
+       off_ini(7,2) = -1          ; off_ini(8,2) = - nbp_lon - 1
+! offset bord   est
+       off_ini(1,3) = - nbp_lon   ; off_ini(2,3) = - 2 * nbp_lon + 1 ; off_ini(3,3) = - nbp_lon + 1
+       off_ini(4,3) =  1          ; off_ini(5,3) = nbp_lon           ; off_ini(6,3) = nbp_lon - 1
+       off_ini(7,3) = -1          ; off_ini(8,3) = - nbp_lon - 1
+!
+! Attention aux poles
+!
+       DO igrid = 1, knon_glo
+          index = ktindex_glo(igrid)
+          jj = INT((index - 1)/nbp_lon) + 1
+          ij = index - (jj - 1) * nbp_lon
+          correspond(ij,jj) = igrid
+       ENDDO
+!sonia : Les mailles des voisines doivent etre toutes egales (pour couplage orchidee)
+       IF (knon_glo == 1) THEN
+         igrid = 1
+         DO i = 1,8
+           neighbours_glo(igrid, i) = igrid
+         ENDDO
+       ELSE
+       
+       DO igrid = 1, knon_glo
+          iglob = ktindex_glo(igrid)
+          
+          IF (MOD(iglob, nbp_lon) == 1) THEN
+             offset = off_ini(:,1)
+          ELSE IF(MOD(iglob, nbp_lon) == 0) THEN
+             offset = off_ini(:,3)
+          ELSE
+             offset = off_ini(:,2)
+          ENDIF
+          
+          DO i = 1, 8
+             index = iglob + offset(i)
+             ireal = (MIN(MAX(1, index - nbp_lon + 1), klon_glo))
+             IF (pctsrf_glo(ireal) > EPSFRA) THEN
+                jj = INT((index - 1)/nbp_lon) + 1
+                ij = index - (jj - 1) * nbp_lon
+                neighbours_glo(igrid, i) = correspond(ij, jj)
+             ENDIF
+          ENDDO
+       ENDDO
+       ENDIF !fin knon_glo == 1
+
+    ENDIF
+    
+    DO i = 1, 8
+      CALL scatter_surf(neighbours_glo(:,i),neighbours(1:knon,i))
+    ENDDO
+  END SUBROUTINE Init_neighbours
+
+!
+!****************************************************************************************
+!
+#endif
+#endif
+#endif
+#endif
+END MODULE surf_land_orchidee_mod

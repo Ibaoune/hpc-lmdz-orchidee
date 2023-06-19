@@ -1,0 +1,119 @@
+#!/bin/ksh
+#set -vx
+
+#**************************************************************
+# Author: Nicolas Vuichard
+# Contact: Nioclas.Vuichard@lsce.jussieu.fr
+# $Date: July 2011
+# $Name$
+# $Revision: 1 $
+# History:
+# Modification: 
+#
+#**************************************************************
+
+
+
+input=$@
+paper=-p
+quality=cx1800
+debug=
+flag_reference_file=0
+group=GRA
+config_ref=
+config_eval=
+
+
+mv ../stat_${config_eval}_${config_ref}_${group}_GPP_hour.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_GPP_day.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_GPP_month.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_GPP_year.csv .
+
+mv ../stat_${config_eval}_${config_ref}_${group}_TER_hour.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_TER_day.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_TER_month.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_TER_year.csv .
+
+mv ../stat_${config_eval}_${config_ref}_${group}_NEE_hour.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_NEE_day.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_NEE_month.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_NEE_year.csv .
+
+mv ../stat_${config_eval}_${config_ref}_${group}_SH_hour.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_SH_day.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_SH_month.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_SH_year.csv .
+
+mv ../stat_${config_eval}_${config_ref}_${group}_LH_hour.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_LH_day.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_LH_month.csv .
+mv ../stat_${config_eval}_${config_ref}_${group}_LH_year.csv .
+
+
+cp ../taylor_arrow_fluxnet_final_2.jnl .
+
+
+
+# Ratio one day over time step
+one_day=86400
+ratio=$(( one_day/1800 ))
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_GPP_hour.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "hour-to-hour GPP variability" -o  gpp_hour taylor_arrow_fluxnet_final_2.jnl "${NumSites} hour $flag_reference_file GPP ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_GPP_day.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "day-to-day GPP variability" -o  gpp_day taylor_arrow_fluxnet_final_2.jnl "${NumSites} day $flag_reference_file GPP ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_GPP_month.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "month-to-month GPP variability" -o  gpp_month taylor_arrow_fluxnet_final_2.jnl "${NumSites} month $flag_reference_file GPP ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_GPP_year.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "year-to-year GPP variability" -o  gpp_year taylor_arrow_fluxnet_final_2.jnl "${NumSites} year $flag_reference_file GPP ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_TER_hour.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "hour-to-hour TER variability" -o  ter_hour taylor_arrow_fluxnet_final_2.jnl "${NumSites} hour $flag_reference_file TER ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_TER_day.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "day-to-day TER variability" -o  ter_day taylor_arrow_fluxnet_final_2.jnl "${NumSites} day $flag_reference_file TER ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_TER_month.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "month-to-month TER variability" -o  ter_month taylor_arrow_fluxnet_final_2.jnl "${NumSites} month $flag_reference_file TER ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_TER_year.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "year-to-year TER variability" -o  ter_year taylor_arrow_fluxnet_final_2.jnl "${NumSites} year $flag_reference_file TER ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_NEE_hour.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "hour-to-hour NEE variability" -o  nee_hour taylor_arrow_fluxnet_final_2.jnl "${NumSites} hour $flag_reference_file NEE ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_NEE_day.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "day-to-day NEE variability" -o  nee_day taylor_arrow_fluxnet_final_2.jnl "${NumSites} day $flag_reference_file NEE ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_NEE_month.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "month-to-month NEE variability" -o  nee_month taylor_arrow_fluxnet_final_2.jnl "${NumSites} month $flag_reference_file NEE ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_NEE_year.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "year-to-year NEE variability" -o  nee_year taylor_arrow_fluxnet_final_2.jnl "${NumSites} year $flag_reference_file NEE ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_SH_hour.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "hour-to-hour SH variability" -o  sh_hour taylor_arrow_fluxnet_final_2.jnl "${NumSites} hour $flag_reference_file SH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_SH_day.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "day-to-day SH variability" -o  sh_day taylor_arrow_fluxnet_final_2.jnl "${NumSites} day $flag_reference_file SH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_SH_month.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "month-to-month SH variability" -o  sh_month taylor_arrow_fluxnet_final_2.jnl "${NumSites} month $flag_reference_file SH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_SH_year.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "year-to-year SH variability" -o  sh_year taylor_arrow_fluxnet_final_2.jnl "${NumSites} year $flag_reference_file SH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_LH_hour.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "hour-to-hour LH variability" -o  lh_hour taylor_arrow_fluxnet_final_2.jnl "${NumSites} hour $flag_reference_file LH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_LH_day.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "day-to-day LH variability" -o  lh_day taylor_arrow_fluxnet_final_2.jnl "${NumSites} day $flag_reference_file LH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_LH_month.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "month-to-month LH variability" -o  lh_month taylor_arrow_fluxnet_final_2.jnl "${NumSites} month $flag_reference_file LH ${config_eval} ${config_ref} ${group}"
+
+NumSites=`wc -l stat_${config_eval}_${config_ref}_${group}_LH_year.csv | sed -e "s/\([0-9]*\).*/\1/g"`
+echo ${input} | ferretloop - ${debug} --ps2gif_option "-g $quality" -p -i "year-to-year LH variability" -o  lh_year taylor_arrow_fluxnet_final_2.jnl "${NumSites} year $flag_reference_file LH ${config_eval} ${config_ref} ${group}"

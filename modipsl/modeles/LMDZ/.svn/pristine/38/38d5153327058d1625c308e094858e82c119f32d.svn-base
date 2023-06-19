@@ -1,0 +1,68 @@
+
+! $Id$
+
+SUBROUTINE o3cm(amb, bmb, sortie, ntab)
+  IMPLICIT NONE
+  ! ======================================================================
+  ! Auteur(s): Z.X. Li (LMD/CNRS) date: 19930818
+  ! Objet: Ce programme calcule le contenu en ozone "sortie"
+  ! (unite: cm.atm) entre deux niveaux "amb" et "bmb" (unite: mb)
+  ! "ntab" est le nombre d'intervalles pour l'integration, sa
+  ! valeur depend bien sur de l'epaisseur de la couche et de
+  ! la precision qu'on souhaite a obtenir
+  ! ======================================================================
+  REAL amb, bmb, sortie
+  INTEGER ntab
+  ! ======================================================================
+  INTEGER n
+  REAL xtab(500), xa, xb, ya, yb, xincr
+  ! ======================================================================
+  EXTERNAL mbtozm
+  CHARACTER (LEN=20) :: modname = ''
+  CHARACTER (LEN=80) :: abort_message
+  ! ======================================================================
+  ! la fonction en ligne w(x) donne le profil de l'ozone en fonction
+  ! de l'altitude (unite: cm.atm / km)
+  ! (Green 1964, Appl. Opt. 3: 203-208)
+  REAL wp, xp, h, x, w, con
+  PARAMETER (wp=0.218, xp=23.25, h=4.63, con=1.0)
+
+  w(x) = wp/h*exp((x-xp)/h)/(con+exp((x-xp)/h))**2
+  ! ======================================================================
+  IF (ntab>499) THEN
+    abort_message = 'BIG ntab'
+    CALL abort_physic(modname, abort_message, 1)
+  END IF
+  xincr = (bmb-amb)/real(ntab)
+  xtab(1) = amb
+  DO n = 2, ntab
+    xtab(n) = xtab(n-1) + xincr
+  END DO
+  xtab(ntab+1) = bmb
+  sortie = 0.0
+  DO n = 1, ntab
+    CALL mbtozm(xtab(n), xa)
+    CALL mbtozm(xtab(n+1), xb)
+    xa = xa/1000.
+    xb = xb/1000.
+    ya = w(xa)
+    yb = w(xb)
+    sortie = sortie + (ya+yb)/2.0*abs(xb-xa)
+  END DO
+  RETURN
+END SUBROUTINE o3cm
+SUBROUTINE mbtozm(rmb, zm)
+  IMPLICIT NONE
+  ! ======================================================================
+  ! Auteur(s): Z.X. Li (LMD/CNRS)
+  ! Objet: transformer une hauteur de mb (rmb) en metre (zm)
+  ! ======================================================================
+  REAL rmb, zm
+  ! ======================================================================
+  REAL gama, tzero, pzero, g, r
+  PARAMETER (gama=6.5E-3, tzero=288., pzero=1013.25)
+  PARAMETER (g=9.81, r=287.0)
+
+  zm = tzero/gama*(1.-(rmb/pzero)**(r*gama/g))
+  RETURN
+END SUBROUTINE mbtozm

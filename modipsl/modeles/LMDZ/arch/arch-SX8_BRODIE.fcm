@@ -1,0 +1,17 @@
+%COMPILER            sxmpif90
+%LINK                sxmpif90
+%AR                  sxar
+%ARFLAGS             rs
+%MAKE                sxgmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE BLAS SGEMV=DGEMV SGEMM=DGEMM FFT_MATHKEISAN
+%BASE_FFLAGS         -P stack -Wf,-pvctl res=whole,-A dbl4,-ptr byte -EP -R5 -float0 -dw -Wf,"-pvctl loopcnt=999999 fullmsg noassume"
+%PROD_FFLAGS         -C vopt
+%DEV_FFLAGS          -C vsafe -gv -Wf,-init stack=nan,-init heap=nan
+%DEBUG_FFLAGS        -C debug -eR -Wf,-init stack=nan,-init heap=nan
+%MPI_FFLAGS
+%OMP_FFLAGS          -P openmp
+%BASE_LD             -lblas -lfft
+%MPI_LD
+%OMP_LD              -P openmp  -Wl,"-ZL 3G"
+

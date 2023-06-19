@@ -1,0 +1,110 @@
+#!/bin/ksh
+######################
+## TOUBKAL    UM6P ##
+######################
+#SBATCH --job-name=ProbEnv-Res142        # Job Name
+#SBATCH --output=Script_Output_ProbEnv-Res142.000001    # standard output
+#SBATCH --error=Script_Output_ProbEnv-Res142.000001    # error output
+#SBATCH --ntasks=71   # Number of MPI tasks
+#SBATCH --cpus-per-task=8  # Number of openMP threads.
+#SBATCH --hint=nomultithread         # 1 processus MPI par par physical core (no hyperthreading)
+#SBATCH --time=00:30:00             # Wall clock limit (minutes)
+#SBATCH --account=CLIMAT-UM6P-ST-IWRI-7KSIFKVWKUY-DEFAULT-CPU
+##BATCH_NUM_PROC_TOT=$BRIDGE_SBATCH_NPROC
+set +x
+
+#**************************************************************
+# Author: Sebastien Denvil
+# Contact: Sebastien.Denvil__at__ipsl.jussieu.fr
+# $Revision:: 1536                                     $ Revision of last commit
+# $Author:: rpennel                                    $ Author of last commit
+# $Date:: 2020-07-03 15:16:53 +0200 (Fri, 03 Jul 2020) $ Date of last commit
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see libIGCM/libIGCM_CeCILL.LIC
+#
+#**************************************************************
+
+date
+
+echo
+echo "#######################################"
+echo "#  ANOTHER GREAT DEBUG SIMULATION #"
+echo "#######################################"
+echo
+
+#D------------------------------------------------------
+#D- ENVIRONMENT
+#D-     - Loading environment needed to run
+#D------------------------------------------------------
+
+MODIPSL=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl
+libIGCM=${MODIPSL}/libIGCM
+SRF_comp=::SRF_comp::
+OCE_comp=::OCE_comp::
+CPL_comp=::CPL_comp::
+CHM_comp=::CHM_comp::
+JobName=::JOBNAME::
+::SUBMIT_DIR::
+ExecutionType=::EXECUTION_TYPE::
+
+
+. ./arch.env
+
+module list
+
+# Enable the copy of binary files from modipsl directory (default n)
+# Could be useful in case of modifications (and so recompilation) in the sources
+copy_executable=n
+
+#D------------------------------------------------------
+#D- EXECUTION
+#D-     - Copy binary files from modipsl directory (only if copy_executable=y)
+#D-     - Remove of some out restart files 
+#D-     - Execution
+#D------------------------------------------------------
+
+cd ${SUBMIT_DIR}
+
+if [ X${copy_executable} = Xy ] ; then
+while read EXEIN EXEOUT ;do
+ eval EXEIN=${EXEIN}
+ cp ${MODIPSL}/bin/${EXEIN} ${EXEOUT}
+done < components_binary.txt
+fi
+
+if [ X${SRF_comp} = Xy ] ; then
+  [ -f sechiba_rest_out.nc ] && rm -f sechiba_rest_out.nc
+  [ -f stomate_rest_out.nc ] && rm -f stomate_rest_out.nc
+  [ -f driver_rest_out.nc ] && rm -f driver_rest_out.nc
+fi
+if [ X${OCE_comp} = Xy ] ; then
+  [ X${JobName} != X ] && rm -f ${JobName}*restart*.nc
+fi
+
+if [ X${CPL_comp} = Xy ] ; then
+  if [ -f sstoc_orig.nc ] ; then
+    cp sstoc_orig.nc sstoc.nc
+    cp flxat_orig.nc flxat.nc
+    cp icbrg_orig.nc icbrg.nc
+    cp icshf_orig.nc icshf.nc
+  else
+   cp sstoc.nc sstoc_orig.nc
+   cp flxat.nc flxat_orig.nc
+   cp icbrg.nc icbrg_orig.nc
+   cp icshf.nc icshf_orig.nc
+  fi
+fi
+if [ X${CHM_comp} = Xy ] ; then
+  [ -f reprecipinsoil.dat ] && rm -f reprecipinsoil.dat
+fi
+
+
+
+::EXECUTION:: > out_execution  2>&1
+RET=$?
+if [ ${RET} -gt 0 ] ; then
+    echo "Return code of executable :" ${RET}
+fi
+
+date
+exit

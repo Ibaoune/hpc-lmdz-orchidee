@@ -1,0 +1,1914 @@
+#include "conf_gcm.F90"
+
+!
+! $Id: 1DUTILS.h 3686 2020-05-27 12:59:10Z fhourdin $
+!
+!
+!
+      SUBROUTINE conf_unicol
+!
+#ifdef CPP_IOIPSL
+      use IOIPSL
+#else
+! if not using IOIPSL, we still need to use (a local version of) getin
+      use ioipsl_getincom
+#endif
+      USE print_control_mod, ONLY: lunout
+      IMPLICIT NONE
+!-----------------------------------------------------------------------
+!     Auteurs :   A. Lahellec  .
+!
+!   Declarations :
+!   --------------
+
+#include "compar1d.h"
+#include "flux_arp.h"
+#include "tsoilnudge.h"
+#include "fcg_gcssold.h"
+#include "fcg_racmo.h"
+!
+!
+!   local:
+!   ------
+
+!      CHARACTER ch1*72,ch2*72,ch3*72,ch4*12
+      
+!
+!  -------------------------------------------------------------------
+!
+!      .........    Initilisation parametres du lmdz1D      ..........
+!
+!---------------------------------------------------------------------
+!   initialisations:
+!   ----------------
+
+!Config  Key  = lunout
+!Config  Desc = unite de fichier pour les impressions
+!Config  Def  = 6
+!Config  Help = unite de fichier pour les impressions 
+!Config         (defaut sortie standard = 6)
+      lunout=6
+!      CALL getin('lunout', lunout)
+      IF (lunout /= 5 .and. lunout /= 6) THEN
+        OPEN(lunout,FILE='lmdz.out')
+      ENDIF
+
+!Config  Key  = prt_level
+!Config  Desc = niveau d'impressions de debogage
+!Config  Def  = 0
+!Config  Help = Niveau d'impression pour le debogage
+!Config         (0 = minimum d'impression)
+!      prt_level = 0
+!      CALL getin('prt_level',prt_level)
+
+!-----------------------------------------------------------------------
+!  Parametres de controle du run:
+!-----------------------------------------------------------------------
+
+!Config  Key  = restart
+!Config  Desc = on repart des startphy et start1dyn
+!Config  Def  = false
+!Config  Help = les fichiers restart doivent etre renomme en start
+       restart =.false.
+       CALL getin('restart',restart)
+
+!Config  Key  = forcing_type
+!Config  Desc = defines the way the SCM is forced:
+!Config  Def  = 0
+!!Config  Help = 0 ==> forcing_les = .true.
+!             initial profiles from file prof.inp.001
+!             no forcing by LS convergence ; 
+!             surface temperature imposed ;
+!             radiative cooling may be imposed (iflag_radia=0 in physiq.def)
+!         = 1 ==> forcing_radconv = .true.
+!             idem forcing_type = 0, but the imposed radiative cooling 
+!             is set to 0 (hence, if iflag_radia=0 in physiq.def, 
+!             then there is no radiative cooling at all)
+!         = 2 ==> forcing_toga = .true.
+!             initial profiles from TOGA-COARE IFA files 
+!             LS convergence and SST imposed from TOGA-COARE IFA files 
+!         = 3 ==> forcing_GCM2SCM = .true.
+!             initial profiles from the GCM output
+!             LS convergence imposed from the GCM output
+!         = 4 ==> forcing_twpi = .true.
+!             initial profiles from TWPICE nc files 
+!             LS convergence and SST imposed from TWPICE nc files 
+!         = 5 ==> forcing_rico = .true.
+!             initial profiles from RICO idealized
+!             LS convergence imposed from  RICO (cst) 
+!         = 6 ==> forcing_amma = .true.
+!         = 10 ==> forcing_case = .true.
+!             initial profiles from case.nc file 
+!         = 40 ==> forcing_GCSSold = .true.
+!             initial profile from GCSS file
+!             LS convergence imposed from GCSS file
+!         = 50 ==> forcing_fire = .true.
+!         = 59 ==> forcing_sandu = .true.
+!             initial profiles from sanduref file: see prof.inp.001
+!             SST varying with time and divergence constante: see ifa_sanduref.txt file
+!             Radiation has to be computed interactively
+!         = 60 ==> forcing_astex = .true.
+!             initial profiles from file: see prof.inp.001 
+!             SST,divergence,ug,vg,ufa,vfa varying with time : see ifa_astex.txt file
+!             Radiation has to be computed interactively
+!         = 61 ==> forcing_armcu = .true.
+!             initial profiles from file: see prof.inp.001 
+!             sensible and latent heat flux imposed: see ifa_arm_cu_1.txt
+!             large scale advective forcing & radiative tendencies applied below 1000m: see ifa_arm_cu_2.txt
+!             use geostrophic wind ug=10m/s vg=0m/s. Duration of the case 53100s 
+!             Radiation to be switched off
+!         > 100 ==> forcing_case = .true. or forcing_case2 = .true.
+!             initial profiles from case.nc file 
+!
+       forcing_type = 0
+       CALL getin('forcing_type',forcing_type)
+         imp_fcg_gcssold   = .false.
+         ts_fcg_gcssold    = .false.  
+         Tp_fcg_gcssold    = .false.  
+         Tp_ini_gcssold    = .false.  
+         xTurb_fcg_gcssold = .false. 
+        IF (forcing_type .eq.40) THEN
+          CALL getin('imp_fcg',imp_fcg_gcssold)
+          CALL getin('ts_fcg',ts_fcg_gcssold)
+          CALL getin('tp_fcg',Tp_fcg_gcssold)
+          CALL getin('tp_ini',Tp_ini_gcssold)
+          CALL getin('turb_fcg',xTurb_fcg_gcssold)
+        ENDIF
+
+!Parametres de forcage
+!Config  Key  = tend_t
+!Config  Desc = forcage ou non par advection de T
+!Config  Def  = false
+!Config  Help = forcage ou non par advection de T
+       tend_t =0
+       CALL getin('tend_t',tend_t)
+
+!Config  Key  = tend_q
+!Config  Desc = forcage ou non par advection de q
+!Config  Def  = false
+!Config  Help = forcage ou non par advection de q
+       tend_q =0
+       CALL getin('tend_q',tend_q)
+
+!Config  Key  = tend_u
+!Config  Desc = forcage ou non par advection de u
+!Config  Def  = false
+!Config  Help = forcage ou non par advection de u
+       tend_u =0
+       CALL getin('tend_u',tend_u)
+
+!Config  Key  = tend_v
+!Config  Desc = forcage ou non par advection de v
+!Config  Def  = false
+!Config  Help = forcage ou non par advection de v
+       tend_v =0
+       CALL getin('tend_v',tend_v)
+
+!Config  Key  = tend_w
+!Config  Desc = forcage ou non par vitesse verticale
+!Config  Def  = false
+!Config  Help = forcage ou non par vitesse verticale
+       tend_w =0
+       CALL getin('tend_w',tend_w)
+
+!Config  Key  = tend_rayo
+!Config  Desc = forcage ou non par dtrad
+!Config  Def  = false
+!Config  Help = forcage ou non par dtrad
+       tend_rayo =0
+       CALL getin('tend_rayo',tend_rayo)
+
+
+!Config  Key  = nudge_t
+!Config  Desc = constante de nudging de T
+!Config  Def  = false
+!Config  Help = constante de nudging de T
+       nudge_t =0.
+       CALL getin('nudge_t',nudge_t)
+
+!Config  Key  = nudge_q
+!Config  Desc = constante de nudging de q
+!Config  Def  = false
+!Config  Help = constante de nudging de q
+       nudge_q =0.
+       CALL getin('nudge_q',nudge_q)
+
+!Config  Key  = nudge_u
+!Config  Desc = constante de nudging de u
+!Config  Def  = false
+!Config  Help = constante de nudging de u
+       nudge_u =0.
+       CALL getin('nudge_u',nudge_u)
+
+!Config  Key  = nudge_v
+!Config  Desc = constante de nudging de v
+!Config  Def  = false
+!Config  Help = constante de nudging de v
+       nudge_v =0.
+       CALL getin('nudge_v',nudge_v)
+
+!Config  Key  = nudge_w
+!Config  Desc = constante de nudging de w
+!Config  Def  = false
+!Config  Help = constante de nudging de w
+       nudge_w =0.
+       CALL getin('nudge_w',nudge_w)
+
+
+!Config  Key  = iflag_nudge
+!Config  Desc = atmospheric nudging ttype (decimal code)
+!Config  Def  = 0
+!Config  Help = 0 ==> no nudging
+!  If digit number n of iflag_nudge is set, then nudging of type n is on
+!  If digit number n of iflag_nudge is not set, then nudging of type n is off
+!   (digits are numbered from the right)
+       iflag_nudge = 0
+       CALL getin('iflag_nudge',iflag_nudge)
+
+!Config  Key  = ok_flux_surf
+!Config  Desc = forcage ou non par les flux de surface
+!Config  Def  = false
+!Config  Help = forcage ou non par les flux de surface
+       ok_flux_surf =.false.
+       CALL getin('ok_flux_surf',ok_flux_surf)
+
+!Config  Key  = ok_prescr_ust
+!Config  Desc = ustar impose ou non
+!Config  Def  = false
+!Config  Help = ustar impose ou non
+       ok_prescr_ust = .false.
+       CALL getin('ok_prescr_ust',ok_prescr_ust)
+
+!Config  Key  = ok_old_disvert
+!Config  Desc = utilisation de l ancien programme disvert0 (dans 1DUTILS.h)
+!Config  Def  = false
+!Config  Help = utilisation de l ancien programme disvert0 (dans 1DUTILS.h)
+       ok_old_disvert = .FALSE.
+       CALL getin('ok_old_disvert',ok_old_disvert)
+
+!Config  Key  = time_ini
+!Config  Desc = meaningless in this  case
+!Config  Def  = 0.
+!Config  Help = 
+       tsurf = 0.
+       CALL getin('time_ini',time_ini)
+
+!Config  Key  = rlat et rlon
+!Config  Desc = latitude et longitude
+!Config  Def  = 0.0  0.0
+!Config  Help = fixe la position de la colonne
+       xlat = 0.
+       xlon = 0.
+       CALL getin('rlat',xlat)
+       CALL getin('rlon',xlon)
+
+!Config  Key  = airephy
+!Config  Desc = Grid cell area
+!Config  Def  = 1.e11
+!Config  Help = 
+       airefi = 1.e11
+       CALL getin('airephy',airefi)
+
+!Config  Key  = nat_surf
+!Config  Desc = surface type
+!Config  Def  = 0 (ocean)
+!Config  Help = 0=ocean,1=land,2=glacier,3=banquise
+       nat_surf = 0.
+       CALL getin('nat_surf',nat_surf)
+
+!Config  Key  = tsurf
+!Config  Desc = surface temperature
+!Config  Def  = 290.
+!Config  Help = not used if type_ts_forcing=1 in lmdz1d.F
+       tsurf = 290.
+       CALL getin('tsurf',tsurf)
+
+!Config  Key  = psurf
+!Config  Desc = surface pressure
+!Config  Def  = 102400.
+!Config  Help = 
+       psurf = 102400.
+       CALL getin('psurf',psurf)
+
+!Config  Key  = zsurf
+!Config  Desc = surface altitude
+!Config  Def  = 0.
+!Config  Help = 
+       zsurf = 0.
+       CALL getin('zsurf',zsurf)
+
+!Config  Key  = rugos
+!Config  Desc = coefficient de frottement
+!Config  Def  = 0.0001
+!Config  Help = calcul du Cdrag
+       rugos = 0.0001
+       CALL getin('rugos',rugos)
+! FH/2020/04/08/confinement: Pour le nouveau format standard, la rugosite s'appelle z0
+       CALL getin('z0',rugos)
+
+!Config  Key  = rugosh
+!Config  Desc = coefficient de frottement
+!Config  Def  = rugos
+!Config  Help = calcul du Cdrag
+       rugosh = rugos
+       CALL getin('rugosh',rugosh)
+
+
+
+!Config  Key  = snowmass
+!Config  Desc = mass de neige de la surface en kg/m2
+!Config  Def  = 0.0000
+!Config  Help = snowmass
+       snowmass = 0.0000
+       CALL getin('snowmass',snowmass)
+
+!Config  Key  = wtsurf et wqsurf
+!Config  Desc = ???
+!Config  Def  = 0.0 0.0
+!Config  Help = 
+       wtsurf = 0.0
+       wqsurf = 0.0
+       CALL getin('wtsurf',wtsurf)
+       CALL getin('wqsurf',wqsurf)
+
+!Config  Key  = albedo
+!Config  Desc = albedo
+!Config  Def  = 0.09
+!Config  Help = 
+       albedo = 0.09
+       CALL getin('albedo',albedo)
+
+!Config  Key  = agesno
+!Config  Desc = age de la neige
+!Config  Def  = 30.0
+!Config  Help = 
+       xagesno = 30.0
+       CALL getin('agesno',xagesno)
+
+!Config  Key  = restart_runoff
+!Config  Desc = age de la neige
+!Config  Def  = 30.0
+!Config  Help = 
+       restart_runoff = 0.0
+       CALL getin('restart_runoff',restart_runoff)
+
+!Config  Key  = qsolinp
+!Config  Desc = initial bucket water content (kg/m2) when land (5std)
+!Config  Def  = 30.0
+!Config  Help = 
+       qsolinp = 1.
+       CALL getin('qsolinp',qsolinp)
+
+!Config  Key  = zpicinp
+!Config  Desc = denivellation orographie
+!Config  Def  = 0.
+!Config  Help =  input brise
+       zpicinp = 0.
+       CALL getin('zpicinp',zpicinp)
+!Config key = nudge_tsoil
+!Config  Desc = activation of soil temperature nudging
+!Config  Def  = .FALSE.
+!Config  Help = ...
+
+       nudge_tsoil=.FALSE.
+       CALL getin('nudge_tsoil',nudge_tsoil)
+
+!Config key = isoil_nudge
+!Config  Desc = level number where soil temperature is nudged
+!Config  Def  = 3
+!Config  Help = ...
+
+       isoil_nudge=3
+       CALL getin('isoil_nudge',isoil_nudge)
+
+!Config key = Tsoil_nudge
+!Config  Desc = target temperature for tsoil(isoil_nudge)
+!Config  Def  = 300.
+!Config  Help = ...
+
+       Tsoil_nudge=300.
+       CALL getin('Tsoil_nudge',Tsoil_nudge)
+
+!Config key = tau_soil_nudge
+!Config  Desc = nudging relaxation time for tsoil
+!Config  Def  = 3600.
+!Config  Help = ...
+
+       tau_soil_nudge=3600.
+       CALL getin('tau_soil_nudge',tau_soil_nudge)
+
+!----------------------------------------------------------
+! Param??tres de for??age pour les forcages communs:
+! Pour les forcages communs: ces entiers valent 0 ou 1
+! tadv= advection tempe, tadvv= adv tempe verticale, tadvh= adv tempe horizontale
+! qadv= advection q, qadvv= adv q verticale, qadvh= adv q horizontale
+! trad= 0 (rayonnement actif) ou 1 (prescrit par tend_rad) ou adv (prescir et contenu dans les tadv)
+! forcages en omega, w, vent geostrophique ou ustar
+! Parametres de nudging en u,v,t,q valent 0 ou 1 ou le temps de nudging
+!----------------------------------------------------------
+
+!Config  Key  = tadv
+!Config  Desc = forcage ou non par advection totale de T
+!Config  Def  = false
+!Config  Help = forcage ou non par advection totale de T
+       tadv =0
+       CALL getin('tadv',tadv)
+
+!Config  Key  = tadvv
+!Config  Desc = forcage ou non par advection verticale de T
+!Config  Def  = false
+!Config  Help = forcage ou non par advection verticale de T
+       tadvv =0
+       CALL getin('tadvv',tadvv)
+
+!Config  Key  = tadvh
+!Config  Desc = forcage ou non par advection horizontale de T
+!Config  Def  = false
+!Config  Help = forcage ou non par advection horizontale de T
+       tadvh =0
+       CALL getin('tadvh',tadvh)
+
+!Config  Key  = thadv
+!Config  Desc = forcage ou non par advection totale de Theta
+!Config  Def  = false
+!Config  Help = forcage ou non par advection totale de Theta
+       thadv =0
+       CALL getin('thadv',thadv)
+
+!Config  Key  = thadvv
+!Config  Desc = forcage ou non par advection verticale de Theta
+!Config  Def  = false
+!Config  Help = forcage ou non par advection verticale de Theta
+       thadvv =0
+       CALL getin('thadvv',thadvv)
+
+!Config  Key  = thadvh
+!Config  Desc = forcage ou non par advection horizontale de Theta
+!Config  Def  = false
+!Config  Help = forcage ou non par advection horizontale de Theta
+       thadvh =0
+       CALL getin('thadvh',thadvh)
+
+!Config  Key  = qadv
+!Config  Desc = forcage ou non par advection totale de Q
+!Config  Def  = false
+!Config  Help = forcage ou non par advection totale de Q
+       qadv =0
+       CALL getin('qadv',qadv)
+
+!Config  Key  = qadvv
+!Config  Desc = forcage ou non par advection verticale de Q
+!Config  Def  = false
+!Config  Help = forcage ou non par advection verticale de Q
+       qadvv =0
+       CALL getin('qadvv',qadvv)
+
+!Config  Key  = qadvh
+!Config  Desc = forcage ou non par advection horizontale de Q
+!Config  Def  = false
+!Config  Help = forcage ou non par advection horizontale de Q
+       qadvh =0
+       CALL getin('qadvh',qadvh)
+
+!Config  Key  = trad
+!Config  Desc = forcage ou non par tendance radiative
+!Config  Def  = false
+!Config  Help = forcage ou non par tendance radiative
+       trad =0
+       CALL getin('trad',trad)
+
+!Config  Key  = forc_omega
+!Config  Desc = forcage ou non par omega
+!Config  Def  = false
+!Config  Help = forcage ou non par omega
+       forc_omega =0
+       CALL getin('forc_omega',forc_omega)
+
+!Config  Key  = forc_u
+!Config  Desc = forcage ou non par u
+!Config  Def  = false
+!Config  Help = forcage ou non par u
+       forc_u =0
+       CALL getin('forc_u',forc_u)
+
+!Config  Key  = forc_v
+!Config  Desc = forcage ou non par v
+!Config  Def  = false
+!Config  Help = forcage ou non par v
+       forc_v =0
+       CALL getin('forc_v',forc_v)
+!Config  Key  = forc_w
+!Config  Desc = forcage ou non par w
+!Config  Def  = false
+!Config  Help = forcage ou non par w
+       forc_w =0
+       CALL getin('forc_w',forc_w)
+
+!Config  Key  = forc_geo
+!Config  Desc = forcage ou non par geo
+!Config  Def  = false
+!Config  Help = forcage ou non par geo
+       forc_geo =0
+       CALL getin('forc_geo',forc_geo)
+
+! Meme chose que ok_precr_ust
+!Config  Key  = forc_ustar
+!Config  Desc = forcage ou non par ustar
+!Config  Def  = false
+!Config  Help = forcage ou non par ustar
+       forc_ustar =0
+       CALL getin('forc_ustar',forc_ustar)
+       IF (forc_ustar .EQ. 1) ok_prescr_ust=.true.
+
+!Config  Key  = nudging_u
+!Config  Desc = forcage ou non par nudging sur u
+!Config  Def  = false
+!Config  Help = forcage ou non par nudging sur u
+       nudging_u =0
+       CALL getin('nudging_u',nudging_u)
+
+!Config  Key  = nudging_v
+!Config  Desc = forcage ou non par nudging sur v
+!Config  Def  = false
+!Config  Help = forcage ou non par nudging sur v
+       nudging_v =0
+       CALL getin('nudging_v',nudging_v)
+
+!Config  Key  = nudging_w
+!Config  Desc = forcage ou non par nudging sur w
+!Config  Def  = false
+!Config  Help = forcage ou non par nudging sur w
+       nudging_w =0
+       CALL getin('nudging_w',nudging_w)
+
+! RELIQUE ANCIENS FORMAT. ECRASE PAR LE SUIVANT
+!Config  Key  = nudging_q
+!Config  Desc = forcage ou non par nudging sur q
+!Config  Def  = false
+!Config  Help = forcage ou non par nudging sur q
+       nudging_qv =0
+       CALL getin('nudging_q',nudging_qv)
+       CALL getin('nudging_qv',nudging_qv)
+
+       p_nudging_u=11000.
+       p_nudging_v=11000.
+       p_nudging_t=11000.
+       p_nudging_qv=11000.
+       CALL getin('p_nudging_u',p_nudging_u)
+       CALL getin('p_nudging_v',p_nudging_v)
+       CALL getin('p_nudging_t',p_nudging_t)
+       CALL getin('p_nudging_qv',p_nudging_qv)
+
+!Config  Key  = nudging_t
+!Config  Desc = forcage ou non par nudging sur t
+!Config  Def  = false
+!Config  Help = forcage ou non par nudging sur t
+       nudging_t =0
+       CALL getin('nudging_t',nudging_t)
+
+
+
+      write(lunout,*)' +++++++++++++++++++++++++++++++++++++++'
+      write(lunout,*)' Configuration des parametres du gcm1D: '
+      write(lunout,*)' +++++++++++++++++++++++++++++++++++++++'
+      write(lunout,*)' restart = ', restart
+      write(lunout,*)' forcing_type = ', forcing_type
+      write(lunout,*)' time_ini = ', time_ini
+      write(lunout,*)' rlat = ', xlat
+      write(lunout,*)' rlon = ', xlon
+      write(lunout,*)' airephy = ', airefi
+      write(lunout,*)' nat_surf = ', nat_surf
+      write(lunout,*)' tsurf = ', tsurf
+      write(lunout,*)' psurf = ', psurf
+      write(lunout,*)' zsurf = ', zsurf
+      write(lunout,*)' rugos = ', rugos
+      write(lunout,*)' snowmass=', snowmass
+      write(lunout,*)' wtsurf = ', wtsurf
+      write(lunout,*)' wqsurf = ', wqsurf
+      write(lunout,*)' albedo = ', albedo
+      write(lunout,*)' xagesno = ', xagesno
+      write(lunout,*)' restart_runoff = ', restart_runoff
+      write(lunout,*)' qsolinp = ', qsolinp
+      write(lunout,*)' zpicinp = ', zpicinp
+      write(lunout,*)' nudge_tsoil = ', nudge_tsoil
+      write(lunout,*)' isoil_nudge = ', isoil_nudge
+      write(lunout,*)' Tsoil_nudge = ', Tsoil_nudge
+      write(lunout,*)' tau_soil_nudge = ', tau_soil_nudge
+      write(lunout,*)' tadv =      ', tadv
+      write(lunout,*)' tadvv =     ', tadvv
+      write(lunout,*)' tadvh =     ', tadvh
+      write(lunout,*)' thadv =     ', thadv
+      write(lunout,*)' thadvv =    ', thadvv
+      write(lunout,*)' thadvh =    ', thadvh
+      write(lunout,*)' qadv =      ', qadv
+      write(lunout,*)' qadvv =     ', qadvv
+      write(lunout,*)' qadvh =     ', qadvh
+      write(lunout,*)' trad =      ', trad
+      write(lunout,*)' forc_omega = ', forc_omega
+      write(lunout,*)' forc_w     = ', forc_w
+      write(lunout,*)' forc_geo   = ', forc_geo
+      write(lunout,*)' forc_ustar = ', forc_ustar
+      write(lunout,*)' nudging_u  = ', nudging_u
+      write(lunout,*)' nudging_v  = ', nudging_v
+      write(lunout,*)' nudging_t  = ', nudging_t
+      write(lunout,*)' nudging_qv  = ', nudging_qv
+      IF (forcing_type .eq.40) THEN
+        write(lunout,*) '--- Forcing type GCSS Old --- with:'
+        write(lunout,*)'imp_fcg',imp_fcg_gcssold
+        write(lunout,*)'ts_fcg',ts_fcg_gcssold
+        write(lunout,*)'tp_fcg',Tp_fcg_gcssold
+        write(lunout,*)'tp_ini',Tp_ini_gcssold
+        write(lunout,*)'xturb_fcg',xTurb_fcg_gcssold
+      ENDIF
+
+      write(lunout,*)' +++++++++++++++++++++++++++++++++++++++'
+      write(lunout,*)
+!
+      RETURN
+      END
+!
+! $Id: dyn1deta0.F 1279 2010/07/30 A Lahellec$
+!
+!
+      SUBROUTINE dyn1deta0(fichnom,plev,play,phi,phis,presnivs,                 &
+     &                          ucov,vcov,temp,q,omega2)
+      USE dimphy
+      USE mod_grid_phy_lmdz
+      USE mod_phys_lmdz_para
+      USE iophy
+      USE phys_state_var_mod
+      USE iostart
+      USE write_field_phy
+      USE infotrac
+      use control_mod
+      USE comconst_mod, ONLY: im, jm, lllm
+      USE logic_mod, ONLY: fxyhypb, ysinus
+      USE temps_mod, ONLY: annee_ref, day_ini, day_ref, itau_dyn
+
+      IMPLICIT NONE
+!=======================================================
+! Ecriture du fichier de redemarrage sous format NetCDF
+!=======================================================
+!   Declarations:
+!   -------------
+      include "dimensions.h"
+!!#include "control.h"
+      include "netcdf.inc"
+
+!   Arguments:
+!   ----------
+      CHARACTER*(*) fichnom
+!Al1 plev tronque pour .nc mais plev(klev+1):=0
+      real :: plev(klon,klev+1),play (klon,klev),phi(klon,klev)
+      real :: presnivs(klon,klev)
+      real :: ucov(klon,klev),vcov(klon,klev),temp(klon,klev)
+      real :: q(klon,klev,nqtot),omega2(klon,klev)
+!      real :: ug(klev),vg(klev),fcoriolis
+      real :: phis(klon) 
+
+!   Variables locales pour NetCDF:
+!   ------------------------------
+      INTEGER iq
+      INTEGER length
+      PARAMETER (length = 100)
+      REAL tab_cntrl(length) ! tableau des parametres du run
+      character*4 nmq(nqtot)
+      character*12 modname
+      character*80 abort_message
+      LOGICAL found
+
+      modname = 'dyn1deta0 : '
+!!      nmq(1)="vap"
+!!      nmq(2)="cond"
+!!      do iq=3,nqtot
+!!        write(nmq(iq),'("tra",i1)') iq-2
+!!      enddo
+      DO iq = 1,nqtot
+        nmq(iq) = trim(tname(iq))
+      ENDDO
+      print*,'in dyn1deta0 ',fichnom,klon,klev,nqtot
+      CALL open_startphy(fichnom)
+      print*,'after open startphy ',fichnom,nmq
+
+!
+! Lecture des parametres de controle:
+!
+      CALL get_var("controle",tab_cntrl)
+       
+
+      im         = tab_cntrl(1)
+      jm         = tab_cntrl(2)
+      lllm       = tab_cntrl(3)
+      day_ref    = tab_cntrl(4)
+      annee_ref  = tab_cntrl(5)
+!      rad        = tab_cntrl(6)
+!      omeg       = tab_cntrl(7)
+!      g          = tab_cntrl(8)
+!      cpp        = tab_cntrl(9)
+!      kappa      = tab_cntrl(10)
+!      daysec     = tab_cntrl(11)
+!      dtvr       = tab_cntrl(12)
+!      etot0      = tab_cntrl(13)
+!      ptot0      = tab_cntrl(14)
+!      ztot0      = tab_cntrl(15)
+!      stot0      = tab_cntrl(16)
+!      ang0       = tab_cntrl(17)
+!      pa         = tab_cntrl(18)
+!      preff      = tab_cntrl(19)
+!
+!      clon       = tab_cntrl(20)
+!      clat       = tab_cntrl(21)
+!      grossismx  = tab_cntrl(22)
+!      grossismy  = tab_cntrl(23)
+!
+      IF ( tab_cntrl(24).EQ.1. )  THEN
+        fxyhypb  =.true.
+!        dzoomx   = tab_cntrl(25)
+!        dzoomy   = tab_cntrl(26)
+!        taux     = tab_cntrl(28)
+!        tauy     = tab_cntrl(29)
+      ELSE
+        fxyhypb = .false.
+        ysinus  = .false.
+        IF( tab_cntrl(27).EQ.1. ) ysinus =.true. 
+      ENDIF
+
+      day_ini = tab_cntrl(30)
+      itau_dyn = tab_cntrl(31)
+!   .................................................................
+!
+!
+!      PRINT*,'rad,omeg,g,cpp,kappa',rad,omeg,g,cpp,kappa
+!Al1
+       Print*,'day_ref,annee_ref,day_ini,itau_dyn',                         &
+     &              day_ref,annee_ref,day_ini,itau_dyn
+
+!  Lecture des champs
+!
+      CALL get_field("play",play,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <Play> est absent'
+      CALL get_field("phi",phi,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <Phi> est absent'
+      CALL get_field("phis",phis,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <Phis> est absent'
+      CALL get_field("presnivs",presnivs,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <Presnivs> est absent'
+      CALL get_field("ucov",ucov,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <ucov> est absent'
+      CALL get_field("vcov",vcov,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <vcov> est absent'
+      CALL get_field("temp",temp,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <temp> est absent'
+      CALL get_field("omega2",omega2,found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <omega2> est absent'
+      plev(1,klev+1)=0.
+      CALL get_field("plev",plev(:,1:klev),found)
+      IF (.NOT. found) PRINT*, modname//'Le champ <Plev> est absent'
+
+      Do iq=1,nqtot
+        CALL get_field("q"//nmq(iq),q(:,:,iq),found)
+        IF (.NOT.found)PRINT*, modname//'Le champ <q'//nmq//'> est absent'
+      EndDo
+
+      CALL close_startphy
+      print*,' close startphy',fichnom,play(1,1),play(1,klev),temp(1,klev)
+!
+      RETURN
+      END
+!
+! $Id: dyn1dredem.F 1279 2010/07/29 A Lahellec$
+!
+!
+      SUBROUTINE dyn1dredem(fichnom,plev,play,phi,phis,presnivs,           &
+     &                          ucov,vcov,temp,q,omega2)
+      USE dimphy
+      USE mod_grid_phy_lmdz
+      USE mod_phys_lmdz_para
+      USE phys_state_var_mod
+      USE iostart
+      USE infotrac
+      use control_mod
+      USE comconst_mod, ONLY: cpp, daysec, dtvr, g, kappa, omeg, rad
+      USE logic_mod, ONLY: fxyhypb, ysinus
+      USE temps_mod, ONLY: annee_ref,day_end,day_ref,itau_dyn,itaufin
+
+      IMPLICIT NONE
+!=======================================================
+! Ecriture du fichier de redemarrage sous format NetCDF
+!=======================================================
+!   Declarations:
+!   -------------
+      include "dimensions.h"
+!!#include "control.h"
+      include "netcdf.inc"
+
+!   Arguments:
+!   ----------
+      CHARACTER*(*) fichnom
+!Al1 plev tronque pour .nc mais plev(klev+1):=0
+      real :: plev(klon,klev),play (klon,klev),phi(klon,klev)
+      real :: presnivs(klon,klev)
+      real :: ucov(klon,klev),vcov(klon,klev),temp(klon,klev)
+      real :: q(klon,klev,nqtot)
+      real :: omega2(klon,klev),rho(klon,klev+1)
+!      real :: ug(klev),vg(klev),fcoriolis
+      real :: phis(klon) 
+
+!   Variables locales pour NetCDF:
+!   ------------------------------
+      INTEGER nid
+      INTEGER ierr
+      INTEGER iq,l
+      INTEGER length
+      PARAMETER (length = 100)
+      REAL tab_cntrl(length) ! tableau des parametres du run
+      character*4 nmq(nqtot)
+      character*20 modname
+      character*80 abort_message
+!
+      INTEGER pass
+
+      CALL open_restartphy(fichnom)
+      print*,'redm1 ',fichnom,klon,klev,nqtot
+!!      nmq(1)="vap"
+!!      nmq(2)="cond"
+!!      nmq(3)="tra1"
+!!      nmq(4)="tra2"
+      DO iq = 1,nqtot
+        nmq(iq) = trim(tname(iq))
+      ENDDO
+
+!     modname = 'dyn1dredem'
+!     ierr = NF_OPEN(fichnom, NF_WRITE, nid)
+!     IF (ierr .NE. NF_NOERR) THEN
+!        abort_message="Pb. d ouverture "//fichnom
+!        CALL abort_gcm('Modele 1D',abort_message,1)
+!     ENDIF
+
+      DO l=1,length
+       tab_cntrl(l) = 0.
+      ENDDO
+       tab_cntrl(1)  = FLOAT(iim)
+       tab_cntrl(2)  = FLOAT(jjm)
+       tab_cntrl(3)  = FLOAT(llm)
+       tab_cntrl(4)  = FLOAT(day_ref)
+       tab_cntrl(5)  = FLOAT(annee_ref)
+       tab_cntrl(6)  = rad
+       tab_cntrl(7)  = omeg
+       tab_cntrl(8)  = g
+       tab_cntrl(9)  = cpp
+       tab_cntrl(10) = kappa
+       tab_cntrl(11) = daysec
+       tab_cntrl(12) = dtvr
+!       tab_cntrl(13) = etot0
+!       tab_cntrl(14) = ptot0
+!       tab_cntrl(15) = ztot0
+!       tab_cntrl(16) = stot0
+!       tab_cntrl(17) = ang0
+!       tab_cntrl(18) = pa
+!       tab_cntrl(19) = preff
+!
+!    .....    parametres  pour le zoom      ......   
+
+!       tab_cntrl(20)  = clon
+!       tab_cntrl(21)  = clat
+!       tab_cntrl(22)  = grossismx
+!       tab_cntrl(23)  = grossismy
+!
+      IF ( fxyhypb )   THEN
+       tab_cntrl(24) = 1.
+!       tab_cntrl(25) = dzoomx
+!       tab_cntrl(26) = dzoomy
+       tab_cntrl(27) = 0.
+!       tab_cntrl(28) = taux
+!       tab_cntrl(29) = tauy
+      ELSE
+       tab_cntrl(24) = 0.
+!       tab_cntrl(25) = dzoomx
+!       tab_cntrl(26) = dzoomy
+       tab_cntrl(27) = 0.
+       tab_cntrl(28) = 0.
+       tab_cntrl(29) = 0.
+       IF( ysinus )  tab_cntrl(27) = 1.
+      ENDIF
+!Al1 iday_end -> day_end
+       tab_cntrl(30) = FLOAT(day_end)
+       tab_cntrl(31) = FLOAT(itau_dyn + itaufin)
+!
+      DO pass=1,2
+      CALL put_var(pass,"controle","Param. de controle Dyn1D",tab_cntrl)
+!
+
+!  Ecriture/extension de la coordonnee temps
+
+
+!  Ecriture des champs
+!
+      CALL put_field(pass,"plev","p interfaces sauf la nulle",plev)
+      CALL put_field(pass,"play","",play)
+      CALL put_field(pass,"phi","geopotentielle",phi)
+      CALL put_field(pass,"phis","geopotentiell de surface",phis)
+      CALL put_field(pass,"presnivs","",presnivs)
+      CALL put_field(pass,"ucov","",ucov)
+      CALL put_field(pass,"vcov","",vcov)
+      CALL put_field(pass,"temp","",temp)
+      CALL put_field(pass,"omega2","",omega2)
+
+      Do iq=1,nqtot
+        CALL put_field(pass,"q"//nmq(iq),"eau vap ou condens et traceurs",           &
+     &                                                      q(:,:,iq))
+      EndDo
+    IF (pass==1) CALL enddef_restartphy
+    IF (pass==2) CALL close_restartphy
+
+
+      ENDDO
+
+!
+      RETURN
+      END
+      SUBROUTINE gr_fi_dyn(nfield,ngrid,im,jm,pfi,pdyn)
+      IMPLICIT NONE
+!=======================================================================
+!   passage d'un champ de la grille scalaire a la grille physique
+!=======================================================================
+ 
+!-----------------------------------------------------------------------
+!   declarations:
+!   -------------
+ 
+      INTEGER im,jm,ngrid,nfield
+      REAL pdyn(im,jm,nfield)
+      REAL pfi(ngrid,nfield)
+ 
+      INTEGER i,j,ifield,ig
+ 
+!-----------------------------------------------------------------------
+!   calcul:
+!   -------
+ 
+      DO ifield=1,nfield
+!   traitement des poles
+         DO i=1,im
+            pdyn(i,1,ifield)=pfi(1,ifield)
+            pdyn(i,jm,ifield)=pfi(ngrid,ifield)
+         ENDDO
+ 
+!   traitement des point normaux
+         DO j=2,jm-1
+            ig=2+(j-2)*(im-1)
+            CALL SCOPY(im-1,pfi(ig,ifield),1,pdyn(1,j,ifield),1)
+            pdyn(im,j,ifield)=pdyn(1,j,ifield)
+         ENDDO
+      ENDDO
+ 
+      RETURN
+      END
+ 
+ 
+
+      SUBROUTINE abort_gcm(modname, message, ierr)
+ 
+      USE IOIPSL
+!
+! Stops the simulation cleanly, closing files and printing various
+! comments
+!
+!  Input: modname = name of calling program
+!         message = stuff to print
+!         ierr    = severity of situation ( = 0 normal )
+ 
+      character(len=*) modname
+      integer ierr
+      character(len=*) message
+ 
+      write(*,*) 'in abort_gcm'
+      call histclo
+!     call histclo(2)
+!     call histclo(3)
+!     call histclo(4)
+!     call histclo(5)
+      write(*,*) 'out of histclo'
+      write(*,*) 'Stopping in ', modname
+      write(*,*) 'Reason = ',message
+      call getin_dump
+!
+      if (ierr .eq. 0) then
+        write(*,*) 'Everything is cool'
+      else
+        write(*,*) 'Houston, we have a problem ', ierr
+      endif
+      STOP
+      END
+      REAL FUNCTION fq_sat(kelvin, millibar)
+!
+      IMPLICIT none
+!======================================================================
+! Autheur(s): Z.X. Li (LMD/CNRS)
+! Objet: calculer la vapeur d'eau saturante (formule Centre Euro.)
+!======================================================================
+! Arguments:
+! kelvin---input-R: temperature en Kelvin
+! millibar--input-R: pression en mb
+!
+! fq_sat----output-R: vapeur d'eau saturante en kg/kg
+!======================================================================
+!
+      REAL kelvin, millibar
+!
+      REAL r2es
+      PARAMETER (r2es=611.14 *18.0153/28.9644)
+!
+      REAL r3les, r3ies, r3es
+      PARAMETER (R3LES=17.269)
+      PARAMETER (R3IES=21.875)
+!
+      REAL r4les, r4ies, r4es
+      PARAMETER (R4LES=35.86)
+      PARAMETER (R4IES=7.66)
+!
+      REAL rtt
+      PARAMETER (rtt=273.16)
+!
+      REAL retv
+      PARAMETER (retv=28.9644/18.0153 - 1.0)
+!
+      REAL zqsat
+      REAL temp, pres
+!     ------------------------------------------------------------------
+!
+!
+      temp = kelvin
+      pres = millibar * 100.0
+!      write(*,*)'kelvin,millibar=',kelvin,millibar
+!      write(*,*)'temp,pres=',temp,pres
+!
+      IF (temp .LE. rtt) THEN
+         r3es = r3ies
+         r4es = r4ies
+      ELSE
+         r3es = r3les
+         r4es = r4les
+      ENDIF
+!
+      zqsat=r2es/pres * EXP ( r3es*(temp-rtt) / (temp-r4es) )
+      zqsat=MIN(0.5,ZQSAT)
+      zqsat=zqsat/(1.-retv  *zqsat)
+!
+      fq_sat = zqsat
+!
+      RETURN
+      END
+ 
+      SUBROUTINE gr_dyn_fi(nfield,im,jm,ngrid,pdyn,pfi)
+      IMPLICIT NONE
+!=======================================================================
+!   passage d'un champ de la grille scalaire a la grille physique
+!=======================================================================
+ 
+!-----------------------------------------------------------------------
+!   declarations:
+!   -------------
+ 
+      INTEGER im,jm,ngrid,nfield
+      REAL pdyn(im,jm,nfield)
+      REAL pfi(ngrid,nfield)
+ 
+      INTEGER j,ifield,ig
+ 
+!-----------------------------------------------------------------------
+!   calcul:
+!   -------
+ 
+      IF(ngrid.NE.2+(jm-2)*(im-1).AND.ngrid.NE.1)                          &
+     &    STOP 'probleme de dim'
+!   traitement des poles
+      CALL SCOPY(nfield,pdyn,im*jm,pfi,ngrid)
+      CALL SCOPY(nfield,pdyn(1,jm,1),im*jm,pfi(ngrid,1),ngrid)
+ 
+!   traitement des point normaux
+      DO ifield=1,nfield
+         DO j=2,jm-1
+            ig=2+(j-2)*(im-1)
+            CALL SCOPY(im-1,pdyn(1,j,ifield),1,pfi(ig,ifield),1)
+         ENDDO
+      ENDDO
+ 
+      RETURN
+      END
+ 
+      SUBROUTINE disvert0(pa,preff,ap,bp,dpres,presnivs,nivsigs,nivsig)
+ 
+!    Ancienne version disvert dont on a modifie nom pour utiliser
+!    le disvert de dyn3d (qui permet d'utiliser grille avec ab,bp imposes)
+!    (MPL 18092012)
+!
+!    Auteur :  P. Le Van .
+!
+      IMPLICIT NONE
+ 
+      include "dimensions.h"
+      include "paramet.h"
+!
+!=======================================================================
+!
+!
+!    s = sigma ** kappa   :  coordonnee  verticale
+!    dsig(l)            : epaisseur de la couche l ds la coord.  s
+!    sig(l)             : sigma a l'interface des couches l et l-1
+!    ds(l)              : distance entre les couches l et l-1 en coord.s
+!
+!=======================================================================
+!
+      REAL pa,preff
+      REAL ap(llmp1),bp(llmp1),dpres(llm),nivsigs(llm),nivsig(llmp1)
+      REAL presnivs(llm)
+!
+!   declarations:
+!   -------------
+!
+      REAL sig(llm+1),dsig(llm)
+!
+      INTEGER l
+      REAL snorm
+      REAL alpha,beta,gama,delta,deltaz,h
+      INTEGER np,ierr
+      REAL pi,x
+ 
+!-----------------------------------------------------------------------
+!
+      pi=2.*ASIN(1.)
+ 
+      OPEN(99,file='sigma.def',status='old',form='formatted',                   &
+     &   iostat=ierr)
+ 
+!-----------------------------------------------------------------------
+!   cas 1 on lit les options dans sigma.def:
+!   ----------------------------------------
+ 
+      IF (ierr.eq.0) THEN
+ 
+      print*,'WARNING!!! on lit les options dans sigma.def'
+      READ(99,*) deltaz
+      READ(99,*) h
+      READ(99,*) beta
+      READ(99,*) gama
+      READ(99,*) delta
+      READ(99,*) np
+      CLOSE(99)
+      alpha=deltaz/(llm*h)
+!
+ 
+       DO 1  l = 1, llm
+       dsig(l) = (alpha+(1.-alpha)*exp(-beta*(llm-l)))*                    &
+     &          ( (tanh(gama*l)/tanh(gama*llm))**np +                      &
+     &            (1.-l/FLOAT(llm))*delta )
+   1   CONTINUE
+ 
+       sig(1)=1.
+       DO 101 l=1,llm-1
+          sig(l+1)=sig(l)*(1.-dsig(l))/(1.+dsig(l))
+101    CONTINUE
+       sig(llm+1)=0.
+ 
+       DO 2  l = 1, llm
+       dsig(l) = sig(l)-sig(l+1)
+   2   CONTINUE
+!
+ 
+      ELSE
+!-----------------------------------------------------------------------
+!   cas 2 ancienne discretisation (LMD5...):
+!   ----------------------------------------
+ 
+      PRINT*,'WARNING!!! Ancienne discretisation verticale'
+ 
+      h=7.
+      snorm  = 0.
+      DO l = 1, llm
+         x = 2.*asin(1.) * (FLOAT(l)-0.5) / float(llm+1)
+         dsig(l) = 1.0 + 7.0 * SIN(x)**2
+         snorm = snorm + dsig(l)
+      ENDDO
+      snorm = 1./snorm
+      DO l = 1, llm
+         dsig(l) = dsig(l)*snorm
+      ENDDO
+      sig(llm+1) = 0.
+      DO l = llm, 1, -1
+         sig(l) = sig(l+1) + dsig(l)
+      ENDDO
+ 
+      ENDIF
+ 
+ 
+      DO l=1,llm
+        nivsigs(l) = FLOAT(l)
+      ENDDO
+ 
+      DO l=1,llmp1
+        nivsig(l)= FLOAT(l)
+      ENDDO
+ 
+!
+!    ....  Calculs  de ap(l) et de bp(l)  ....
+!    .........................................
+!
+!
+!   .....  pa et preff sont lus  sur les fichiers start par lectba  .....
+!
+ 
+      bp(llmp1) =   0.
+ 
+      DO l = 1, llm
+!c
+!cc    ap(l) = 0.
+!cc    bp(l) = sig(l)
+ 
+      bp(l) = EXP( 1. -1./( sig(l)*sig(l)) )
+      ap(l) = pa * ( sig(l) - bp(l) )
+!
+      ENDDO
+      ap(llmp1) = pa * ( sig(llmp1) - bp(llmp1) )
+ 
+      PRINT *,' BP '
+      PRINT *,  bp
+      PRINT *,' AP '
+      PRINT *,  ap
+ 
+      DO l = 1, llm
+       dpres(l) = bp(l) - bp(l+1)
+       presnivs(l) = 0.5 *( ap(l)+bp(l)*preff + ap(l+1)+bp(l+1)*preff )
+      ENDDO
+ 
+      PRINT *,' PRESNIVS '
+      PRINT *,presnivs
+ 
+      RETURN
+      END
+
+!======================================================================
+       SUBROUTINE read_tsurf1d(knon,sst_out)
+
+! This subroutine specifies the surface temperature to be used in 1D simulations
+
+      USE dimphy, ONLY : klon
+
+      INTEGER, INTENT(IN)                  :: knon     ! nomber of points on compressed grid
+      REAL, DIMENSION(klon), INTENT(OUT)   :: sst_out  ! tsurf used to force the single-column model
+
+       INTEGER :: i
+! COMMON defined in lmdz1d.F:
+       real ts_cur
+       common /sst_forcing/ts_cur
+
+       DO i = 1, knon
+        sst_out(i) = ts_cur
+       ENDDO
+
+      END SUBROUTINE read_tsurf1d
+
+!===============================================================
+      subroutine advect_vert(llm,w,dt,q,plev)
+!===============================================================
+!   Schema amont pour l'advection verticale en 1D
+!   w est la vitesse verticale dp/dt en Pa/s
+!   Traitement en volumes finis 
+!   d / dt ( zm q ) = delta_z ( omega q )
+!   d / dt ( zm ) = delta_z ( omega )
+!   avec zm = delta_z ( p )
+!   si * designe la valeur au pas de temps t+dt
+!   zm*(l) q*(l) - zm(l) q(l) = w(l+1) q(l+1) - w(l) q(l)
+!   zm*(l) -zm(l) = w(l+1) - w(l)
+!   avec w=omega * dt
+!---------------------------------------------------------------
+      implicit none
+! arguments
+      integer llm
+      real w(llm+1),q(llm),plev(llm+1),dt
+
+! local
+      integer l
+      real zwq(llm+1),zm(llm+1),zw(llm+1)
+      real qold
+
+!---------------------------------------------------------------
+
+      do l=1,llm
+         zw(l)=dt*w(l)
+         zm(l)=plev(l)-plev(l+1)
+         zwq(l)=q(l)*zw(l)
+      enddo
+      zwq(llm+1)=0.
+      zw(llm+1)=0.
+ 
+      do l=1,llm
+         qold=q(l)
+         q(l)=(q(l)*zm(l)+zwq(l+1)-zwq(l))/(zm(l)+zw(l+1)-zw(l))
+         print*,'ADV Q ',zm(l),zw(l),zwq(l),qold,q(l)
+      enddo
+
+ 
+      return
+      end
+
+!===============================================================
+
+
+       SUBROUTINE advect_va(llm,omega,d_t_va,d_q_va,d_u_va,d_v_va,              &
+     &                q,temp,u,v,play)
+!itlmd 
+!----------------------------------------------------------------------
+!   Calcul de l'advection verticale (ascendance et subsidence) de 
+!   temperature et d'humidite. Hypothese : ce qui rentre de l'exterieur
+!   a les memes caracteristiques que l'air de la colonne 1D (WTG) ou 
+!   sans WTG rajouter une advection horizontale 
+!----------------------------------------------------------------------  
+        implicit none
+#include "YOMCST.h"
+!        argument
+        integer llm
+        real  omega(llm+1),d_t_va(llm), d_q_va(llm,3)
+        real  d_u_va(llm), d_v_va(llm)
+        real  q(llm,3),temp(llm)
+        real  u(llm),v(llm)
+        real  play(llm)
+! interne
+        integer l
+        real alpha,omgdown,omgup
+
+      do l= 1,llm
+       if(l.eq.1) then
+!si omgup pour la couche 1, alors tendance nulle
+        omgdown=max(omega(2),0.0)
+        alpha = rkappa*temp(l)*(1.+q(l,1)*rv/rd)/(play(l)*(1.+q(l,1)))
+        d_t_va(l)= alpha*(omgdown)-omgdown*(temp(l)-temp(l+1))             &
+     &       /(play(l)-play(l+1))
+
+        d_q_va(l,:)= -omgdown*(q(l,:)-q(l+1,:))/(play(l)-play(l+1))              
+
+        d_u_va(l)= -omgdown*(u(l)-u(l+1))/(play(l)-play(l+1))              
+        d_v_va(l)= -omgdown*(v(l)-v(l+1))/(play(l)-play(l+1))              
+
+        
+       elseif(l.eq.llm) then
+        omgup=min(omega(l),0.0)
+        alpha = rkappa*temp(l)*(1.+q(l,1)*rv/rd)/(play(l)*(1.+q(l,1)))
+        d_t_va(l)= alpha*(omgup)-                                          &
+
+!bug?     &              omgup*(temp(l-1)-temp(l))/(play(l-1)-plev(l))
+     &              omgup*(temp(l-1)-temp(l))/(play(l-1)-play(l))
+        d_q_va(l,:)= -omgup*(q(l-1,:)-q(l,:))/(play(l-1)-play(l))
+        d_u_va(l)= -omgup*(u(l-1)-u(l))/(play(l-1)-play(l))
+        d_v_va(l)= -omgup*(v(l-1)-v(l))/(play(l-1)-play(l))
+       
+       else
+        omgup=min(omega(l),0.0)
+        omgdown=max(omega(l+1),0.0)
+        alpha = rkappa*temp(l)*(1.+q(l,1)*rv/rd)/(play(l)*(1.+q(l,1)))
+        d_t_va(l)= alpha*(omgup+omgdown)-omgdown*(temp(l)-temp(l+1))       &
+     &              /(play(l)-play(l+1))-                                  &
+!bug?     &              omgup*(temp(l-1)-temp(l))/(play(l-1)-plev(l))
+     &              omgup*(temp(l-1)-temp(l))/(play(l-1)-play(l))
+!      print*, '  ??? '
+
+        d_q_va(l,:)= -omgdown*(q(l,:)-q(l+1,:))                            &
+     &              /(play(l)-play(l+1))-                                  &
+     &              omgup*(q(l-1,:)-q(l,:))/(play(l-1)-play(l)) 
+        d_u_va(l)= -omgdown*(u(l)-u(l+1))                                  &
+     &              /(play(l)-play(l+1))-                                  &
+     &              omgup*(u(l-1)-u(l))/(play(l-1)-play(l)) 
+        d_v_va(l)= -omgdown*(v(l)-v(l+1))                                  &
+     &              /(play(l)-play(l+1))-                                  &
+     &              omgup*(v(l-1)-v(l))/(play(l-1)-play(l))
+       
+      endif
+         
+      enddo
+!fin itlmd
+        return
+        end
+!       SUBROUTINE lstendH(llm,omega,d_t_va,d_q_va,d_u_va,d_v_va,
+       SUBROUTINE lstendH(llm,nqtot,omega,d_t_va,d_q_va,                        &
+     &                q,temp,u,v,play)
+!itlmd 
+!----------------------------------------------------------------------
+!   Calcul de l'advection verticale (ascendance et subsidence) de 
+!   temperature et d'humidite. Hypothese : ce qui rentre de l'exterieur
+!   a les memes caracteristiques que l'air de la colonne 1D (WTG) ou 
+!   sans WTG rajouter une advection horizontale 
+!----------------------------------------------------------------------  
+        implicit none
+#include "YOMCST.h"
+!        argument
+        integer llm,nqtot
+        real  omega(llm+1),d_t_va(llm), d_q_va(llm,nqtot)
+!        real  d_u_va(llm), d_v_va(llm)
+        real  q(llm,nqtot),temp(llm)
+        real  u(llm),v(llm)
+        real  play(llm)
+        real cor(llm)
+!        real dph(llm),dudp(llm),dvdp(llm),dqdp(llm),dtdp(llm)
+        real dph(llm),dqdp(llm),dtdp(llm)
+! interne
+        integer k
+        real omdn,omup
+
+!        dudp=0.
+!        dvdp=0.
+        dqdp=0.
+        dtdp=0.
+!        d_u_va=0.
+!        d_v_va=0.
+
+      cor(:) = rkappa*temp*(1.+q(:,1)*rv/rd)/(play*(1.+q(:,1)))
+
+
+      do k=2,llm-1
+
+       dph  (k-1) = (play(k  )- play(k-1  ))
+!       dudp (k-1) = (u   (k  )- u   (k-1  ))/dph(k-1)
+!       dvdp (k-1) = (v   (k  )- v   (k-1  ))/dph(k-1)
+       dqdp (k-1) = (q   (k,1)- q   (k-1,1))/dph(k-1)
+       dtdp (k-1) = (temp(k  )- temp(k-1  ))/dph(k-1)
+
+      enddo
+
+!      dudp (  llm  ) = dudp ( llm-1 )
+!      dvdp (  llm  ) = dvdp ( llm-1 )
+      dqdp (  llm  ) = dqdp ( llm-1 )
+      dtdp (  llm  ) = dtdp ( llm-1 )
+
+      do k=2,llm-1
+      omdn=max(0.0,omega(k+1))
+      omup=min(0.0,omega( k ))
+
+!      d_u_va(k)  = -omdn*dudp(k)-omup*dudp(k-1)
+!      d_v_va(k)  = -omdn*dvdp(k)-omup*dvdp(k-1)
+      d_q_va(k,1)= -omdn*dqdp(k)-omup*dqdp(k-1)
+      d_t_va(k)  = -omdn*dtdp(k)-omup*dtdp(k-1)+(omup+omdn)*cor(k)
+      enddo
+
+      omdn=max(0.0,omega( 2 ))
+      omup=min(0.0,omega(llm))
+!      d_u_va( 1 )   = -omdn*dudp( 1 )
+!      d_u_va(llm)   = -omup*dudp(llm)
+!      d_v_va( 1 )   = -omdn*dvdp( 1 )
+!      d_v_va(llm)   = -omup*dvdp(llm)
+      d_q_va( 1 ,1) = -omdn*dqdp( 1 )
+      d_q_va(llm,1) = -omup*dqdp(llm)
+      d_t_va( 1 )   = -omdn*dtdp( 1 )+omdn*cor( 1 )
+      d_t_va(llm)   = -omup*dtdp(llm)!+omup*cor(llm)
+
+!      if(abs(rlat(1))>10.) then
+!     Calculate the tendency due agestrophic motions
+!      du_age = fcoriolis*(v-vg)
+!      dv_age = fcoriolis*(ug-u)
+!      endif
+
+!       call writefield_phy('d_t_va',d_t_va,llm)
+
+          return
+         end
+
+!======================================================================
+
+!  Subroutines for nudging
+
+      Subroutine Nudge_RHT_init (paprs,pplay,t,q,t_targ,rh_targ)
+! ========================================================
+  USE dimphy
+
+  implicit none
+
+! ========================================================
+      REAL paprs(klon,klevp1)
+      REAL pplay(klon,klev)
+!
+!      Variables d'etat
+      REAL t(klon,klev)
+      REAL q(klon,klev)
+!
+!   Profiles cible
+      REAL t_targ(klon,klev)
+      REAL rh_targ(klon,klev)
+!
+   INTEGER k,i
+   REAL zx_qs
+
+! Declaration des constantes et des fonctions thermodynamiques
+!
+include "YOMCST.h"
+include "YOETHF.h"
+!
+!  ----------------------------------------
+!  Statement functions
+include "FCTTRE.h"
+!  ----------------------------------------
+!
+        DO k = 1,klev
+         DO i = 1,klon
+           t_targ(i,k) = t(i,k)
+           IF (t(i,k).LT.RTT) THEN
+              zx_qs = qsats(t(i,k))/(pplay(i,k))
+           ELSE
+              zx_qs = qsatl(t(i,k))/(pplay(i,k))
+           ENDIF
+           rh_targ(i,k) = q(i,k)/zx_qs
+         ENDDO
+        ENDDO
+      print *, 't_targ',t_targ
+      print *, 'rh_targ',rh_targ
+!
+!
+      RETURN
+      END
+
+      Subroutine Nudge_UV_init (paprs,pplay,u,v,u_targ,v_targ)
+! ========================================================
+  USE dimphy
+
+  implicit none
+
+! ========================================================
+      REAL paprs(klon,klevp1)
+      REAL pplay(klon,klev)
+!
+!      Variables d'etat
+      REAL u(klon,klev)
+      REAL v(klon,klev)
+!
+!   Profiles cible
+      REAL u_targ(klon,klev)
+      REAL v_targ(klon,klev)
+!
+   INTEGER k,i
+!
+        DO k = 1,klev
+         DO i = 1,klon
+           u_targ(i,k) = u(i,k)
+           v_targ(i,k) = v(i,k)
+         ENDDO
+        ENDDO
+      print *, 'u_targ',u_targ
+      print *, 'v_targ',v_targ
+!
+!
+      RETURN
+      END
+
+      Subroutine Nudge_RHT (dtime,paprs,pplay,t_targ,rh_targ,t,q,          &
+     &                      d_t,d_q)
+! ========================================================
+  USE dimphy
+
+  implicit none
+
+! ========================================================
+      REAL dtime
+      REAL paprs(klon,klevp1)
+      REAL pplay(klon,klev)
+!
+!      Variables d'etat
+      REAL t(klon,klev)
+      REAL q(klon,klev)
+!
+! Tendances
+      REAL d_t(klon,klev)
+      REAL d_q(klon,klev)
+!
+!   Profiles cible
+      REAL t_targ(klon,klev)
+      REAL rh_targ(klon,klev)
+!
+!   Temps de relaxation
+      REAL tau
+!c      DATA tau /3600./
+!!      DATA tau /5400./
+      DATA tau /1800./
+!
+   INTEGER k,i
+   REAL zx_qs, rh, tnew, d_rh, rhnew
+
+! Declaration des constantes et des fonctions thermodynamiques
+!
+include "YOMCST.h"
+include "YOETHF.h"
+!
+!  ----------------------------------------
+!  Statement functions
+include "FCTTRE.h"
+!  ----------------------------------------
+!
+        print *,'dtime, tau ',dtime,tau
+        print *, 't_targ',t_targ
+        print *, 'rh_targ',rh_targ
+        print *,'temp ',t
+        print *,'hum ',q
+!
+        DO k = 1,klev
+         DO i = 1,klon
+           IF (paprs(i,1)-pplay(i,k) .GT. 10000.) THEN
+            IF (t(i,k).LT.RTT) THEN
+               zx_qs = qsats(t(i,k))/(pplay(i,k))
+            ELSE
+               zx_qs = qsatl(t(i,k))/(pplay(i,k))
+            ENDIF
+            rh = q(i,k)/zx_qs
+!
+            d_t(i,k) = d_t(i,k) + 1./tau*(t_targ(i,k)-t(i,k))
+            d_rh = 1./tau*(rh_targ(i,k)-rh)
+!
+            tnew = t(i,k)+d_t(i,k)*dtime
+!jyg<
+!   Formule pour q :
+!                         d_q = (1/tau) [rh_targ*qsat(T_new) - q] 
+!
+!  Cette formule remplace d_q = (1/tau) [rh_targ - rh] qsat(T_new)
+!   qui n'etait pas correcte.
+!
+            IF (tnew.LT.RTT) THEN
+               zx_qs = qsats(tnew)/(pplay(i,k))
+            ELSE
+               zx_qs = qsatl(tnew)/(pplay(i,k))
+            ENDIF
+!!            d_q(i,k) = d_q(i,k) + d_rh*zx_qs
+            d_q(i,k) = d_q(i,k) + (1./tau)*(rh_targ(i,k)*zx_qs - q(i,k))
+            rhnew = (q(i,k)+d_q(i,k)*dtime)/zx_qs
+!
+            print *,' k,d_t,rh,d_rh,rhnew,d_q ',    &
+                      k,d_t(i,k),rh,d_rh,rhnew,d_q(i,k)
+           ENDIF
+!
+         ENDDO
+        ENDDO
+!
+      RETURN
+      END
+
+      Subroutine Nudge_UV (dtime,paprs,pplay,u_targ,v_targ,u,v,          &
+     &                      d_u,d_v)
+! ========================================================
+  USE dimphy
+
+  implicit none
+
+! ========================================================
+      REAL dtime
+      REAL paprs(klon,klevp1)
+      REAL pplay(klon,klev)
+!
+!      Variables d'etat
+      REAL u(klon,klev)
+      REAL v(klon,klev)
+!
+! Tendances
+      REAL d_u(klon,klev)
+      REAL d_v(klon,klev)
+!
+!   Profiles cible
+      REAL u_targ(klon,klev)
+      REAL v_targ(klon,klev)
+!
+!   Temps de relaxation
+      REAL tau
+!c      DATA tau /3600./
+!      DATA tau /5400./
+       DATA tau /43200./
+!
+   INTEGER k,i
+
+!
+        print *,'dtime, tau ',dtime,tau
+        print *, 'u_targ',u_targ
+        print *, 'v_targ',v_targ
+        print *,'zonal velocity ',u
+        print *,'meridional velocity ',v
+        DO k = 1,klev
+         DO i = 1,klon
+!CR: nudging everywhere
+!           IF (paprs(i,1)-pplay(i,k) .GT. 10000.) THEN
+!
+            d_u(i,k) = d_u(i,k) + 1./tau*(u_targ(i,k)-u(i,k))
+            d_v(i,k) = d_v(i,k) + 1./tau*(v_targ(i,k)-v(i,k))
+!
+            print *,' k,u,d_u,v,d_v ',    &
+                      k,u(i,k),d_u(i,k),v(i,k),d_v(i,k)
+!           ENDIF
+!
+         ENDDO
+        ENDDO
+!
+      RETURN
+      END
+
+!=====================================================================
+       SUBROUTINE interp2_case_vertical(play,nlev_cas,plev_prof_cas                                    &
+     &         ,t_prof_cas,th_prof_cas,thv_prof_cas,thl_prof_cas                                       &
+     &         ,qv_prof_cas,ql_prof_cas,qi_prof_cas,u_prof_cas,v_prof_cas                              &
+     &         ,ug_prof_cas,vg_prof_cas,vitw_prof_cas,omega_prof_cas                                   &
+     &         ,du_prof_cas,hu_prof_cas,vu_prof_cas,dv_prof_cas,hv_prof_cas,vv_prof_cas                &
+     &         ,dt_prof_cas,ht_prof_cas,vt_prof_cas,dtrad_prof_cas,dq_prof_cas,hq_prof_cas,vq_prof_cas &
+     &         ,dth_prof_cas,hth_prof_cas,vth_prof_cas                                                 &
+!
+     &         ,t_mod_cas,theta_mod_cas,thv_mod_cas,thl_mod_cas                                        &
+     &         ,qv_mod_cas,ql_mod_cas,qi_mod_cas,u_mod_cas,v_mod_cas                                   &
+     &         ,ug_mod_cas,vg_mod_cas,w_mod_cas,omega_mod_cas                                          &
+     &         ,du_mod_cas,hu_mod_cas,vu_mod_cas,dv_mod_cas,hv_mod_cas,vv_mod_cas                      &
+     &         ,dt_mod_cas,ht_mod_cas,vt_mod_cas,dtrad_mod_cas,dq_mod_cas,hq_mod_cas,vq_mod_cas        &
+     &         ,dth_mod_cas,hth_mod_cas,vth_mod_cas,mxcalc)
+ 
+       implicit none
+ 
+#include "YOMCST.h"
+#include "dimensions.h"
+
+!-------------------------------------------------------------------------
+! Vertical interpolation of generic case forcing data onto mod_casel levels
+!-------------------------------------------------------------------------
+ 
+       integer nlevmax
+       parameter (nlevmax=41)
+       integer nlev_cas,mxcalc
+!       real play(llm), plev_prof(nlevmax) 
+!       real t_prof(nlevmax),q_prof(nlevmax)
+!       real u_prof(nlevmax),v_prof(nlevmax), w_prof(nlevmax)
+!       real ht_prof(nlevmax),vt_prof(nlevmax)
+!       real hq_prof(nlevmax),vq_prof(nlevmax)
+ 
+       real play(llm), plev_prof_cas(nlev_cas) 
+       real t_prof_cas(nlev_cas),th_prof_cas(nlev_cas),thv_prof_cas(nlev_cas),thl_prof_cas(nlev_cas)
+       real qv_prof_cas(nlev_cas),ql_prof_cas(nlev_cas),qi_prof_cas(nlev_cas)
+       real u_prof_cas(nlev_cas),v_prof_cas(nlev_cas)
+       real ug_prof_cas(nlev_cas),vg_prof_cas(nlev_cas), vitw_prof_cas(nlev_cas),omega_prof_cas(nlev_cas)
+       real du_prof_cas(nlev_cas),hu_prof_cas(nlev_cas),vu_prof_cas(nlev_cas)
+       real dv_prof_cas(nlev_cas),hv_prof_cas(nlev_cas),vv_prof_cas(nlev_cas)
+       real dt_prof_cas(nlev_cas),ht_prof_cas(nlev_cas),vt_prof_cas(nlev_cas),dtrad_prof_cas(nlev_cas)
+       real dth_prof_cas(nlev_cas),hth_prof_cas(nlev_cas),vth_prof_cas(nlev_cas)
+       real dq_prof_cas(nlev_cas),hq_prof_cas(nlev_cas),vq_prof_cas(nlev_cas)
+ 
+       real t_mod_cas(llm),theta_mod_cas(llm),thv_mod_cas(llm),thl_mod_cas(llm)
+       real qv_mod_cas(llm),ql_mod_cas(llm),qi_mod_cas(llm)
+       real u_mod_cas(llm),v_mod_cas(llm)
+       real ug_mod_cas(llm),vg_mod_cas(llm), w_mod_cas(llm),omega_mod_cas(llm)
+       real du_mod_cas(llm),hu_mod_cas(llm),vu_mod_cas(llm)
+       real dv_mod_cas(llm),hv_mod_cas(llm),vv_mod_cas(llm)
+       real dt_mod_cas(llm),ht_mod_cas(llm),vt_mod_cas(llm),dtrad_mod_cas(llm)
+       real dth_mod_cas(llm),hth_mod_cas(llm),vth_mod_cas(llm)
+       real dq_mod_cas(llm),hq_mod_cas(llm),vq_mod_cas(llm)
+ 
+       integer l,k,k1,k2
+       real frac,frac1,frac2,fact
+ 
+!       do l = 1, llm
+!       print *,'debut interp2, play=',l,play(l)
+!       enddo
+!      do l = 1, nlev_cas
+!      print *,'debut interp2, plev_prof_cas=',l,play(l),plev_prof_cas(l)
+!      enddo
+
+       do l = 1, llm
+
+        if (play(l).ge.plev_prof_cas(nlev_cas)) then
+ 
+        mxcalc=l
+!        print *,'debut interp2, mxcalc=',mxcalc
+         k1=0
+         k2=0
+
+         if (play(l).le.plev_prof_cas(1)) then
+
+         do k = 1, nlev_cas-1
+          if (play(l).le.plev_prof_cas(k).and. play(l).gt.plev_prof_cas(k+1)) then
+            k1=k
+            k2=k+1
+          endif
+         enddo
+
+         if (k1.eq.0 .or. k2.eq.0) then
+          write(*,*) 'PB! k1, k2 = ',k1,k2
+          write(*,*) 'l,play(l) = ',l,play(l)/100
+         do k = 1, nlev_cas-1
+          write(*,*) 'k,plev_prof_cas(k) = ',k,plev_prof_cas(k)/100
+         enddo
+         endif
+
+         frac = (plev_prof_cas(k2)-play(l))/(plev_prof_cas(k2)-plev_prof_cas(k1))
+         t_mod_cas(l)= t_prof_cas(k2) - frac*(t_prof_cas(k2)-t_prof_cas(k1))
+         theta_mod_cas(l)= th_prof_cas(k2) - frac*(th_prof_cas(k2)-th_prof_cas(k1))
+         if(theta_mod_cas(l).NE.0) t_mod_cas(l)= theta_mod_cas(l)*(play(l)/100000.)**(RD/RCPD)
+         thv_mod_cas(l)= thv_prof_cas(k2) - frac*(thv_prof_cas(k2)-thv_prof_cas(k1))
+         thl_mod_cas(l)= thl_prof_cas(k2) - frac*(thl_prof_cas(k2)-thl_prof_cas(k1))
+         qv_mod_cas(l)= qv_prof_cas(k2) - frac*(qv_prof_cas(k2)-qv_prof_cas(k1))
+         ql_mod_cas(l)= ql_prof_cas(k2) - frac*(ql_prof_cas(k2)-ql_prof_cas(k1))
+         qi_mod_cas(l)= qi_prof_cas(k2) - frac*(qi_prof_cas(k2)-qi_prof_cas(k1))
+         u_mod_cas(l)= u_prof_cas(k2) - frac*(u_prof_cas(k2)-u_prof_cas(k1))
+         v_mod_cas(l)= v_prof_cas(k2) - frac*(v_prof_cas(k2)-v_prof_cas(k1))
+         ug_mod_cas(l)= ug_prof_cas(k2) - frac*(ug_prof_cas(k2)-ug_prof_cas(k1))
+         vg_mod_cas(l)= vg_prof_cas(k2) - frac*(vg_prof_cas(k2)-vg_prof_cas(k1))
+         w_mod_cas(l)= vitw_prof_cas(k2) - frac*(vitw_prof_cas(k2)-vitw_prof_cas(k1))
+         omega_mod_cas(l)= omega_prof_cas(k2) - frac*(omega_prof_cas(k2)-omega_prof_cas(k1))
+         du_mod_cas(l)= du_prof_cas(k2) - frac*(du_prof_cas(k2)-du_prof_cas(k1))
+         hu_mod_cas(l)= hu_prof_cas(k2) - frac*(hu_prof_cas(k2)-hu_prof_cas(k1))
+         vu_mod_cas(l)= vu_prof_cas(k2) - frac*(vu_prof_cas(k2)-vu_prof_cas(k1))
+         dv_mod_cas(l)= dv_prof_cas(k2) - frac*(dv_prof_cas(k2)-dv_prof_cas(k1))
+         hv_mod_cas(l)= hv_prof_cas(k2) - frac*(hv_prof_cas(k2)-hv_prof_cas(k1))
+         vv_mod_cas(l)= vv_prof_cas(k2) - frac*(vv_prof_cas(k2)-vv_prof_cas(k1))
+         dt_mod_cas(l)= dt_prof_cas(k2) - frac*(dt_prof_cas(k2)-dt_prof_cas(k1))
+         ht_mod_cas(l)= ht_prof_cas(k2) - frac*(ht_prof_cas(k2)-ht_prof_cas(k1))
+         vt_mod_cas(l)= vt_prof_cas(k2) - frac*(vt_prof_cas(k2)-vt_prof_cas(k1))
+         dth_mod_cas(l)= dth_prof_cas(k2) - frac*(dth_prof_cas(k2)-dth_prof_cas(k1))
+         hth_mod_cas(l)= hth_prof_cas(k2) - frac*(hth_prof_cas(k2)-hth_prof_cas(k1))
+         vth_mod_cas(l)= vth_prof_cas(k2) - frac*(vth_prof_cas(k2)-vth_prof_cas(k1))
+         dq_mod_cas(l)= dq_prof_cas(k2) - frac*(dq_prof_cas(k2)-dq_prof_cas(k1))
+         hq_mod_cas(l)= hq_prof_cas(k2) - frac*(hq_prof_cas(k2)-hq_prof_cas(k1))
+         vq_mod_cas(l)= vq_prof_cas(k2) - frac*(vq_prof_cas(k2)-vq_prof_cas(k1))
+         dtrad_mod_cas(l)= dtrad_prof_cas(k2) - frac*(dtrad_prof_cas(k2)-dtrad_prof_cas(k1))
+     
+         else !play>plev_prof_cas(1)
+
+         k1=1
+         k2=2
+         print *,'interp2_vert, k1,k2=',plev_prof_cas(k1),plev_prof_cas(k2)
+         frac1 = (play(l)-plev_prof_cas(k2))/(plev_prof_cas(k1)-plev_prof_cas(k2))
+         frac2 = (play(l)-plev_prof_cas(k1))/(plev_prof_cas(k1)-plev_prof_cas(k2))
+         t_mod_cas(l)= frac1*t_prof_cas(k1) - frac2*t_prof_cas(k2)
+         theta_mod_cas(l)= frac1*th_prof_cas(k1) - frac2*th_prof_cas(k2)
+         if(theta_mod_cas(l).NE.0) t_mod_cas(l)= theta_mod_cas(l)*(play(l)/100000.)**(RD/RCPD)
+         thv_mod_cas(l)= frac1*thv_prof_cas(k1) - frac2*thv_prof_cas(k2)
+         thl_mod_cas(l)= frac1*thl_prof_cas(k1) - frac2*thl_prof_cas(k2)
+         qv_mod_cas(l)= frac1*qv_prof_cas(k1) - frac2*qv_prof_cas(k2)
+         ql_mod_cas(l)= frac1*ql_prof_cas(k1) - frac2*ql_prof_cas(k2)
+         qi_mod_cas(l)= frac1*qi_prof_cas(k1) - frac2*qi_prof_cas(k2)
+         u_mod_cas(l)= frac1*u_prof_cas(k1) - frac2*u_prof_cas(k2)
+         v_mod_cas(l)= frac1*v_prof_cas(k1) - frac2*v_prof_cas(k2)
+         ug_mod_cas(l)= frac1*ug_prof_cas(k1) - frac2*ug_prof_cas(k2)
+         vg_mod_cas(l)= frac1*vg_prof_cas(k1) - frac2*vg_prof_cas(k2)
+         w_mod_cas(l)= frac1*vitw_prof_cas(k1) - frac2*vitw_prof_cas(k2)
+         omega_mod_cas(l)= frac1*omega_prof_cas(k1) - frac2*omega_prof_cas(k2)
+         du_mod_cas(l)= frac1*du_prof_cas(k1) - frac2*du_prof_cas(k2)
+         hu_mod_cas(l)= frac1*hu_prof_cas(k1) - frac2*hu_prof_cas(k2)
+         vu_mod_cas(l)= frac1*vu_prof_cas(k1) - frac2*vu_prof_cas(k2)
+         dv_mod_cas(l)= frac1*dv_prof_cas(k1) - frac2*dv_prof_cas(k2)
+         hv_mod_cas(l)= frac1*hv_prof_cas(k1) - frac2*hv_prof_cas(k2)
+         vv_mod_cas(l)= frac1*vv_prof_cas(k1) - frac2*vv_prof_cas(k2)
+         dt_mod_cas(l)= frac1*dt_prof_cas(k1) - frac2*dt_prof_cas(k2)
+         ht_mod_cas(l)= frac1*ht_prof_cas(k1) - frac2*ht_prof_cas(k2)
+         vt_mod_cas(l)= frac1*vt_prof_cas(k1) - frac2*vt_prof_cas(k2)
+         dth_mod_cas(l)= frac1*dth_prof_cas(k1) - frac2*dth_prof_cas(k2)
+         hth_mod_cas(l)= frac1*hth_prof_cas(k1) - frac2*hth_prof_cas(k2)
+         vth_mod_cas(l)= frac1*vth_prof_cas(k1) - frac2*vth_prof_cas(k2)
+         dq_mod_cas(l)= frac1*dq_prof_cas(k1) - frac2*dq_prof_cas(k2)
+         hq_mod_cas(l)= frac1*hq_prof_cas(k1) - frac2*hq_prof_cas(k2)
+         vq_mod_cas(l)= frac1*vq_prof_cas(k1) - frac2*vq_prof_cas(k2)
+         dtrad_mod_cas(l)= frac1*dtrad_prof_cas(k1) - frac2*dtrad_prof_cas(k2)
+
+         endif ! play.le.plev_prof_cas(1)
+
+        else ! above max altitude of forcing file
+ 
+!jyg
+         fact=20.*(plev_prof_cas(nlev_cas)-play(l))/plev_prof_cas(nlev_cas) !jyg
+         fact = max(fact,0.)                                           !jyg
+         fact = exp(-fact)                                             !jyg
+         t_mod_cas(l)= t_prof_cas(nlev_cas)                            !jyg
+         theta_mod_cas(l)= th_prof_cas(nlev_cas)                       !jyg
+         thv_mod_cas(l)= thv_prof_cas(nlev_cas)                        !jyg
+         thl_mod_cas(l)= thl_prof_cas(nlev_cas)                        !jyg
+         qv_mod_cas(l)= qv_prof_cas(nlev_cas)*fact                     !jyg
+         ql_mod_cas(l)= ql_prof_cas(nlev_cas)*fact                     !jyg
+         qi_mod_cas(l)= qi_prof_cas(nlev_cas)*fact                     !jyg
+         u_mod_cas(l)= u_prof_cas(nlev_cas)*fact                       !jyg
+         v_mod_cas(l)= v_prof_cas(nlev_cas)*fact                       !jyg
+         ug_mod_cas(l)= ug_prof_cas(nlev_cas)*fact                     !jyg
+         vg_mod_cas(l)= vg_prof_cas(nlev_cas)*fact                     !jyg
+         w_mod_cas(l)= 0.0                                             !jyg
+         omega_mod_cas(l)= 0.0                                         !jyg
+         du_mod_cas(l)= du_prof_cas(nlev_cas)*fact 
+         hu_mod_cas(l)= hu_prof_cas(nlev_cas)*fact                     !jyg
+         vu_mod_cas(l)= vu_prof_cas(nlev_cas)*fact                     !jyg
+         dv_mod_cas(l)= dv_prof_cas(nlev_cas)*fact
+         hv_mod_cas(l)= hv_prof_cas(nlev_cas)*fact                     !jyg
+         vv_mod_cas(l)= vv_prof_cas(nlev_cas)*fact                     !jyg
+         dt_mod_cas(l)= dt_prof_cas(nlev_cas) 
+         ht_mod_cas(l)= ht_prof_cas(nlev_cas)                          !jyg
+         vt_mod_cas(l)= vt_prof_cas(nlev_cas)                          !jyg
+         dth_mod_cas(l)= dth_prof_cas(nlev_cas) 
+         hth_mod_cas(l)= hth_prof_cas(nlev_cas)                        !jyg
+         vth_mod_cas(l)= vth_prof_cas(nlev_cas)                        !jyg
+         dq_mod_cas(l)= dq_prof_cas(nlev_cas)*fact 
+         hq_mod_cas(l)= hq_prof_cas(nlev_cas)*fact                     !jyg
+         vq_mod_cas(l)= vq_prof_cas(nlev_cas)*fact                     !jyg
+         dtrad_mod_cas(l)= dtrad_prof_cas(nlev_cas)*fact               !jyg
+ 
+        endif ! play
+ 
+       enddo ! l
+
+          return
+          end
+!***************************************************************************** 
+
+
+
+

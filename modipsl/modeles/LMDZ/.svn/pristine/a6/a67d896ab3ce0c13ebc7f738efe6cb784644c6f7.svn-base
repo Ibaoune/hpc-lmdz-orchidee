@@ -1,0 +1,17 @@
+%COMPILER            mpiifort
+%LINK                mpiifort
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional -I/smplocal/pub/FFTW/3.3.3_dyn/include/
+%FPP_DEF             NC_DOUBLE FFT_FFTW
+%BASE_FFLAGS         -auto -recursive -mcmodel=large -integer-size 32 -real-size 64 -align all 
+%PROD_FFLAGS         -O2 -ip -fp-model strict -axAVX,SSE4.2
+%DEV_FFLAGS          -p -g -O1 -fpe0 -traceback
+%DEBUG_FFLAGS        -p -g -O0 -fpe-all=0 -traceback -ftrapuv -fp-stack-check -check bounds,format,output_conversion,pointers,uninit -debug -ftz
+%MPI_FFLAGS
+%OMP_FFLAGS          -openmp
+%BASE_LD             -L/smplocal/pub/FFTW/3.3.3_dyn/lib -lfftw3 -shared-intel  -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -Wl,-rpath=/smplocal/pub/NetCDF/4.1.3/mpi/lib:/smplocal/pub/HDF5/1.8.9/par/lib:/smplocal/pub/FFTW/3.3.3_dyn/lib
+%MPI_LD              
+%OMP_LD              -openmp
+

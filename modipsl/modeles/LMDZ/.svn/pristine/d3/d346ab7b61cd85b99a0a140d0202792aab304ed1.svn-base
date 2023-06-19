@@ -1,0 +1,16 @@
+%COMPILER            gfortran
+%LINK                gfortran
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                make
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE 
+%BASE_FFLAGS         -c -fdefault-real-8 -frecursive
+%PROD_FFLAGS         -O3
+%DEV_FFLAGS          -O
+%DEBUG_FFLAGS        -ffpe-trap=invalid,zero,overflow -fbounds-check -g3 -O0 -fstack-protector-all
+%MPI_FFLAGS
+%OMP_FFLAGS          
+%BASE_LD      
+%MPI_LD
+%OMP_LD              

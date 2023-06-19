@@ -1,0 +1,1072 @@
+!
+! $Id$
+!
+MODULE phyaqua_mod
+  ! Routines complementaires pour la physique planetaire.
+  IMPLICIT NONE
+
+CONTAINS
+
+  SUBROUTINE iniaqua(nlon,year_len,iflag_phys)
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Creation d'un etat initial et de conditions aux limites
+    ! (resp startphy.nc et limit.nc) pour des configurations idealisees
+    ! du modele LMDZ dans sa version terrestre.
+    ! iflag_phys est un parametre qui controle
+    ! iflag_phys = N
+    ! de 100 a 199 : aqua planetes avec SST forcees
+    ! N-100 determine le type de SSTs
+    ! de 200 a 299 : terra planetes avec Ts calcule
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    USE dimphy, ONLY: klon
+    USE geometry_mod, ONLY : latitude
+    USE surface_data, ONLY: type_ocean, ok_veget
+    USE pbl_surface_mod, ONLY: pbl_surface_init
+    USE fonte_neige_mod, ONLY: fonte_neige_init
+    USE phys_state_var_mod
+    USE time_phylmdz_mod, ONLY: day_ref, ndays, pdtphys, &
+                                day_ini,day_end
+    USE indice_sol_mod
+    USE nrtype, ONLY: pi
+!    USE ioipsl
+    USE mod_phys_lmdz_para, ONLY: is_master
+    USE mod_phys_lmdz_transfert_para, ONLY: bcast
+    USE mod_grid_phy_lmdz
+    USE ioipsl_getin_p_mod, ONLY : getin_p
+    USE phys_cal_mod , ONLY: calend, year_len_phy => year_len 
+    IMPLICIT NONE
+
+    include "YOMCST.h"
+    include "clesphys.h"
+    include "dimsoil.h"
+
+    INTEGER, INTENT (IN) :: nlon, year_len, iflag_phys
+    ! IM ajout latfi, lonfi
+!    REAL, INTENT (IN) :: lonfi(nlon), latfi(nlon)
+
+    INTEGER type_profil, type_aqua
+
+    ! Ajouts initialisation des surfaces
+    REAL :: run_off_lic_0(nlon)
+    REAL :: qsolsrf(nlon, nbsrf), snsrf(nlon, nbsrf)
+    REAL :: tsoil(nlon, nsoilmx, nbsrf)
+    REAL :: tslab(nlon), seaice(nlon)
+    REAL fder(nlon)
+
+
+
+    ! Arguments :
+    ! -----------
+
+    ! integer radpas
+    INTEGER it, unit, i, k, itap
+
+    REAL rugos, albedo
+    REAL tsurf
+    REAL time, timestep, day, day0
+    REAL qsol_f
+    REAL rugsrel(nlon)
+    LOGICAL alb_ocean
+
+    CHARACTER *80 ans, file_forctl, file_fordat, file_start
+    CHARACTER *100 file, var
+    CHARACTER *2 cnbl
+
+    REAL phy_nat(nlon, year_len)
+    REAL phy_alb(nlon, year_len)
+    REAL phy_sst(nlon, year_len)
+    REAL phy_bil(nlon, year_len)
+    REAL phy_rug(nlon, year_len)
+    REAL phy_ice(nlon, year_len)
+    REAL phy_fter(nlon, year_len)
+    REAL phy_foce(nlon, year_len)
+    REAL phy_fsic(nlon, year_len)
+    REAL phy_flic(nlon, year_len)
+
+    INTEGER, SAVE :: read_climoz = 0 ! read ozone climatology
+!$OMP THREADPRIVATE(read_climoz)
+
+    ! -------------------------------------------------------------------------
+    ! declaration pour l'appel a phyredem
+    ! -------------------------------------------------------------------------
+
+    ! real pctsrf(nlon,nbsrf),ftsol(nlon,nbsrf)
+    REAL falbe(nlon, nbsrf), falblw(nlon, nbsrf)
+    ! real pbl_tke(nlon,llm,nbsrf)
+    ! real rain_fall(nlon),snow_fall(nlon)
+    ! real solsw(nlon), sollw(nlon),radsol(nlon)
+    ! real t_ancien(nlon,llm),q_ancien(nlon,llm),rnebcon(nlon,llm)
+    ! real ratqs(nlon,llm)
+    ! real clwcon(nlon,llm)
+
+    INTEGER longcles
+    PARAMETER (longcles=20)
+    REAL clesphy0(longcles)
+
+
+    ! -----------------------------------------------------------------------
+    ! dynamial tendencies :
+    ! ---------------------
+
+    INTEGER l, ierr, aslun
+
+    REAL paire
+
+    ! Local
+    CHARACTER (LEN=20) :: modname='phyaqua'
+    CHARACTER (LEN=80) :: abort_message
+
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! INITIALISATIONS
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    ! -----------------------------------------------------------------------
+    ! Initialisations  des constantes
+    ! -------------------------------
+
+    !IF (calend .EQ. "earth_360d") Then
+      year_len_phy = year_len
+    !END IF
+    
+    if (year_len.ne.360) then
+      write (*,*) year_len
+      write (*,*) 'iniaqua: 360 day calendar is required !'
+      stop
+    endif
+
+    type_aqua = iflag_phys/100
+    type_profil = iflag_phys - type_aqua*100
+    PRINT *, 'iniaqua:type_aqua, type_profil', type_aqua, type_profil
+
+    IF (klon/=nlon) THEN
+      WRITE (*, *) 'iniaqua: klon=', klon, ' nlon=', nlon
+      abort_message= 'probleme de dimensions dans iniaqua'
+      CALL abort_physic(modname,abort_message,1)
+    END IF
+    CALL phys_state_var_init(read_climoz)
+
+
+    read_climoz = 0
+    day0 = 217.
+    day = day0
+    it = 0
+    time = 0.
+
+    ! -----------------------------------------------------------------------
+    ! initialisations de la physique
+    ! -----------------------------------------------------------------------
+
+    day_ini = day_ref
+    day_end = day_ini + ndays
+
+    nbapp_rad = 24
+    CALL getin_p('nbapp_rad', nbapp_rad)
+
+    ! ---------------------------------------------------------------------
+    ! Creation des conditions aux limites:
+    ! ------------------------------------
+    ! Initialisations des constantes
+    ! Ajouter les manquants dans planete.def... (albedo etc)
+    co2_ppm = 348.
+    CALL getin_p('co2_ppm', co2_ppm)
+
+    solaire = 1365.
+    CALL getin_p('solaire', solaire)
+ 
+    ! CALL getin('albedo',albedo) ! albedo is set below, depending on
+    ! type_aqua
+    alb_ocean = .TRUE.
+    CALL getin_p('alb_ocean', alb_ocean)
+
+    WRITE (*, *) 'iniaqua: co2_ppm=', co2_ppm
+    WRITE (*, *) 'iniaqua: solaire=', solaire
+    WRITE (*, *) 'iniaqua: alb_ocean=', alb_ocean
+
+    radsol = 0.
+    qsol_f = 10.
+
+    ! Conditions aux limites:
+    ! -----------------------
+
+    qsol(:) = qsol_f
+    rugsrel = 0.0 ! (rugsrel = rugoro)
+    rugoro = 0.0
+    u_ancien = 0.0
+    v_ancien = 0.0
+    agesno = 50.0
+    ! Relief plat
+    zmea = 0.
+    zstd = 0.
+    zsig = 0.
+    zgam = 0.
+    zthe = 0.
+    zpic = 0.
+    zval = 0.
+
+    ! Une seule surface
+    pctsrf = 0.
+    IF (type_aqua==1) THEN
+      rugos = 1.E-4
+      albedo = 0.19
+      pctsrf(:, is_oce) = 1.
+    ELSE IF (type_aqua==2) THEN
+      rugos = 0.03
+      albedo = 0.1
+      pctsrf(:, is_ter) = 1.
+    END IF
+
+    CALL getin_p('rugos', rugos)
+
+    WRITE (*, *) 'iniaqua: rugos=', rugos
+    zmasq(:) = pctsrf(:, is_ter)
+
+    ! pctsrf_pot(:,is_oce) = 1. - zmasq(:)
+    ! pctsrf_pot(:,is_sic) = 1. - zmasq(:)
+
+    ! Si alb_ocean on calcule un albedo oceanique moyen
+    ! if (alb_ocean) then
+    ! Voir pourquoi on avait ca.
+    ! CALL ini_alb_oce(phy_alb)
+    ! else
+    phy_alb(:, :) = albedo ! albedo land only (old value condsurf_jyg=0.3)
+    ! endif !alb_ocean
+
+    DO i = 1, year_len
+      ! IM Terraplanete   phy_sst(:,i) = 260.+50.*cos(rlatd(:))**2
+      ! IM ajout calcul profil sst selon le cas considere (cf. FBr)
+
+      phy_nat(:, i) = 1.0 ! 0=ocean libre, 1=land, 2=glacier, 3=banquise
+      phy_bil(:, i) = 1.0 ! ne sert que pour les slab_ocean
+      phy_rug(:, i) = rugos ! longueur rugosite utilisee sur land only
+      phy_ice(:, i) = 0.0 ! fraction de glace (?)
+      phy_fter(:, i) = pctsrf(:, is_ter) ! fraction de glace (?)
+      phy_foce(:, i) = pctsrf(:, is_oce) ! fraction de glace (?)
+      phy_fsic(:, i) = pctsrf(:, is_sic) ! fraction de glace (?)
+      phy_flic(:, i) = pctsrf(:, is_lic) ! fraction de glace (?)
+    END DO
+    ! IM calcul profil sst
+    CALL profil_sst(nlon, latitude, type_profil, phy_sst)
+
+    IF (grid_type==unstructured) THEN
+      CALL writelim_unstruct(klon, phy_nat, phy_alb, phy_sst, phy_bil, phy_rug, phy_ice, &
+                             phy_fter, phy_foce, phy_flic, phy_fsic)
+    ELSE
+      
+       CALL writelim(klon, phy_nat, phy_alb, phy_sst, phy_bil, phy_rug, phy_ice, &
+                     phy_fter, phy_foce, phy_flic, phy_fsic)
+    ENDIF
+
+    ! ---------------------------------------------------------------------
+    ! Ecriture de l'etat initial:
+    ! ---------------------------
+
+
+    ! Ecriture etat initial physique
+
+    timestep = pdtphys
+    radpas = nint(rday/timestep/float(nbapp_rad))
+
+    DO i = 1, longcles
+      clesphy0(i) = 0.
+    END DO
+    clesphy0(1) = float(iflag_con)
+    clesphy0(2) = float(nbapp_rad)
+    ! IF( cycle_diurne  ) clesphy0(3) =  1.
+    clesphy0(3) = 1. ! cycle_diurne
+    clesphy0(4) = 1. ! soil_model
+    clesphy0(5) = 1. ! new_oliq
+    clesphy0(6) = 0. ! ok_orodr
+    clesphy0(7) = 0. ! ok_orolf
+    clesphy0(8) = 0. ! ok_limitvrai
+
+
+    ! =======================================================================
+    ! Profils initiaux
+    ! =======================================================================
+
+    ! On initialise les temperatures de surfaces comme les sst
+    DO i = 1, nlon
+      ftsol(i, :) = phy_sst(i, 1)
+      tsoil(i, :, :) = phy_sst(i, 1)
+      tslab(i) = phy_sst(i, 1)
+    END DO
+
+    falbe(:, :) = albedo
+    falblw(:, :) = albedo
+    rain_fall(:) = 0.
+    snow_fall(:) = 0.
+    solsw(:) = 0.
+    sollw(:) = 0.
+    radsol(:) = 0.
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! intialisation bidon mais pas grave
+    t_ancien(:, :) = 0.
+    q_ancien(:, :) = 0.
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    rnebcon = 0.
+    ratqs = 0.
+    clwcon = 0.
+    pbl_tke = 1.E-8
+
+    ! variables supplementaires pour appel a plb_surface_init
+    fder(:) = 0.
+    seaice(:) = 0.
+    run_off_lic_0 = 0.
+    fevap = 0.
+
+
+    ! Initialisations necessaires avant phyredem
+    type_ocean = 'force'
+    CALL fonte_neige_init(run_off_lic_0)
+    qsolsrf(:, :) = qsol(1) ! humidite du sol des sous surface
+    snsrf(:, :) = 0. ! couverture de neige des sous surface
+    z0m(:, :) = rugos ! couverture de neige des sous surface
+    z0h=z0m
+
+
+    CALL pbl_surface_init(fder, snsrf, qsolsrf, tsoil)
+
+    PRINT *, 'iniaqua: before phyredem'
+
+    pbl_tke(:,:,:) = 1.e-8 
+    falb1 = albedo
+    falb2 = albedo
+    zmax0 = 0.
+    f0 = 0.
+    sig1 = 0.
+    w01 = 0.
+    wake_deltat = 0.
+    wake_deltaq = 0.
+    wake_s = 0.
+    wake_dens = 0.
+    wake_cstar = 0.
+    wake_pe = 0.
+    wake_fip = 0.
+    fm_therm = 0.
+    entr_therm = 0.
+    detr_therm = 0.
+    ale_bl = 0.
+    ale_bl_trig =0. 
+    alp_bl =0.
+    treedrg(:,:,:)=0.
+
+    u10m = 0.
+    v10m = 0.
+
+    ql_ancien   = 0.
+    qs_ancien   = 0.
+    u_ancien    = 0.
+    v_ancien    = 0.
+    prw_ancien  = 0.
+    prlw_ancien = 0.
+    prsw_ancien = 0.  
+
+    ale_wake    = 0.
+    ale_bl_stat = 0.  
+
+
+!ym error : the sub surface dimension is the third not second : forgotten for iniaqua
+!    falb_dir(:,is_ter,:)=0.08; falb_dir(:,is_lic,:)=0.6
+!    falb_dir(:,is_oce,:)=0.5;  falb_dir(:,is_sic,:)=0.6
+    falb_dir(:,:,is_ter)=0.08; falb_dir(:,:,is_lic)=0.6
+    falb_dir(:,:,is_oce)=0.5;  falb_dir(:,:,is_sic)=0.6
+
+!ym falb_dif has been forgotten, initialize with defaukt value found in phyetat0 or 0 ?
+!ym probably the uninitialized value was 0 for standard (regular grid) case
+    falb_dif(:,:,:)=0
+
+
+    CALL phyredem('startphy.nc')
+
+    PRINT *, 'iniaqua: after phyredem'
+    CALL phys_state_var_end
+
+    RETURN
+  END SUBROUTINE iniaqua
+
+
+  ! ====================================================================
+  ! ====================================================================
+  SUBROUTINE zenang_an(cycle_diurne, gmtime, rlat, rlon, rmu0, fract)
+    USE dimphy
+    IMPLICIT NONE
+    ! ====================================================================
+    ! =============================================================
+    ! CALL zenang(cycle_diurne,gmtime,rlat,rlon,rmu0,fract)
+    ! Auteur : A. Campoy et F. Hourdin
+    ! Objet  : calculer les valeurs moyennes du cos de l'angle zenithal
+    ! et l'ensoleillement moyen entre gmtime1 et gmtime2
+    ! connaissant la declinaison, la latitude et la longitude.
+
+    ! Dans cette version particuliere, on calcule le rayonnement
+    ! moyen sur l'année à chaque latitude.
+    ! angle zenithal calculé pour obtenir un
+    ! Fit polynomial de  l'ensoleillement moyen au sommet de l'atmosphere
+    ! en moyenne annuelle.
+    ! Spécifique de la terre. Utilisé pour les aqua planetes.
+
+    ! Rque   : Different de la routine angle en ce sens que zenang
+    ! fournit des moyennes de pmu0 et non des valeurs
+    ! instantanees, du coup frac prend toutes les valeurs
+    ! entre 0 et 1.
+    ! Date   : premiere version le 13 decembre 1994
+    ! revu pour  GCM  le 30 septembre 1996
+    ! ===============================================================
+    ! longi----INPUT : la longitude vraie de la terre dans son plan
+    ! solaire a partir de l'equinoxe de printemps (degre)
+    ! gmtime---INPUT : temps universel en fraction de jour
+    ! pdtrad---INPUT : pas de temps du rayonnement (secondes)
+    ! lat------INPUT : latitude en degres
+    ! long-----INPUT : longitude en degres
+    ! pmu0-----OUTPUT: angle zenithal moyen entre gmtime et gmtime+pdtrad
+    ! frac-----OUTPUT: ensoleillement moyen entre gmtime et gmtime+pdtrad
+    ! ================================================================
+    include "YOMCST.h"
+    ! ================================================================
+    LOGICAL cycle_diurne
+    REAL gmtime
+    REAL rlat(klon), rlon(klon), rmu0(klon), fract(klon)
+    ! ================================================================
+    INTEGER i
+    REAL gmtime1, gmtime2
+    REAL pi_local
+
+
+    REAL rmu0m(klon), rmu0a(klon)
+
+
+    pi_local = 4.0*atan(1.0)
+
+    ! ================================================================
+    ! Calcul de l'angle zenithal moyen sur la journee
+    ! ================================================================
+
+    DO i = 1, klon
+      fract(i) = 1.
+      ! Calcule du flux moyen
+      IF (abs(rlat(i))<=28.75) THEN
+        rmu0m(i) = (210.1924+206.6059*cos(0.0174533*rlat(i))**2)/1365.
+      ELSE IF (abs(rlat(i))<=43.75) THEN
+        rmu0m(i) = (187.4562+236.1853*cos(0.0174533*rlat(i))**2)/1365.
+      ELSE IF (abs(rlat(i))<=71.25) THEN
+        rmu0m(i) = (162.4439+284.1192*cos(0.0174533*rlat(i))**2)/1365.
+      ELSE
+        rmu0m(i) = (172.8125+183.7673*cos(0.0174533*rlat(i))**2)/1365.
+      END IF
+    END DO
+
+    ! ================================================================
+    ! Avec ou sans cycle diurne
+    ! ================================================================
+
+    IF (cycle_diurne) THEN
+
+      ! On redecompose flux  au sommet suivant un cycle diurne idealise
+      ! identique a toutes les latitudes.
+
+      DO i = 1, klon
+        rmu0a(i) = 2.*rmu0m(i)*sqrt(2.)*pi_local/(4.-pi_local)
+        rmu0(i) = rmu0a(i)*abs(sin(pi_local*gmtime+pi_local*rlon(i)/360.)) - &
+          rmu0a(i)/sqrt(2.)
+      END DO
+
+      DO i = 1, klon
+        IF (rmu0(i)<=0.) THEN
+          rmu0(i) = 0.
+          fract(i) = 0.
+        ELSE
+          fract(i) = 1.
+        END IF
+      END DO
+
+      ! Affichage de l'angel zenitale
+      ! print*,'************************************'
+      ! print*,'************************************'
+      ! print*,'************************************'
+      ! print*,'latitude=',rlat(i),'longitude=',rlon(i)
+      ! print*,'rmu0m=',rmu0m(i)
+      ! print*,'rmu0a=',rmu0a(i)
+      ! print*,'rmu0=',rmu0(i)
+
+    ELSE
+
+      DO i = 1, klon
+        fract(i) = 0.5
+        rmu0(i) = rmu0m(i)*2.
+      END DO
+
+    END IF
+
+    RETURN
+  END SUBROUTINE zenang_an
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  SUBROUTINE writelim_unstruct(klon, phy_nat, phy_alb, phy_sst, phy_bil, phy_rug, &
+      phy_ice, phy_fter, phy_foce, phy_flic, phy_fsic)
+
+    USE mod_phys_lmdz_para, ONLY: is_omp_master, klon_mpi
+    USE mod_phys_lmdz_transfert_para, ONLY: gather_omp
+#ifdef CPP_XIOS
+    USE xios
+#endif
+    IMPLICIT NONE
+
+    include "netcdf.inc"
+
+    INTEGER, INTENT (IN) :: klon
+    REAL, INTENT (IN) :: phy_nat(klon, 360)
+    REAL, INTENT (IN) :: phy_alb(klon, 360)
+    REAL, INTENT (IN) :: phy_sst(klon, 360)
+    REAL, INTENT (IN) :: phy_bil(klon, 360)
+    REAL, INTENT (IN) :: phy_rug(klon, 360)
+    REAL, INTENT (IN) :: phy_ice(klon, 360)
+    REAL, INTENT (IN) :: phy_fter(klon, 360)
+    REAL, INTENT (IN) :: phy_foce(klon, 360)
+    REAL, INTENT (IN) :: phy_flic(klon, 360)
+    REAL, INTENT (IN) :: phy_fsic(klon, 360)
+
+    REAL :: phy_mpi(klon_mpi, 360) ! temporary variable, to store phy_***(:)
+      ! on the whole physics grid
+ 
+#ifdef CPP_XIOS
+    PRINT *, 'writelim: Ecriture du fichier limit'
+
+    CALL gather_omp(phy_foce, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('foce_limout',phy_mpi)
+
+    CALL gather_omp(phy_fsic, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('fsic_limout',phy_mpi)
+      
+    CALL gather_omp(phy_fter, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('fter_limout',phy_mpi)
+      
+    CALL gather_omp(phy_flic, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('flic_limout',phy_mpi)
+
+    CALL gather_omp(phy_sst, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('sst_limout',phy_mpi)
+
+    CALL gather_omp(phy_bil, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('bils_limout',phy_mpi)
+
+    CALL gather_omp(phy_alb, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('alb_limout',phy_mpi)
+
+    CALL gather_omp(phy_rug, phy_mpi)
+    IF (is_omp_master) CALL xios_send_field('rug_limout',phy_mpi)
+#endif
+  END SUBROUTINE writelim_unstruct
+
+
+
+  SUBROUTINE writelim(klon, phy_nat, phy_alb, phy_sst, phy_bil, phy_rug, &
+      phy_ice, phy_fter, phy_foce, phy_flic, phy_fsic)
+
+    USE mod_phys_lmdz_para, ONLY: is_master
+    USE mod_grid_phy_lmdz, ONLY: klon_glo
+    USE mod_phys_lmdz_transfert_para, ONLY: gather
+    USE phys_cal_mod, ONLY: year_len
+    IMPLICIT NONE
+    include "netcdf.inc"
+
+    INTEGER, INTENT (IN) :: klon
+    REAL, INTENT (IN) :: phy_nat(klon, year_len)
+    REAL, INTENT (IN) :: phy_alb(klon, year_len)
+    REAL, INTENT (IN) :: phy_sst(klon, year_len)
+    REAL, INTENT (IN) :: phy_bil(klon, year_len)
+    REAL, INTENT (IN) :: phy_rug(klon, year_len)
+    REAL, INTENT (IN) :: phy_ice(klon, year_len)
+    REAL, INTENT (IN) :: phy_fter(klon, year_len)
+    REAL, INTENT (IN) :: phy_foce(klon, year_len)
+    REAL, INTENT (IN) :: phy_flic(klon, year_len)
+    REAL, INTENT (IN) :: phy_fsic(klon, year_len)
+
+    REAL :: phy_glo(klon_glo, year_len) ! temporary variable, to store phy_***(:)
+      ! on the whole physics grid
+    INTEGER :: k
+    INTEGER ierr
+    INTEGER dimfirst(3)
+    INTEGER dimlast(3)
+
+    INTEGER nid, ndim, ntim
+    INTEGER dims(2), debut(2), epais(2)
+    INTEGER id_tim
+    INTEGER id_nat, id_sst, id_bils, id_rug, id_alb
+    INTEGER id_fter, id_foce, id_fsic, id_flic
+
+    IF (is_master) THEN
+
+      PRINT *, 'writelim: Ecriture du fichier limit'
+
+      ierr = nf_create('limit.nc', IOR(NF_CLOBBER,NF_64BIT_OFFSET), nid)
+
+      ierr = nf_put_att_text(nid, nf_global, 'title', 30, &
+        'Fichier conditions aux limites')
+      ! !        ierr = NF_DEF_DIM (nid, "points_physiques", klon, ndim)
+      ierr = nf_def_dim(nid, 'points_physiques', klon_glo, ndim)
+      ierr = nf_def_dim(nid, 'time', nf_unlimited, ntim)
+
+      dims(1) = ndim
+      dims(2) = ntim
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'TEMPS', nf_double, 1, ntim, id_tim)
+#else
+      ierr = nf_def_var(nid, 'TEMPS', nf_float, 1, ntim, id_tim)
+#endif
+      ierr = nf_put_att_text(nid, id_tim, 'title', 17, 'Jour dans l annee')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'NAT', nf_double, 2, dims, id_nat)
+#else
+      ierr = nf_def_var(nid, 'NAT', nf_float, 2, dims, id_nat)
+#endif
+      ierr = nf_put_att_text(nid, id_nat, 'title', 23, &
+        'Nature du sol (0,1,2,3)')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'SST', nf_double, 2, dims, id_sst)
+#else
+      ierr = nf_def_var(nid, 'SST', nf_float, 2, dims, id_sst)
+#endif
+      ierr = nf_put_att_text(nid, id_sst, 'title', 35, &
+        'Temperature superficielle de la mer')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'BILS', nf_double, 2, dims, id_bils)
+#else
+      ierr = nf_def_var(nid, 'BILS', nf_float, 2, dims, id_bils)
+#endif
+      ierr = nf_put_att_text(nid, id_bils, 'title', 32, &
+        'Reference flux de chaleur au sol')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'ALB', nf_double, 2, dims, id_alb)
+#else
+      ierr = nf_def_var(nid, 'ALB', nf_float, 2, dims, id_alb)
+#endif
+      ierr = nf_put_att_text(nid, id_alb, 'title', 19, 'Albedo a la surface')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'RUG', nf_double, 2, dims, id_rug)
+#else
+      ierr = nf_def_var(nid, 'RUG', nf_float, 2, dims, id_rug)
+#endif
+      ierr = nf_put_att_text(nid, id_rug, 'title', 8, 'Rugosite')
+
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'FTER', nf_double, 2, dims, id_fter)
+#else
+      ierr = nf_def_var(nid, 'FTER', nf_float, 2, dims, id_fter)
+#endif
+      ierr = nf_put_att_text(nid, id_fter, 'title',10,'Frac. Land')
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'FOCE', nf_double, 2, dims, id_foce)
+#else
+      ierr = nf_def_var(nid, 'FOCE', nf_float, 2, dims, id_foce)
+#endif
+      ierr = nf_put_att_text(nid, id_foce, 'title',11,'Frac. Ocean')
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'FSIC', nf_double, 2, dims, id_fsic)
+#else
+      ierr = nf_def_var(nid, 'FSIC', nf_float, 2, dims, id_fsic)
+#endif
+      ierr = nf_put_att_text(nid, id_fsic, 'title',13,'Frac. Sea Ice')
+#ifdef NC_DOUBLE
+      ierr = nf_def_var(nid, 'FLIC', nf_double, 2, dims, id_flic)
+#else
+      ierr = nf_def_var(nid, 'FLIC', nf_float, 2, dims, id_flic)
+#endif
+      ierr = nf_put_att_text(nid, id_flic, 'title',14,'Frac. Land Ice')
+
+      ierr = nf_enddef(nid)
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error: failed to end define mode'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+
+
+      ! write the 'times'
+      DO k = 1, year_len
+#ifdef NC_DOUBLE
+        ierr = nf_put_var1_double(nid, id_tim, k, dble(k))
+#else
+        ierr = nf_put_var1_real(nid, id_tim, k, float(k))
+#endif
+        IF (ierr/=nf_noerr) THEN
+          WRITE (*, *) 'writelim error with temps(k),k=', k
+          WRITE (*, *) nf_strerror(ierr)
+        END IF
+      END DO
+
+    END IF ! of if (is_master)
+
+    ! write the fields, after having collected them on master
+
+    CALL gather(phy_nat, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_nat, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_nat, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_nat'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_sst, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_sst, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_sst, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_sst'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_bil, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_bils, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_bils, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_bil'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_alb, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_alb, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_alb, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_alb'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_rug, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_rug, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_rug, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_rug'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_fter, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_fter, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_fter, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_fter'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_foce, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_foce, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_foce, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_foce'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_fsic, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_fsic, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_fsic, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_fsic'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    CALL gather(phy_flic, phy_glo)
+    IF (is_master) THEN
+#ifdef NC_DOUBLE
+      ierr = nf_put_var_double(nid, id_flic, phy_glo)
+#else
+      ierr = nf_put_var_real(nid, id_flic, phy_glo)
+#endif
+      IF (ierr/=nf_noerr) THEN
+        WRITE (*, *) 'writelim error with phy_flic'
+        WRITE (*, *) nf_strerror(ierr)
+      END IF
+    END IF
+
+    ! close file:
+    IF (is_master) THEN
+      ierr = nf_close(nid)
+    END IF
+
+  END SUBROUTINE writelim
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  SUBROUTINE profil_sst(nlon, rlatd, type_profil, phy_sst)
+    USE dimphy
+    USE phys_cal_mod , ONLY: year_len
+    IMPLICIT NONE
+
+    INTEGER nlon, type_profil, i, k, j
+    REAL :: rlatd(nlon), phy_sst(nlon, year_len)
+    INTEGER imn, imx, amn, amx, kmn, kmx
+    INTEGER p, pplus, nlat_max
+    PARAMETER (nlat_max=72)
+    REAL x_anom_sst(nlat_max)
+    CHARACTER (LEN=20) :: modname='profil_sst'
+    CHARACTER (LEN=80) :: abort_message
+
+    IF (klon/=nlon) THEN
+       abort_message='probleme de dimensions dans profil_sst'
+       CALL abort_physic(modname,abort_message,1)
+    ENDIF
+    WRITE (*, *) ' profil_sst: type_profil=', type_profil
+    DO i = 1, year_len
+      ! phy_sst(:,i) = 260.+50.*cos(rlatd(:))**2
+
+      ! Rajout fbrlmd
+
+      IF (type_profil==1) THEN
+        ! Méthode 1 "Control" faible plateau à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 27.*(1-sin(1.5*rlatd(j))**2)
+          ! PI/3=1.047197551
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+      IF (type_profil==2) THEN
+        ! Méthode 2 "Flat" fort plateau à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 27.*(1-sin(1.5*rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+
+      IF (type_profil==3) THEN
+        ! Méthode 3 "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5* &
+            rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==4) THEN
+        ! Méthode 4 : Méthode 3 + SST+2 "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 0.5*29.*(2-sin(1.5*rlatd(j))**2-sin(1.5* &
+            rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==5) THEN
+        ! Méthode 5 : Méthode 3 + +2K "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 2. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5 &
+            *rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273. + 2.
+          END IF
+
+        END DO
+      END IF
+
+      IF (type_profil==6) THEN
+        ! Méthode 6 "cst" valeur constante de SST
+        DO j = 1, klon
+          phy_sst(j, i) = 288.
+        END DO
+      END IF
+
+
+      IF (type_profil==7) THEN
+        ! Méthode 7 "cst" valeur constante de SST +2
+        DO j = 1, klon
+          phy_sst(j, i) = 288. + 2.
+        END DO
+      END IF
+
+      p = 0
+      IF (type_profil==8) THEN
+        ! Méthode 8 profil anomalies SST du modèle couplé AR4
+        DO j = 1, klon
+          IF (rlatd(j)==rlatd(j-1)) THEN
+            phy_sst(j, i) = 273. + x_anom_sst(pplus) + &
+              0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5*rlatd(j))**4)
+            IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+              phy_sst(j, i) = 273. + x_anom_sst(pplus)
+            END IF
+          ELSE
+            p = p + 1
+            pplus = 73 - p
+            phy_sst(j, i) = 273. + x_anom_sst(pplus) + &
+              0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5*rlatd(j))**4)
+            IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+              phy_sst(j, i) = 273. + x_anom_sst(pplus)
+            END IF
+            WRITE (*, *) rlatd(j), x_anom_sst(pplus), phy_sst(j, i)
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==9) THEN
+        ! Méthode 5 : Méthode 3 + -2K "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. - 2. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5 &
+            *rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273. - 2.
+          END IF
+        END DO
+      END IF
+
+
+      IF (type_profil==10) THEN
+        ! Méthode 10 : Méthode 3 + +4K "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 4. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5 &
+            *rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273. + 4.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==11) THEN
+        ! Méthode 11 : Méthode 3 + 4CO2 "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5* &
+            rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==12) THEN
+        ! Méthode 12 : Méthode 10 + 4CO2 "Qobs" plateau réel à l'Equateur
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 4. + 0.5*27.*(2-sin(1.5*rlatd(j))**2-sin(1.5 &
+            *rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273. + 4.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==13) THEN
+        ! Méthode 13 "Qmax" plateau réel à l'Equateur augmenté !
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 0.5*29.*(2-sin(1.5*rlatd(j))**2-sin(1.5* &
+            rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+      IF (type_profil==14) THEN
+        ! Méthode 13 "Qmax2K" plateau réel à l'Equateur augmenté +2K !
+        DO j = 1, klon
+          phy_sst(j, i) = 273. + 2. + 0.5*29.*(2-sin(1.5*rlatd(j))**2-sin(1.5 &
+            *rlatd(j))**4)
+          IF ((rlatd(j)>1.0471975) .OR. (rlatd(j)<-1.0471975)) THEN
+            phy_sst(j, i) = 273.
+          END IF
+        END DO
+      END IF
+
+      if (type_profil.EQ.20) then
+      print*,'Profile SST 20'
+!     Méthode 13 "Qmax2K" plateau réel �|  l'Equateur augmenté +2K
+
+      do j=1,klon
+        phy_sst(j,i)=248.+55.*(1-sin(rlatd(j))**2)
+      enddo
+      endif
+
+      if (type_profil.EQ.21) then
+      print*,'Profile SST 21'
+!     Méthode 13 "Qmax2K" plateau réel �|  l'Equateur augmenté +2K
+      do j=1,klon
+        phy_sst(j,i)=252.+55.*(1-sin(rlatd(j))**2)
+      enddo
+      endif
+
+
+
+    END DO
+
+    ! IM beg : verif profil SST: phy_sst
+    amn = min(phy_sst(1,1), 1000.)
+    amx = max(phy_sst(1,1), -1000.)
+    imn = 1
+    kmn = 1
+    imx = 1
+    kmx = 1
+    DO k = 1, year_len
+      DO i = 2, nlon
+        IF (phy_sst(i,k)<amn) THEN
+          amn = phy_sst(i, k)
+          imn = i
+          kmn = k
+        END IF
+        IF (phy_sst(i,k)>amx) THEN
+          amx = phy_sst(i, k)
+          imx = i
+          kmx = k
+        END IF
+      END DO
+    END DO
+
+    PRINT *, 'profil_sst: imn, kmn, phy_sst(imn,kmn) ', imn, kmn, amn
+    PRINT *, 'profil_sst: imx, kmx, phy_sst(imx,kmx) ', imx, kmx, amx
+    ! IM end : verif profil SST: phy_sst
+
+    RETURN
+  END SUBROUTINE profil_sst
+
+END MODULE phyaqua_mod

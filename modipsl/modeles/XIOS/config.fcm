@@ -1,0 +1,6 @@
+%COMPIL_CFLAGS %PROD_CFLAGS
+%COMPIL_FFLAGS %PROD_FFLAGS
+%CPP_KEY        USING_NETCDF_PAR
+%CBASE_INC     -I  -I  -I  -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/XIOS/extern/boost -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/XIOS/extern/blitz
+%FBASE_INC     -I  -I    -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/XIOS/extern/boost -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/XIOS/extern/blitz
+%ARCH_LD        -L  -L  -L   -lnetcdff -lnetcdf -lhdf5_hl -lhdf5 -lz -lcurl 

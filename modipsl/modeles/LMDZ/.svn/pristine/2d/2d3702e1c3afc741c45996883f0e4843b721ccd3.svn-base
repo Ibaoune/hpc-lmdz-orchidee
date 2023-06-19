@@ -1,0 +1,46 @@
+MODULE YOEMETH
+
+IMPLICIT NONE
+
+SAVE
+
+!     -----------------------------------------------------------------
+!     ** YOEMETH - CONTROL PARAMETERS FOR METHANE OXIDATION
+!     -----------------------------------------------------------------
+
+!     * E.C.M.W.F. PHYSICS PACKAGE *
+
+!     C. JAKOB        E.C.M.W.F.          98/04/07
+!     D. Cugnet       Adapted for LMDZ    12/02/24
+
+!      NAME     TYPE      PURPOSE
+!      ----     ----      -------
+
+!     *RALPHA1* REAL      CONSTANT IN TIME SCALE 1 CALCULATIONS
+!     *RALPHA2* REAL      CONSTANT IN TIME SCALE 2 CALCULATIONS
+!     *RQLIM*   REAL      UPPERLIMIT OD SPECIFIC HUMIDITY FOR 
+!                         METHANE OXIDATION TO BE ACTIVE
+!     *RPBOTOX* REAL      PRESSURE BELOW WHICH METHANE OXIDATION
+!                         IS CONSIDERED ACTIVE
+!     *RPBOTPH* REAL      PRESSURE BELOW WHICH H2O PHOTOLYSIS
+!                         IS CONSIDERED ACTIVE
+!     *RPTOPOX* REAL      PRESSURE BELOW WHICH SHORTEST TIME SCALE
+!                         IS USED IN METHANE OXIDATION
+!     *RPTOPPH* REAL      PRESSURE BELOW WHICH SHORTEST TIME SCALE
+!                         IS USED IN H2O PHOTOLYISIS
+!     *RALPHA3* REAL      CONSTANT IN TIME SCALE 2 CALCULATIONS
+!     *RLOGPPH* REAL      CONSTANT IN TIME SCALE 2 CALCULATIONS
+
+REAL :: RALPHA1
+REAL :: RALPHA2
+REAL :: RQLIM
+REAL :: RPBOTOX
+REAL :: RPBOTPH
+REAL :: RPTOPOX
+REAL :: RPTOPPH
+REAL :: RALPHA3
+REAL :: RLOGPPH
+
+END MODULE YOEMETH
+
+

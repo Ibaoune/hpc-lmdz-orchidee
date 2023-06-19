@@ -1,0 +1,75 @@
+##  Cycle diurne  ou non                 
+iflag_cycle_diurne=1
+##  Soil Model  ou non               
+soil_model=y
+## Pas de temps de couplage (s).
+t_coupl= 86400
+
+## Nombre  d'appels des routines de rayonnements ( par jour)                 
+nbapp_rad=16
+
+##  Facteur additif pour l'albedo
+pmagic=  0.0
+
+#
+# Parametres "orbitaux/ ere geologique"
+#
+### R_ecc =      Excentricite (lue dans Eccentricity.txt)
+R_ecc=  0.016715
+### R_peri =     Equinoxe (lue dans Perihelie.txt)
+R_peri=  102.7
+### R_incl =     Inclinaison (lue dans Obliquity.txt)
+R_incl=  23.441
+### solaire =    Constante solaire
+# solaire est modifie avec les valeurs du fichier SOLARANDVOLCANOES.txt
+# solaire parameter est utilise uniquement avec si iflag_rrtm=0 et ok_suntime_rrtm=n
+solaire=  0.0 
+### constante solaire lue dans un fichier par defaut
+ok_suntime_rrtm=y
+#
+# Taux gaz a effet de serre
+#
+### co2_ppm =    taux CO2 en ppm
+co2_ppm= 3.9755e+02
+### co2_ppm_per =    taux 4xCO2 en ppm (uniqument pour calcul des diags)
+co2_ppm_per= 1590.2
+### CH4_ppb =    taux CH4 en ppb
+CH4_ppb= 1.8315e+03
+### N2O_ppb =    taux N2O en ppb
+N2O_ppb= 3.2699e+02
+### CFC11_ppt =  taux CFC11 en ppt
+CFC11_ppt= 1.5738e+02
+### CFC12_ppt =  taux CFC12 en ppt
+CFC12_ppt= 1.0495e+03
+#
+# Parametres effets directs/indirects des "aerosols"
+#
+### ok_ade=y/n   flag Aerosol direct effect
+ok_ade= y
+### ok_aie=y/n   flag Aerosol indirect effect
+ok_aie= y
+### aer_type =   Aerosol variation type : actuel / preind / scenario / annuel
+aer_type=annuel
+### aerosol coupling = online (y) or offline (n)
+aerosol_couple= n
+###  flag_aerosol = type of coupled aerosol, if aerosol offline 
+###  0 => no aerosol, 1 => sulfate only, 2 => bc only, 3 => pom only, 4 => seasalt only, 5 => dust only, 6 => all aerosol
+flag_aerosol= 6
+### ok_cdnc=y/n   Cloud droplet number concentration
+ok_cdnc= y
+# ok_alw=y flag pour activer l effet LW des poussieres
+ok_alw=y
+#
+#
+# Parametre de lecture de l'ozone
+#
+# Allowed values are 0, 1 and 2
+# 0: do not read an ozone climatology
+# 1: read a single ozone climatology that will be used day and night
+# 2: read two ozone climatologies, the average day and night climatology and the daylight climatology
+read_climoz= 1
+# 
+# Aerosols stratospheriques utilises par defaut 
+flag_aerosol_strat=2
+# COSP
+ok_cosp= y

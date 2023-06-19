@@ -1,0 +1,6 @@
+module unload openmpi
+module load openmpi/1.4.5-gfortran
+
+module unload netcdf4
+module load netcdf4/4.2.1.1-gfortran
+export NETCDF_HOME=/opt/netcdf42/gfortran

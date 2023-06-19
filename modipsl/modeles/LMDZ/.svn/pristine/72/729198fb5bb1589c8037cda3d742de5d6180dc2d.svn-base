@@ -1,0 +1,332 @@
+!
+! $Id$
+!
+SUBROUTINE alpale_th ( dtime, lmax_th, t_seri, cell_area,  &
+                       cin, s2, n2,  &
+                       ale_bl_trig, ale_bl_stat, ale_bl,  &
+                       alp_bl, alp_bl_stat, &
+                       proba_notrig, random_notrig, birth_rate)
+
+! **************************************************************
+! *
+! ALPALE_TH                                                    *
+! *
+! *
+! written by   : Jean-Yves Grandpeix, 11/05/2016              *
+! modified by :                                               *
+! **************************************************************
+
+  USE dimphy
+  USE ioipsl_getin_p_mod, ONLY : getin_p
+  USE print_control_mod, ONLY: mydebug=>debug , lunout, prt_level
+!
+  IMPLICIT NONE
+
+!================================================================
+! Auteur(s)   : Jean-Yves Grandpeix, 11/05/2016
+! Objet : Contribution of the thermal scheme to Ale and Alp
+!================================================================
+
+! Input arguments
+!----------------
+  REAL, INTENT(IN)                                           :: dtime
+  REAL, DIMENSION(klon), INTENT(IN)                          :: cell_area
+  INTEGER, DIMENSION(klon), INTENT(IN)                       :: lmax_th
+  REAL, DIMENSION(klon,klev), INTENT(IN)                     :: t_seri
+  REAL, DIMENSION(klon), INTENT(IN)                          :: ale_bl_stat
+  REAL, DIMENSION(klon), INTENT(IN)                          :: cin
+  REAL, DIMENSION(klon), INTENT(IN)                          :: s2, n2
+                                                                
+  REAL, DIMENSION(klon), INTENT(INOUT)                       :: ale_bl_trig, ale_bl
+  REAL, DIMENSION(klon), INTENT(INOUT)                       :: alp_bl
+  REAL, DIMENSION(klon), INTENT(INOUT)                       :: alp_bl_stat
+  REAL, DIMENSION(klon), INTENT(INOUT)                       :: proba_notrig
+
+  REAL, DIMENSION(klon), INTENT(OUT)                         :: random_notrig
+
+  REAL, DIMENSION(klon), INTENT(OUT)                         :: birth_rate
+
+  include "thermcell.h"
+
+! Local variables
+!----------------
+  INTEGER                                                    :: i
+  LOGICAL, SAVE                                              :: first = .TRUE.
+  REAL, SAVE                                                 :: random_notrig_max=1.
+  REAL, SAVE                                                 :: cv_feed_area
+  REAL                                                       :: birth_number
+  REAL, DIMENSION(klon)                                      :: ale_bl_ref
+  REAL, DIMENSION(klon)                                      :: tau_trig
+!
+    !$OMP THREADPRIVATE(random_notrig_max) 
+    !$OMP THREADPRIVATE(cv_feed_area) 
+    !$OMP THREADPRIVATE(first)
+!
+ REAL umexp  ! expression of (1.-exp(-x))/x valid for all x, especially when x->0
+ REAL x
+     CHARACTER (LEN=20) :: modname='alpale_th'
+     CHARACTER (LEN=80) :: abort_message
+     
+ umexp(x) = max(sign(1.,x-1.e-3),0.)*(1.-exp(-x))/max(x,1.e-3) + &
+            (1.-max(sign(1.,x-1.e-3),0.))*(1.-0.5*x*(1.-x/3.*(1.-0.25*x)))  !!! correct formula            (jyg)
+!!!            (1.-max(sign(1.,x-1.e-3),0.))*(-0.5*x*(1.-x/3.*(1.-0.25*x))) !!! bug introduced by mistake  (jyg)
+!!!            (1.-max(sign(1.,x-1.e-3),0.))*(1.-0.5*x*(1.-x/3.*(1.-0.25*x)))  !!! initial correct formula (jyg)
+!
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!  JYG, 20160513 : Introduction of the Effective Lifting Power (ELP), which 
+! takes into account the area (cv_feed_area) covered by thermals contributing 
+! to each cumulonimbus.
+!   The use of ELP prevents singularities when the trigger probability tends to
+! zero. It is activated by iflag_clos_bl = 3.
+!   The ELP values are stored in the ALP_bl variable.
+!   
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!
+!!
+!!  The following 3 lines should be commented if one wants to activate the 
+!! multiplication of no-trigger probabilities between calls to the convection 
+!! scheme.
+!!
+             do i=1,klon
+                proba_notrig(i)=1.
+             enddo
+!!
+!!
+!---------------------------------------
+  IF (iflag_clos_bl .LT. 3) THEN
+!---------------------------------------
+!
+!      Original code (Nicolas Rochetin)
+!     --------------------------------
+
+    IF (first) THEN
+       random_notrig_max=1.
+       CALL getin_p('random_notrig_max',random_notrig_max)
+       first=.FALSE.
+    ENDIF
+          !cc nrlmd le 10/04/2012
+          !-----------Stochastic triggering-----------
+          if (iflag_trig_bl.ge.1) then
+             !
+             IF (prt_level .GE. 10) THEN
+                WRITE(lunout,*)'cin, ale_bl_stat, alp_bl, alp_bl_stat ', &
+                     cin, ale_bl_stat, alp_bl, alp_bl_stat
+             ENDIF
+
+
+             !----Initialisations
+             do i=1,klon
+!!jyg                proba_notrig(i)=1.
+                random_notrig(i)=1e6*ale_bl_stat(i)-int(1e6*ale_bl_stat(i))
+                if ( random_notrig(i) > random_notrig_max ) random_notrig(i)=0.
+                if ( ale_bl_trig(i) .lt. abs(cin(i))+1.e-10 ) then 
+                   tau_trig(i)=tau_trig_shallow
+                else
+                   tau_trig(i)=tau_trig_deep
+                endif
+             enddo
+             !
+             IF (prt_level .GE. 10) THEN
+                WRITE(lunout,*)'random_notrig, tau_trig ', &
+                     random_notrig, tau_trig
+                WRITE(lunout,*)'s_trig,s2,n2 ', &
+                     s_trig,s2,n2
+             ENDIF
+
+             !Option pour re-activer l'ancien calcul de Ale_bl (iflag_trig_bl=2)
+             IF (iflag_trig_bl.eq.1) then
+
+                !----Tirage al\'eatoire et calcul de ale_bl_trig
+                do i=1,klon
+                   if ( (ale_bl_stat(i) .gt. abs(cin(i))+1.e-10) )  then
+                      proba_notrig(i)=proba_notrig(i)* &
+                         (1.-exp(-s_trig/s2(i)))**(n2(i)*dtime/tau_trig(i))
+                      !        print *, 'proba_notrig(i) ',proba_notrig(i)
+                      if (random_notrig(i) .ge. proba_notrig(i)) then 
+                         ale_bl_trig(i)=ale_bl_stat(i)
+                      else
+                         ale_bl_trig(i)=0.
+                      endif
+                      birth_rate(i) = n2(i)*exp(-s_trig/s2(i))/(tau_trig(i)*cell_area(i))
+!!!                      birth_rate(i) = max(birth_rate(i),1.e-18)
+                   else
+!!jyg                      proba_notrig(i)=1.
+                      birth_rate(i) = 0.
+                      random_notrig(i)=0.
+                      ale_bl_trig(i)=0.
+                   endif
+                enddo
+
+             ELSE IF (iflag_trig_bl.ge.2) then
+
+                do i=1,klon
+                   if ( (Ale_bl(i) .gt. abs(cin(i))+1.e-10) )  then
+                      proba_notrig(i)=proba_notrig(i)* &
+                         (1.-exp(-s_trig/s2(i)))**(n2(i)*dtime/tau_trig(i))
+                      !        print *, 'proba_notrig(i) ',proba_notrig(i)
+                      if (random_notrig(i) .ge. proba_notrig(i)) then 
+                         ale_bl_trig(i)=Ale_bl(i)
+                      else
+                         ale_bl_trig(i)=0.
+                      endif
+                      birth_rate(i) = n2(i)*exp(-s_trig/s2(i))/(tau_trig(i)*cell_area(i))
+!!!                      birth_rate(i) = max(birth_rate(i),1.e-18)
+                   else
+!!jyg                      proba_notrig(i)=1.
+                      birth_rate(i) = 0.
+                      random_notrig(i)=0.
+                      ale_bl_trig(i)=0.
+                   endif
+                enddo
+
+             ENDIF
+
+             !
+             IF (prt_level .GE. 10) THEN
+                WRITE(lunout,*)'proba_notrig, ale_bl_trig ', &
+                     proba_notrig, ale_bl_trig
+             ENDIF
+
+          endif !(iflag_trig_bl)
+
+          !-----------Statistical closure-----------
+          if (iflag_clos_bl.eq.1) then 
+
+             do i=1,klon
+                !CR: alp probabiliste
+                if (ale_bl_trig(i).gt.0.) then
+                   alp_bl(i)=alp_bl(i)/(1.-min(proba_notrig(i),0.999))
+                endif
+             enddo
+
+          else if (iflag_clos_bl.eq.2) then
+
+             !CR: alp calculee dans thermcell_main
+             do i=1,klon
+                alp_bl(i)=alp_bl_stat(i)
+             enddo
+
+          else
+
+             alp_bl_stat(:)=0.
+
+          endif !(iflag_clos_bl)
+
+!
+!---------------------------------------
+  ELSEIF (iflag_clos_bl .EQ. 3) THEN  ! (iflag_clos_bl .LT. 3)
+!---------------------------------------
+!
+!      New code with Effective Lifting Power
+!     -------------------------------------
+    IF (first) THEN
+       cv_feed_area = 1.e10   ! m2
+       CALL getin_p('cv_feed_area', cv_feed_area)
+       first=.FALSE.
+    ENDIF
+
+          !-----------Stochastic triggering-----------
+     if (iflag_trig_bl.ge.1) then
+        !
+        IF (prt_level .GE. 10) THEN
+           WRITE(lunout,*)'cin, ale_bl_stat, alp_bl_stat ', &
+                cin, ale_bl_stat, alp_bl_stat
+        ENDIF
+
+        ! Use ale_bl_stat (Rochetin's code) or ale_bl (old code) according to 
+        ! iflag_trig_bl value.
+        IF (iflag_trig_bl.eq.1) then         ! use ale_bl_stat (Rochetin computation)
+         do i=1,klon
+              ale_bl_ref(i)=ale_bl_stat(i)
+         enddo
+        ELSE IF (iflag_trig_bl.ge.2) then    ! use ale_bl (old computation)
+         do i=1,klon
+              ale_bl_ref(i)=Ale_bl(i)
+         enddo
+        ENDIF ! (iflag_trig_bl.eq.1)
+
+
+        !----Initializations and random number generation
+        do i=1,klon
+!!jyg           proba_notrig(i)=1.
+           random_notrig(i)=1e6*ale_bl_stat(i)-int(1e6*ale_bl_stat(i))
+           if ( ale_bl_trig(i) .lt. abs(cin(i))+1.e-10 ) then 
+              tau_trig(i)=tau_trig_shallow
+           else
+              tau_trig(i)=tau_trig_deep
+           endif
+        enddo
+        !
+        IF (prt_level .GE. 10) THEN
+           WRITE(lunout,*)'random_notrig, tau_trig ', &
+                random_notrig, tau_trig
+           WRITE(lunout,*)'s_trig,s2,n2 ', &
+                s_trig,s2,n2
+        ENDIF
+
+        !----alp_bl computation
+        do i=1,klon
+           if ( (ale_bl_ref(i) .gt. abs(cin(i))+1.e-10) )  then
+              birth_number = n2(i)*exp(-s_trig/s2(i))
+              birth_rate(i) = birth_number/(tau_trig(i)*cell_area(i))
+!!!              birth_rate(i) = max(birth_rate(i),1.e-18)
+              proba_notrig(i)=proba_notrig(i)*exp(-birth_number*dtime/tau_trig(i))
+              Alp_bl(i) = Alp_bl(i)* &
+                          umexp(-birth_number*cv_feed_area/cell_area(i))/ &
+                          umexp(-birth_number*dtime/tau_trig(i))*  &
+                          tau_trig(i)*cv_feed_area/(dtime*cell_area(i))
+          else 
+!!jyg              proba_notrig(i)=1.
+              birth_rate(i)=0.
+              random_notrig(i)=0.
+              alp_bl(i)=0.
+           endif
+        enddo
+
+        !----ale_bl_trig computation
+         do i=1,klon
+           if (random_notrig(i) .ge. proba_notrig(i)) then 
+              ale_bl_trig(i)=ale_bl_ref(i)
+           else
+              ale_bl_trig(i)=0.
+           endif
+         enddo
+
+        !
+        IF (prt_level .GE. 10) THEN
+           WRITE(lunout,*)'proba_notrig, ale_bl_trig ', &
+                proba_notrig, ale_bl_trig
+        ENDIF
+
+     endif !(iflag_trig_bl .ge. 1)
+
+!---------------------------------------
+  ENDIF ! (iflag_clos_bl .LT. 3)
+!---------------------------------------
+
+          IF (prt_level .GE. 10) THEN
+             WRITE(lunout,*)'alpale_th: ale_bl_trig, alp_bl_stat, birth_rate ', &
+                      ale_bl_trig(1), alp_bl_stat(1), birth_rate(1)
+          ENDIF
+
+          !cc fin nrlmd le 10/04/2012
+!
+          !IM/FH: 2011/02/23 
+          ! Couplage Thermiques/Emanuel seulement si T<0
+          if (iflag_coupl==2) then
+             IF (prt_level .GE. 10) THEN
+                WRITE(lunout,*)'Couplage Thermiques/Emanuel seulement si T<0'
+             ENDIF
+             do i=1,klon
+                if (t_seri(i,lmax_th(i))>273.) then
+                   Ale_bl(i)=0.
+                endif
+             enddo
+!    print *,'In order to run with iflag_coupl=2, you have to comment out the following stop'
+!             STOP
+             abort_message='In order to run with iflag_coupl=2, you have to comment out the following abort'
+             CALL abort_physic(modname,abort_message,1)
+          endif
+   RETURN
+   END
+

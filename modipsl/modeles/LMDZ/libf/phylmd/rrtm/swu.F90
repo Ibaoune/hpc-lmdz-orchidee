@@ -1,0 +1,259 @@
+!OPTIONS XOPT(HSFUN)
+SUBROUTINE SWU &
+ & ( KIDIA, KFDIA , KLON  , KLEV,&
+ & PSCT , PCARDI, PCLDSW, PPMB , PPSOL, PRMU0, PTAVE, PWV,&
+ & PAKI , PCLD  , PCLEAR, PDSIG, PFACT, PRMU , PSEC , PUD &
+ & )  
+
+!**** *SWU* - SHORTWAVE RADIATION, ABSORBER AMOUNTS
+
+!     PURPOSE.
+!     --------
+!           COMPUTES THE ABSORBER AMOUNTS USED IN SHORTWAVE RADIATION
+!     CALCULATIONS
+
+!**   INTERFACE.
+!     ----------
+!          *SWU* IS CALLED BY *SW*
+
+!        IMPLICIT ARGUMENTS :
+!        --------------------
+
+!     ==== INPUTS ===
+!     ==== OUTPUTS ===
+
+!     METHOD.
+!     -------
+
+!          1. COMPUTES ABSORBER AMOUNTS WITH TEMPERATURE AND PRESSURE
+!     SCALING.
+
+!     EXTERNALS.
+!     ----------
+
+!          *SWTT*
+
+!     REFERENCE.
+!     ----------
+
+!        SEE RADIATION'S PART OF THE ECMWF RESEARCH DEPARTMENT
+!        DOCUMENTATION, AND FOUQUART AND BONNEL (1980)
+
+!     AUTHOR.
+!     -------
+!        JEAN-JACQUES MORCRETTE  *ECMWF*
+
+!     MODIFICATIONS.
+!     --------------
+!        ORIGINAL : 89-07-14
+!        03-03-18   JJMorcrette  security on normalized cloud cover
+!        M.Hamrud      01-Oct-2003 CY28 Cleaning
+!        Y.Seity 06-09-09 : add modset from O.Thouron (MesoNH) under NOVLP tests
+
+!     ------------------------------------------------------------------
+
+USE PARKIND1  ,ONLY : JPIM     ,JPRB
+USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
+
+USE YOECLD   , ONLY : REPSEC
+!USE YOERAD   , ONLY :   NOVLP    ,NSW
+! NSW mis dans .def MPL 20140211
+USE YOERAD   , ONLY :   NOVLP    
+USE YOERDU   , ONLY : REPSCQ
+USE YOESW    , ONLY : RPDH1    ,RPDU1    ,RPNH     ,RPNU     ,&
+ & RTDH2O   ,RTDUMG   ,RTH2O    ,RTUMG  
+USE YOEOVLP  , ONLY : RA1OVLP
+
+IMPLICIT NONE
+
+include "clesphys.h"
+INTEGER(KIND=JPIM),INTENT(IN)    :: KLON 
+INTEGER(KIND=JPIM),INTENT(IN)    :: KLEV 
+INTEGER(KIND=JPIM),INTENT(IN)    :: KIDIA 
+INTEGER(KIND=JPIM),INTENT(IN)    :: KFDIA 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PSCT 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PCARDI 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PCLDSW(KLON,KLEV) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PPMB(KLON,KLEV+1) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PPSOL(KLON) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PRMU0(KLON) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PTAVE(KLON,KLEV) 
+REAL(KIND=JPRB)   ,INTENT(IN)    :: PWV(KLON,KLEV) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PAKI(KLON,2,NSW) 
+REAL(KIND=JPRB)   ,INTENT(INOUT) :: PCLD(KLON,KLEV) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PCLEAR(KLON) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PDSIG(KLON,KLEV) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PFACT(KLON) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PRMU(KLON) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PSEC(KLON) 
+REAL(KIND=JPRB)   ,INTENT(OUT)   :: PUD(KLON,5,KLEV+1) 
+!     ------------------------------------------------------------------
+
+!*       0.1   ARGUMENTS
+!              ---------
+
+INTEGER(KIND=JPIM) :: INUIR  
+
+!     ------------------------------------------------------------------
+
+!              ------------
+
+INTEGER(KIND=JPIM) :: IIND(2)
+REAL(KIND=JPRB) :: ZC1J(KLON,KLEV+1),ZCLEAR(KLON),ZCLOUD(KLON)&
+ & ,  ZN175(KLON), ZN190(KLON), ZO175(KLON)&
+ & ,  ZO190(KLON), ZSIGN(KLON)&
+ & ,  ZR(KLON,2) , ZSIGO(KLON), ZUD(KLON,2)  
+
+INTEGER(KIND=JPIM) :: JA, JK, JKL, JKLP1, JKP1, JL, JNU
+
+REAL(KIND=JPRB) :: ZDSCO2, ZDSH2O, ZFPPW, ZRTH, ZRTU, ZWH2O, ZALPHA1
+REAL(KIND=JPRB) :: ZHOOK_HANDLE
+
+#include "swtt1.intfb.h"
+
+!     ------------------------------------------------------------------
+
+!*         1.     COMPUTES AMOUNTS OF ABSORBERS
+!                 -----------------------------
+
+REPSEC=1.E-12_JPRB   !!!!! A REVOIR (MPL)
+IF (LHOOK) CALL DR_HOOK('SWU',0,ZHOOK_HANDLE)
+IIND(1)=1
+IIND(2)=2
+
+!*         1.1    INITIALIZES QUANTITIES
+!                 ----------------------
+
+DO JL = KIDIA,KFDIA
+  PUD(JL,1,KLEV+1)=0.0_JPRB
+  PUD(JL,2,KLEV+1)=0.0_JPRB
+  PUD(JL,3,KLEV+1)=0.0_JPRB
+  PUD(JL,4,KLEV+1)=0.0_JPRB
+  PUD(JL,5,KLEV+1)=0.0_JPRB
+  PFACT(JL)= PRMU0(JL) * PSCT
+!- already accounted for in RADINT      
+!      PRMU(JL)=SQRT(1224.* PRMU0(JL) * PRMU0(JL) + 1.) / 35.
+  PRMU(JL)=PRMU0(JL)
+  PSEC(JL)=1.0_JPRB/PRMU(JL)
+  ZC1J(JL,KLEV+1)=0.0_JPRB
+ENDDO
+
+!*          1.3    AMOUNTS OF ABSORBERS
+!                  --------------------
+
+DO JL= KIDIA,KFDIA
+  ZUD(JL,1) = 0.0_JPRB
+  ZUD(JL,2) = 0.0_JPRB
+  ZO175(JL) = PPSOL(JL)** RPDU1
+  ZO190(JL) = PPSOL(JL)** RPDH1
+  ZSIGO(JL) = PPSOL(JL)
+  ZCLEAR(JL)=1.0_JPRB
+  ZCLOUD(JL)=0.0_JPRB
+ENDDO
+
+DO JK = 1 , KLEV
+  JKP1 = JK + 1
+  JKL = KLEV+1 - JK
+  JKLP1 = JKL+1
+  ZALPHA1=RA1OVLP(KLEV+1-JK)
+  
+  DO JL = KIDIA,KFDIA
+    ZRTH=(RTH2O/PTAVE(JL,JK))**RTDH2O
+    ZRTU=(RTUMG/PTAVE(JL,JK))**RTDUMG
+    ZWH2O = MAX (PWV(JL,JKL) , REPSCQ )
+
+    ZSIGN(JL) = 100._JPRB * PPMB(JL,JKP1)
+    PDSIG(JL,JK) = (ZSIGO(JL) - ZSIGN(JL))/PPSOL(JL)
+    ZN175(JL) = ZSIGN(JL) ** RPDU1
+    ZN190(JL) = ZSIGN(JL) ** RPDH1
+    ZDSCO2 = ZO175(JL) - ZN175(JL)
+    ZDSH2O = ZO190(JL) - ZN190(JL)
+    PUD(JL,1,JK) = RPNH * ZDSH2O * ZWH2O  * ZRTH
+    PUD(JL,2,JK) = RPNU * ZDSCO2 * PCARDI * ZRTU
+    
+    ZFPPW=1.6078_JPRB*ZWH2O/(1.0_JPRB+0.608_JPRB*ZWH2O)
+    PUD(JL,4,JK)=PUD(JL,1,JK)*ZFPPW
+    PUD(JL,5,JK)=PUD(JL,1,JK)*(1.0_JPRB-ZFPPW)
+    ZUD(JL,1) = ZUD(JL,1) + PUD(JL,1,JK)
+    ZUD(JL,2) = ZUD(JL,2) + PUD(JL,2,JK)
+    ZSIGO(JL) = ZSIGN(JL)
+    ZO175(JL) = ZN175(JL)
+    ZO190(JL) = ZN190(JL)
+!print *,'SWU: RTH2O RTDH2O RTUMG RTDUMG',RTH2O,RTDH2O,RTUMG,RTDUMG
+!print *,'SWU: RPNH ZDSH2O ZWH2O ZRTH',RPNH,ZDSH2O,ZWH2O,ZRTH
+!print *,'SWU: RPNU ZDSCO2 PCARDI ZRTU',RPNU,ZDSCO2,PCARDI,ZRTU
+
+!++MODIFCODE
+    IF ((NOVLP == 1).OR.(NOVLP==6).OR.(NOVLP==8)) THEN
+      ZCLEAR(JL)=ZCLEAR(JL)&
+       & *(1.0_JPRB-MAX(PCLDSW(JL,JKL),ZCLOUD(JL)))&
+       & /(1.0_JPRB-MIN(ZCLOUD(JL),1.0_JPRB-REPSEC))  
+      ZC1J(JL,JKL)= 1.0_JPRB - ZCLEAR(JL)
+      ZCLOUD(JL) = PCLDSW(JL,JKL)
+    ELSEIF ((NOVLP == 2).OR.(NOVLP==7)) THEN
+      ZCLOUD(JL) = MAX(PCLDSW(JL,JKL),ZCLOUD(JL))
+      ZC1J(JL,JKL) = ZCLOUD(JL)
+    ELSEIF ((NOVLP == 3).OR.(NOVLP==5)) THEN
+      ZCLEAR(JL) = ZCLEAR(JL)*(1.0_JPRB-PCLDSW(JL,JKL))
+      ZCLOUD(JL) = 1.0_JPRB - ZCLEAR(JL)
+      ZC1J(JL,JKL) = ZCLOUD(JL)
+    ELSEIF (NOVLP == 4) THEN
+!** Hogan & Illingworth (2001)      
+      ZCLEAR(JL)=ZCLEAR(JL)*( &
+       & ZALPHA1*(1.0_JPRB-MAX(PCLDSW(JL,JKL),ZCLOUD(JL))) &
+       & /(1.0_JPRB-MIN(ZCLOUD(JL),1.0_JPRB-REPSEC)) &
+       & +(1.0_JPRB-ZALPHA1)*(1.0_JPRB-PCLDSW(JL,JKL)) )  
+      ZC1J(JL,JKL) = 1.0_JPRB - ZCLEAR(JL) 
+      ZCLOUD(JL) = PCLDSW(JL,JKL)
+    ENDIF
+!--MODIFCODE
+  ENDDO
+ENDDO
+
+DO JL=KIDIA,KFDIA
+  PCLEAR(JL)=1.0_JPRB-ZC1J(JL,1)
+ENDDO
+DO JK=1,KLEV
+  DO JL=KIDIA,KFDIA
+    IF (PCLEAR(JL) < 1.0_JPRB) THEN
+      PCLD(JL,JK)=PCLDSW(JL,JK)/(1.0_JPRB-PCLEAR(JL))
+    ELSE
+      PCLD(JL,JK)=0.0_JPRB
+    ENDIF
+    PCLD(JL,JK)=MAX(0.0_JPRB,MIN(1.0_JPRB,PCLD(JL,JK)))
+  ENDDO
+ENDDO
+
+!*         1.4    COMPUTES CLEAR-SKY GREY ABSORPTION COEFFICIENTS
+!                 -----------------------------------------------
+
+DO JA = 1,2
+  DO JL = KIDIA,KFDIA
+    ZUD(JL,JA) = ZUD(JL,JA) * PSEC(JL)
+  ENDDO
+ENDDO
+
+IF (NSW <= 4) THEN
+  INUIR=2
+ELSEIF (NSW == 6) THEN
+  INUIR=4
+ENDIF     
+
+DO JNU= INUIR,NSW
+
+  CALL SWTT1 ( KIDIA,KFDIA,KLON, JNU, 2, IIND,&
+   & ZUD,&
+   & ZR                            )  
+
+  DO JA = 1,2
+    DO JL = KIDIA,KFDIA
+      PAKI(JL,JA,JNU) = -LOG( ZR(JL,JA) ) / ZUD(JL,JA)
+    ENDDO
+  ENDDO
+ENDDO
+
+!     ------------------------------------------------------------------
+
+IF (LHOOK) CALL DR_HOOK('SWU',1,ZHOOK_HANDLE)
+END SUBROUTINE SWU
+

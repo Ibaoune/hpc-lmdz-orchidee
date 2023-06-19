@@ -1,0 +1,147 @@
+
+! $Id: moy_undefSTD.F90 3435 2019-01-22 15:21:59Z fairhead $
+
+SUBROUTINE moy_undefstd(itap, itapm1)
+  USE netcdf
+  USE dimphy
+#ifdef CPP_IOIPSL 
+  USE phys_state_var_mod
+#endif
+#ifdef CPP_XIOS
+  USE wxios, ONLY: missing_val
+#endif
+ 
+  USE phys_cal_mod, ONLY: mth_len
+  IMPLICIT NONE
+  include "clesphys.h"
+#ifndef CPP_XIOS 
+  REAL :: missing_val
+#endif
+
+  ! ====================================================================
+
+  ! I. Musat : 09.2004
+
+  ! Moyenne - a des frequences differentes - des valeurs bien definies
+  ! (.NE.missing_val) des variables interpolees a un niveau de
+  ! pression.
+  ! 1) les variables de type "day" (nout=1) ou "mth" (nout=2) sont sommees
+  ! tous les pas de temps de la physique
+
+  ! 2) les variables de type "NMC" (nout=3) sont calculees a partir
+  ! des valeurs instantannees toutes les 6 heures
+
+
+  ! NB: mettre "inst(X)" dans le write_hist*NMC.h !
+  ! ====================================================================
+
+
+  ! variables Input
+  ! INTEGER nlevSTD, klevSTD, itap
+  ! PARAMETER(klevSTD=17)
+  INTEGER itap, itapm1
+
+  ! variables locales
+  ! INTEGER i, k, nout, n
+  ! PARAMETER(nout=3) !nout=1 day/nout=2 mth/nout=3 NMC
+  INTEGER i, k, n
+  ! REAL dtime, freq_outNMC(nout), freq_moyNMC(nout)
+  ! REAL freq_outNMC(nout), freq_calNMC(nout)
+  REAL freq_moynmc(nout)
+
+  ! variables Output
+  ! REAL tnondef(klon,klevSTD,nout)
+  ! REAL tsumSTD(klon,klevSTD,nout)
+
+  REAL un_jour
+  PARAMETER (un_jour=86400.)
+! REAL missing_val
+
+! missing_val = nf90_fill_real
+#ifndef CPP_XIOS
+      missing_val=missing_val_nf90
+#endif
+
+  DO n = 1, nout
+    IF (freq_outnmc(n)<0) THEN
+      freq_moynmc(n) = (mth_len*un_jour)/freq_calnmc(n)
+      ! print*,'moy_undefSTD n freq_out freq_moy =',
+      ! $n,freq_moyNMC(n)
+    ELSE
+      freq_moynmc(n) = freq_outnmc(n)/freq_calnmc(n)
+    END IF
+
+    ! calcul 1 fois pas mois, 1 fois par jour ou toutes les 6h
+
+    IF (n==1 .AND. itap==itapm1 .OR. n>1 .AND. mod(itap,nint(freq_outnmc(n)/ & 
+        phys_tstep))==0) THEN
+
+      ! print*,'moy_undefSTD n itap itapm1',n,itap,itapm1
+
+      DO k = 1, nlevstd
+        DO i = 1, klon
+          IF (tnondef(i,k,n)/=(freq_moynmc(n))) THEN
+            tsumstd(i, k, n) = tsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k,n &
+              ))
+            usumstd(i, k, n) = usumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k,n &
+              ))
+            vsumstd(i, k, n) = vsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k,n &
+              ))
+            wsumstd(i, k, n) = wsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k,n &
+              ))
+            phisumstd(i, k, n) = phisumstd(i, k, n)/ &
+              (freq_moynmc(n)-tnondef(i,k,n))
+            qsumstd(i, k, n) = qsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k,n &
+              ))
+            rhsumstd(i, k, n) = rhsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            uvsumstd(i, k, n) = uvsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            vqsumstd(i, k, n) = vqsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            vtsumstd(i, k, n) = vtsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            wqsumstd(i, k, n) = wqsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            vphisumstd(i, k, n) = vphisumstd(i, k, n)/ &
+              (freq_moynmc(n)-tnondef(i,k,n))
+            wtsumstd(i, k, n) = wtsumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            u2sumstd(i, k, n) = u2sumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            v2sumstd(i, k, n) = v2sumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            t2sumstd(i, k, n) = t2sumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            o3sumstd(i, k, n) = o3sumstd(i, k, n)/(freq_moynmc(n)-tnondef(i,k &
+              ,n))
+            o3daysumstd(i, k, n) = o3daysumstd(i, k, n)/ &
+              (freq_moynmc(n)-tnondef(i,k,n))
+          ELSE
+            tsumstd(i, k, n) = missing_val
+            usumstd(i, k, n) = missing_val
+            vsumstd(i, k, n) = missing_val
+            wsumstd(i, k, n) = missing_val
+            phisumstd(i, k, n) = missing_val
+            qsumstd(i, k, n) = missing_val
+            rhsumstd(i, k, n) = missing_val
+            uvsumstd(i, k, n) = missing_val
+            vqsumstd(i, k, n) = missing_val
+            vtsumstd(i, k, n) = missing_val
+            wqsumstd(i, k, n) = missing_val
+            vphisumstd(i, k, n) = missing_val
+            wtsumstd(i, k, n) = missing_val
+            u2sumstd(i, k, n) = missing_val
+            v2sumstd(i, k, n) = missing_val
+            t2sumstd(i, k, n) = missing_val
+            o3sumstd(i, k, n) = missing_val
+            o3daysumstd(i, k, n) = missing_val
+          END IF !tnondef(i,k,n).NE.(freq_moyNMC(n))
+        END DO !i
+      END DO !k
+    END IF !MOD(itap,NINT(freq_outNMC(n)/phys_tstep)).EQ.0
+
+  END DO !n
+
+  RETURN
+END SUBROUTINE moy_undefstd

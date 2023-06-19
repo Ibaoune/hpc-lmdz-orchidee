@@ -1,0 +1,9 @@
+%CONFIG_PATH   /srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/build
+%ARCH          X64_TOUBKAL
+%FFLAGS        %BASE_FFLAGS %PROD_FFLAGS %MPI_FFLAGS %OMP_FFLAGS
+%CPP_KEY       XIOS CPP_OMP CPP_PARA %FPP_DEF
+%EXEC          liborchidee.a
+%LD_FFLAGS     %MPI_LD %OMP_LD %BASE_LD %PROD_FFLAGS
+%INCDIR        -I/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../../lib -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../IOIPSL/inc -I/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../XIOS/inc
+%LIBDIR        -L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdff -lnetcdf  -L/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../../lib -L/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../IOIPSL/lib -lioipsl -L/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/Model/LMDZOR_v6.2.2/modipsl/modeles/ORCHIDEE/../XIOS/lib -lxios
+%EXT_SRC       

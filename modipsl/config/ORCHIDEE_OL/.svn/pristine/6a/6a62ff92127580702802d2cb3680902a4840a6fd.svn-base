@@ -1,0 +1,160 @@
+#!/bin/ksh
+
+#D- Driver du script pour SECHIBA
+
+#-----------------------------------------------------------------
+function SRF_Initialize
+{
+    IGCM_debug_PushStack "SRF_Initialize"
+
+    echo "ORCHIDEE Tag : " ${config_UserChoices_TagName}
+
+    RESOL_SRF=ALL
+    
+    typeset frequency
+    for frequency in ${config_SRF_WriteFrequency} ; do
+        case ${frequency} in
+            HF|hf) SRF_ok_hf=y ;;
+        esac
+    done
+
+    if [ X${sechiba_UserChoices_LAND_USE} = Xy ] ; then
+      sed -e 's&#List=\(.*\)PFTmap\(.*\)year_p1\(.*\)&List=\1PFTmap\2year_p1\3&' ${SUBMIT_DIR}/COMP/sechiba.card > sechiba.card.tmp
+      IGCM_sys_Mv sechiba.card.tmp ${SUBMIT_DIR}/COMP/sechiba.card
+    fi
+
+    if [ X${sechiba_UserChoices_IMPOSE_VEG} = Xy ] ; then
+      sed -e 's&\(List.*=\)*\([[:space:]]*(*\).*PFTmap.*\${year}.*.nc,.*)&\1\2)&' ${SUBMIT_DIR}/COMP/sechiba.card > sechiba.card.tmp
+      IGCM_sys_Mv sechiba.card.tmp ${SUBMIT_DIR}/COMP/sechiba.card
+    fi
+
+    IGCM_debug_PopStack "SRF_Initialize"
+}
+
+#-----------------------------------------------------------------
+# Optionnal function executed at the beginning of the main loop, 
+# after IGCM_config_PeriodStart see libIGCM/AA_job. 
+# It may be used to set special variables used in forward lists
+function SRF_PeriodStart
+{
+    IGCM_debug_PushStack "SRF_PeriodStart"
+    IGCM_debug_PopStack "SRF_PeriodStart"
+}
+
+#-----------------------------------------------------------------
+function SRF_Update
+{
+    IGCM_debug_PushStack "SRF_Update"
+
+    typeset SECHIBA_WRITE_STEP
+
+    # Get WriteFrenquecies from config.card for SECHIBA
+    SRF_WriteFrequency=$( echo ${config_SRF_WriteFrequency} | sed -e 's/\([0-9]*[yYmMdDs]\).*/\1/' ) 
+    case ${SRF_WriteFrequency} in
+	*Y|*y) 
+	    WriteInYears=$( echo ${SRF_WriteFrequency} | awk -F '[yY]' '{print $1}' )
+	    PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+	    (( SECHIBA_WRITE_STEP = PeriodLengthInDays * WriteInYears / PeriodLengthInYears * 86400 )) ;;
+	1M)
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		SECHIBA_WRITE_STEP=-1.
+		;;
+	    *M|*m)
+		SECHIBA_WRITE_STEP=-1.
+		;;
+	    *)
+		(( SECHIBA_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) * 86400 ))
+		;;
+	    esac
+	    ;;
+	*M|*m) 
+	    WriteInMonths=$( echo ${SRF_WriteFrequency} | awk -F '[mM]' '{print $1}' )
+	    case ${config_UserChoices_PeriodLength} in
+	    *Y|*y)
+		PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' '{print $1}' )
+		(( SECHIBA_WRITE_STEP = PeriodLengthInDays * 86400 / PeriodLengthInYears / 12 ))
+		;;
+	    *M|*m)
+		PeriodLengthInMonths=$( echo ${config_UserChoices_PeriodLength} | awk -F '[mM]' '{print $1}' )
+		(( SECHIBA_WRITE_STEP = PeriodLengthInDays * WriteInMonths  * 86400 / PeriodLengthInMonths  ))
+		;;
+	    *)
+		(( SECHIBA_WRITE_STEP = $( IGCM_date_DaysInMonth $year $month ) * 86400 ))
+		;;
+	    esac
+	    ;;
+	5D|5d) 
+	    (( SECHIBA_WRITE_STEP = 5 * 86400 )) ;;
+	1D|1d) 
+	    (( SECHIBA_WRITE_STEP = 86400 )) ;;
+	*s)
+	    WriteInSeconds=$( echo ${SRF_WriteFrequency} | awk -F '[s]' '{print $1}' )
+	    (( SECHIBA_WRITE_STEP = WriteInSeconds )) ;;
+	*) 
+	    IGCM_debug_Exit "SRF_Update " ${SRF_WriteFrequency} " invalid WriteFrequency : choose in 1Y, 1M, 5D, 1D." 
+	    IGCM_debug_Verif_Exit ;;
+    esac
+    ORCHIDEE_def WRITE_STEP ${SECHIBA_WRITE_STEP}
+    ORCHIDEE_def SECHIBA_HISTLEVEL ${sechiba_UserChoices_sechiba_LEVEL}
+    # Outputs HF in HISTFILE2 if required
+    if [ X${SRF_ok_hf} = Xy ] ; then
+	ORCHIDEE_def SECHIBA_HISTFILE2 y
+	ORCHIDEE_def SECHIBA_HISTLEVEL2 1
+	ORCHIDEE_def WRITE_STEP2 10800.0
+    fi
+
+    ORCHIDEE_def STOMATE_OK_CO2 ${sechiba_UserChoices_OKCO2}
+
+    ORCHIDEE_def LAI_MAP ${sechiba_UserChoices_LAIMAP}
+    ORCHIDEE_def RIVER_ROUTING ${sechiba_UserChoices_ROUTING}
+    ORCHIDEE_def HYDROL_CWRR ${sechiba_UserChoices_NEWHYDROL}
+
+    if [ X${sechiba_UserChoices_IMPOSE_VEG} = Xn ] ; then
+	if [ X${sechiba_UserChoices_LAND_USE} = Xy ] ; then
+	    ORCHIDEE_def VEGET_UPDATE ${sechiba_UserChoices_VEGET_UPDATE}
+
+            ##MM : cutting PFTmaps of ORCHIDEE : for first year without restart, we must use this year map
+            ##     WARNING : the next year map must be avaible and the december month, then this device will
+            ##               only work with PeriodLength scrictly less than 1Y.
+            # If you want to come back to old BIG LAND USE file
+            # (to run on multipple years, just one time with LAND USE activated), 
+            # you must 
+            # comment all next 8 lines and check correct parameters in run.def file
+            # for your LAND USE specific file.
+	    ORCHIDEE_def VEGET_REINIT y
+	    if ( [ ${CumulPeriod} -eq 1 ] && [ "${config_SRF_Restart}" = "n" ] ) ; then
+		ORCHIDEE_def VEGET_YEAR 1
+	    else
+		ORCHIDEE_def VEGET_YEAR 0
+		IGCM_sys_Mv -f PFTmap_IPCC_${year_p1}.nc PFTmap.nc
+	    fi
+	elif [ X${sechiba_UserChoices_OLD_VEGET} = Xy ] ; then
+	    ORCHIDEE_def LAND_USE n
+	fi
+    else
+	ORCHIDEE_def IMPOSE_VEG y
+    fi
+
+    if ( [ ${CumulPeriod} -eq 1 ] && [ "${config_SRF_Restart}" = "n" ] ) ; then
+	ORCHIDEE_def SECHIBA_reset_time y
+    else
+	ORCHIDEE_def SECHIBA_restart_in sechiba_rest_in.nc
+	ORCHIDEE_def SECHIBA_reset_time y
+    fi
+    FileToBeDeleted[${#FileToBeDeleted[@]}]=run.def
+
+    IGCM_debug_PopStack "SRF_Update"
+}
+
+#-----------------------------------------------------------------
+function SRF_Finalize
+{
+    IGCM_debug_PushStack "SRF_Finalize"
+
+    #IGCM_sys_Put_Out ${RUN_DIR}/used_run.def ${R_SAVE}/${PREFIX}_used_run.def
+
+    echo FINALIZE SRF !!!
+
+    IGCM_debug_PopStack "SRF_Finalize"
+}

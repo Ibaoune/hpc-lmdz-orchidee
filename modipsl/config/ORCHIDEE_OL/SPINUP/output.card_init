@@ -1,0 +1,21 @@
+#  Output card for spinup
+
+[Global]
+Iteration=0
+Path=
+
+[Stage]
+# This Stage
+# StageName is the internal name for the interation for spinup
+StageName=start
+# ExtName is the short JobName of this stage
+ExtName=
+
+[PreviousStage]
+# Previous Stage
+LastStageName=
+LastExtName=
+LastRestartDate=
+
+[Actions]
+List = \

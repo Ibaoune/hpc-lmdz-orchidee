@@ -1,0 +1,1103 @@
+#!/bin/ksh
+
+#D- Driver du script pour SPINUP (off-line)
+
+
+function ORCHIDEE_def
+{
+    IGCM_debug_PushStack "ORCHIDEE_def"
+    
+    typeset ORCHIDEE_def_KEY ORCHIDEE_default_KEY
+
+    ORCHIDEE_def_KEY=$( grep -e "^${1}\ *=" ${New_SUBMIT_DIR}/PARAM/run.def | gawk -- 'BEGIN {FS="="} {print $2}')
+    if [ -f ${New_SUBMIT_DIR}/PARAM/orchidee.default ] ; then
+	ORCHIDEE_default_KEY=$( grep -e "^${1}\ *=" ${New_SUBMIT_DIR}/PARAM/orchidee.default | gawk -- 'BEGIN {FS="="} {print $2}')
+    fi
+
+    if [ X"${ORCHIDEE_def_KEY}" != X ] ; then
+	IGCM_debug_Print 2 "ORCHIDEE : ${1} has already been set in def file."
+	if [ -f ${New_SUBMIT_DIR}/PARAM/orchidee.default ] ; then
+	    IGCM_debug_Print 2 " default value : ${ORCHIDEE_default_KEY}"
+	fi
+	IGCM_debug_Print 2 " script value : ${2}"
+	IGCM_debug_Print 2 " USER value : ${ORCHIDEE_def_KEY}"
+	IGCM_debug_Print 2 " We will NOT set in again !"
+    else
+	echo "${1}= ${2}" >> ${New_SUBMIT_DIR}/PARAM/run.def
+	echo "" >> ${New_SUBMIT_DIR}/PARAM/run.def
+	echo "ORCHIDEE_def : ${1} ${2}"
+    fi
+
+    IGCM_debug_PopStack "ORCHIDEE_def"
+    return $RET
+}
+
+#-----------------------------------------------------------------
+function SPIN_Initialize
+{
+    IGCM_debug_PushStack "SPIN_Initialize"
+
+    # No parallelization for spinup job !
+    BATCH_NUM_PROC_TOT=""
+
+    RESOL=${spinup_UserChoices_RESOL}
+
+    # Copy initial output card for spinup job :
+    if [ ! -f ${SUBMIT_DIR}/output.card ] ; then
+	IGCM_sys_Cp ${SUBMIT_DIR}/output.card_init ${SUBMIT_DIR}/output.card
+	iter=0
+    else
+	IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/output.card Global
+	iter=${output_Global_Iteration}
+	IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/output.card PreviousStage
+	LastStageName=${output_Stage_LastStageName}
+	IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/output.card Stage
+	StageName=${output_Stage_StageName}
+    fi
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Path "${SUBMIT_DIR}"
+
+    # Compute DateEnd for ALL SPINUP
+    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+	ok_stom=1
+    else
+	ok_stom=0
+    fi
+
+# Compute Spinup dates
+    case ${config_UserChoices_PeriodLength} in
+    *Y|*y)
+	PeriodLengthInYears=$( echo ${config_UserChoices_PeriodLength} | awk -F '[yY]' "{print ${config_UserChoices_PeriodLength}}" )
+	;;
+    *) 
+	PeriodLengthInYears=1
+    esac
+
+# function SPIN_DateEnd () 
+# {
+#     IGCM_debug_PushStack "SPIN_DateEnd"
+
+# We must count only one PeriodLength (=${PeriodLengthInYears}) for each teststomate or forcesoil step.
+    This_SpinUp_Length_In_Years=$(( \
+	   ( ${spinup_UserChoices_duree_nostomate} * ( 1 - ${ok_stom} ) ) \
+ 	+ ( ${spinup_UserChoices_duree_inistomate} + ${PeriodLengthInYears} ) * ${ok_stom} \
+ 	+ ${spinup_UserChoices_n_iter} * ${spinup_UserChoices_duree_sechiba} \
+ 	+ ${spinup_UserChoices_n_iter} * ${ok_stom} * ( ${PeriodLengthInYears} + ${PeriodLengthInYears} ) \
+ 	+ ${spinup_UserChoices_duree_final} ))
+
+    IGCM_date_GetYearMonth ${DateBegin} year month   
+    if [ X"${config_UserChoices_CalendarType}" = X"360d" ] ; then
+    	This_SpinUp_DateEnd=$(( year + This_SpinUp_Length_In_Years - 1 ))1230
+    	This_SpinUp_HumanDateEnd=$(( year + This_SpinUp_Length_In_Years - 1 ))-12-30
+    else
+    	This_SpinUp_DateEnd=$(( year + This_SpinUp_Length_In_Years - 1 ))1231
+    	This_SpinUp_HumanDateEnd=$(( year + This_SpinUp_Length_In_Years - 1 ))-12-31
+    fi
+    IGCM_card_WriteOption ${SUBMIT_DIR}/config.card UserChoices DateEnd ${This_SpinUp_HumanDateEnd}
+    echo "SPINUP NEW Job DateEnd : " ${This_SpinUp_HumanDateEnd}
+    (( ExperienceLengthInDays=$( IGCM_date_DaysBetweenGregorianDate ${This_SpinUp_DateEnd} ${DateBegin} )  + 1 ))
+
+#    IGCM_debug_PopStack "SPIN_DateEnd"
+#}
+#   SPIN_DateEnd
+    
+    # Subjobs configuration : 
+    # -----------------------
+
+    # 1) SRF section of config.card
+# This section gives first restart file path and WriteFrequency.
+    IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/config.card SRF
+    set +A config_SRF -- ${config_SRF[*]} > /dev/null 2>&1
+    typeset option
+    for option in ${config_SRF[*]} ; do
+	IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF ${option}
+    done
+
+    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+	IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/config.card SBG
+	set +A config_SBG -- ${config_SBG[*]} > /dev/null 2>&1
+	typeset option
+	for option in ${config_SBG[*]} ; do
+	    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG ${option}
+	done
+    fi
+
+
+    # 2) Subjob parametrization : SubJobParams in spinup.card
+# This section give flags to put in run.def of Subjobs.
+    IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/COMP/spinup.card SubJobParams
+    set +A spinup_SubJobParams -- ${spinup_SubJobParams[*]} > /dev/null 2>&1
+
+    eval first_option=${spinup_SubJobParams[0]} > /dev/null 2>&1
+    if [ X${first_option} != X"Error:" ] ; then
+	typeset option
+	for option in ${spinup_SubJobParams[*]} ; do
+	    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobParams ${option}
+	done
+    fi
+
+    # 3) Post-treatment
+    IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/config.card SubJobPost
+    typeset option
+    for option in ${config_SubJobPost[*]} ; do
+	IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SubJobPost ${option}
+    done
+
+    # 4) Get the forcing file name (structure with variables inside) for this Spinup
+    IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobForcingFile List
+    IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobForcingFile ListNonDel
+
+    IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobPost sechiba_TimeSeriesVars2D
+    IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobPost sechiba_TimeSeriesVars3D
+    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+	IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobPost stomate_TimeSeriesVars2D
+	IGCM_card_DefineArrayFromOption ${SUBMIT_DIR}/COMP/spinup.card SubJobPost stomate_TimeSeriesVars3D
+    fi
+    IGCM_debug_PopStack "SPIN_Initialize"
+}
+
+#-----------------------------------------------------------------
+function SPIN_Cp_Job
+{
+    IGCM_debug_PushStack "SPIN_Cp_Job"
+
+    typeset Path_Job_Ini New_Name
+
+    # Where to find the standard cards/drivers for this job
+    Path_Job_Ini=$1
+
+    # New Name for the Job :
+    New_Name=$2
+    # New Path for the job
+    New_SUBMIT_DIR=${SUBMIT_DIR}/${New_Name}
+
+    # Copy the standard sub-job in the ${SUBMIT_DIR} with the New_Name
+    IGCM_sys_Cp -Rp ${Path_Job_Ini} ${New_SUBMIT_DIR}
+
+    # Install this directory
+    # modifications on config.card
+    MyJobName=${config_UserChoices_JobName}
+    IGCM_card_DefineVariableFromOption ${New_SUBMIT_DIR}/config.card UserChoices JobName
+    OldJobName=${config_UserChoices_JobName}
+
+    SubJobName=${MyJobName}${New_Name}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices JobName ${SubJobName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices TagName ${config_UserChoices_TagName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices SpaceName ${config_UserChoices_SpaceName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices ExperimentName ${config_UserChoices_ExperimentName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices ARCHIVE ${config_UserChoices_ARCHIVE}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices JobNumProcTot ${config_UserChoices_JobNumProcTot}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Post PackFrequency ${config_Post_PackFrequency}
+
+    # keep the spinup JobName
+    config_UserChoices_JobName=${MyJobName}
+
+    # modifications on Job 
+    \rm ${New_SUBMIT_DIR}/Job_${OldJobName} 
+
+    sed -e "s/ ${MyJobName} / ${New_Name} /" \
+        -e "s/Script_Output_${MyJobName}.000001 /Script_Output_${New_Name}.000001 /" \
+	${SUBMIT_DIR}/Job_${MyJobName} > ${New_SUBMIT_DIR}/Job_${SubJobName}
+    chmod u+x ${New_SUBMIT_DIR}/Job_${SubJobName}
+
+    # modification on parameter files
+    if [ ! -f ${SUBMIT_DIR}/PARAM/run.def ] ; then
+	echo "#spinup add :" > ${New_SUBMIT_DIR}/PARAM/run.def
+    else
+	IGCM_sys_Cp ${SUBMIT_DIR}/PARAM/run.def ${New_SUBMIT_DIR}/PARAM/run.def
+	echo "#spinup add :" >> ${New_SUBMIT_DIR}/PARAM/run.def
+    fi
+    echo "" >> ${New_SUBMIT_DIR}/PARAM/run.def
+
+    eval first_option=${spinup_SubJobParams[0]} > /dev/null 2>&1
+    if [ X${first_option} != X"Error:" ] ; then
+	typeset option
+	for option in ${spinup_SubJobParams[*]} ; do
+	    echo "For parameter file run.def"
+	    eval echo "${option}="\${spinup_SubJobParams_${option}}
+	    eval ORCHIDEE_def ${option} \${spinup_SubJobParams_${option}}
+	done
+    fi
+
+    if ( [ X${config_UserChoices_JobNumProcTot} != X ] && [ "${config_UserChoices_JobNumProcTot}" -gt 1 ] ) ; then
+	gawk -- "{if (! match(\$0,/^# .Date.*/) ) { print \$0 } else { printf(\"BATCH_NUM_PROC_TOT=%d \\n\\n\",${config_UserChoices_JobNumProcTot}) ; print \$0 } }" \
+ 	    ${New_SUBMIT_DIR}/Job_${SubJobName} > ${New_SUBMIT_DIR}/Job_${SubJobName}_
+	IGCM_sys_Mv ${New_SUBMIT_DIR}/Job_${SubJobName}_ ${New_SUBMIT_DIR}/Job_${SubJobName}
+	chmod u+x ${New_SUBMIT_DIR}/Job_${SubJobName}
+    fi
+
+    IGCM_debug_PopStack "SPIN_Cp_Job"
+}
+
+function SPIN_prepare
+{
+    IGCM_debug_PushStack "SPIN_prepare"
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Restarts OverRule n
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card OOL Restart n
+
+    typeset option
+    for option in ${config_SubJobPost[*]} ; do
+	eval value=\${config_SubJobPost_${option}}
+	eval echo ${option} ${value}
+	if [ X${value} != X ] ; then
+	    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Post ${option} \${config_SubJobPost_${option}}
+	fi
+    done
+
+    # For Subjob special flags
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices ROUTING ${spinup_UserChoices_ok_routing}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices NEWHYDROL ${spinup_UserChoices_ok_newhydrol}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices LAIMAP ${spinup_UserChoices_lai_map}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices IMPOSE_VEG ${spinup_UserChoices_impose_veg}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices LAND_USE ${spinup_UserChoices_land_use}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices OKCO2 ${spinup_UserChoices_ok_co2}
+
+    if [ X${spinup_UserChoices_BoundaryFilesListNonDel} = Xy ] ; then 
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card BoundaryFiles ListNonDel "()"
+    fi
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card UserChoices NORESTART ${spinup_UserChoices_DRIVER_NORESTART}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card UserChoices TIMELENGTH ${spinup_UserChoices_DRIVER_TIMELENGTH}
+
+    spinup_SubJobForcingFile_List0=${spinup_SubJobForcingFile_List[0]} > /dev/null 2>&1
+    if [ X${spinup_SubJobForcingFile_List0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card BoundaryFiles List "("$( echo ${spinup_SubJobForcingFile_List[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card BoundaryFiles List "()"
+    fi
+
+    spinup_SubJobForcingFile_ListNonDel0=${spinup_SubJobForcingFile_ListNonDel[0]} > /dev/null 2>&1
+    if [ X${spinup_SubJobForcingFile_ListNonDel0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card BoundaryFiles ListNonDel "("$( echo ${spinup_SubJobForcingFile_ListNonDel[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/orchidee_ol.card BoundaryFiles ListNonDel "()"
+    fi
+
+    IGCM_debug_PopStack "SPIN_prepare"
+}
+
+#-----------------------------------------------------------------
+function SPIN_OptionsSechiba
+{
+    IGCM_debug_PushStack "SPIN_OptionsSechiba"
+
+
+    spinup_SubJobPost_sechiba_TimeSeriesVars0=${spinup_SubJobPost_sechiba_TimeSeriesVars2D[0]}
+    if [ X${spinup_SubJobPost_sechiba_TimeSeriesVars0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card Post_1M_sechiba_history TimeSeriesVars2D "("$( echo ${spinup_SubJobPost_sechiba_TimeSeriesVars2D[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card Post_1M_sechiba_history TimeSeriesVars2D "()"
+    fi
+    spinup_SubJobPost_sechiba_TimeSeriesVars0=${spinup_SubJobPost_sechiba_TimeSeriesVars3D[0]}
+    if [ X${spinup_SubJobPost_sechiba_TimeSeriesVars0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card Post_1M_sechiba_history TimeSeriesVars3D "("$( echo ${spinup_SubJobPost_sechiba_TimeSeriesVars3D[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card Post_1M_sechiba_history TimeSeriesVars3D "()"
+    fi
+
+    IGCM_debug_PopStack "SPIN_OptionsSechiba"
+}
+
+#-----------------------------------------------------------------
+function SPIN_OptionsStomate
+{
+    IGCM_debug_PushStack "SPIN_OptionsStomate"
+
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card UserChoices SPINUP_ANALYTIC ${spinup_UserChoices_SPINUP_ANALYTIC}
+
+    spinup_SubJobPost_stomate_TimeSeriesVars0=${spinup_SubJobPost_stomate_TimeSeriesVars2D[0]} > /dev/null 2>&1
+    if [ X${spinup_SubJobPost_stomate_TimeSeriesVars0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card Post_1M_stomate_history TimeSeriesVars2D "("$( echo ${spinup_SubJobPost_stomate_TimeSeriesVars2D[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card Post_1M_stomate_history TimeSeriesVars3D "()"
+    fi
+    spinup_SubJobPost_stomate_TimeSeriesVars0=${spinup_SubJobPost_stomate_TimeSeriesVars3D[0]} > /dev/null 2>&1
+    if [ X${spinup_SubJobPost_stomate_TimeSeriesVars0} != X${NULL_STR} ] ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card Post_1M_stomate_history TimeSeriesVars3D "("$( echo ${spinup_SubJobPost_stomate_TimeSeriesVars3D[@]} | sed -e "s/ /,/g" )")"
+    else
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card Post_1M_stomate_history TimeSeriesVars3D "()"
+    fi
+
+    # Nb years for forcing FORCESOIL
+    ORCHIDEE_def FORCESOIL_STEP_PER_YEAR 365
+    # Force creation of stomate_forcing.nc and stomate_Cforcing files
+    ORCHIDEE_def STOMATE_FORCING_NAME stomate_forcing.nc
+    ORCHIDEE_def STOMATE_CFORCING_NAME stomate_Cforcing.nc
+
+    IGCM_debug_PopStack "SPIN_OptionsStomate"
+}
+
+#-----------------------------------------------------------------
+function SPIN_PeriodStart
+{
+    IGCM_debug_PushStack "SPIN_PeriodStart"
+    echo "" > stack
+    IGCM_debug_PopStack "SPIN_PeriodStart"
+}
+
+#-----------------------------------------------------------------
+Update_SPIN_iter=false
+function SPIN_Update
+{
+    IGCM_debug_PushStack "SPIN_Update"
+
+    Update_SPIN_iter=false
+
+    IGCM_card_DefineArrayFromSection ${SUBMIT_DIR}/output.card Global
+    SpinUpPath=${output_Global_Path}
+
+    # StageName is the internal name for the interation for spinup
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card Stage StageName
+    StageName=${output_Stage_StageName}
+
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card PreviousStage LastStageName 
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card PreviousStage LastExtName
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card PreviousStage LastRestartDate
+
+    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card Global Iteration
+    iter=${output_Global_Iteration}
+
+    config_SubJob_PeriodLength="${config_UserChoices_PeriodLength}"
+
+    # ExtName is the short JobName of this stage
+
+    if ( [ X${StageName} = X"start" ] ) ; then 
+	# We are in first step.
+	if ( ${FirstInitialize} ) ; then
+	    # What is the first step ?
+
+	    # First phase : Is there restarts (we would initialize ORCHIDEE) or not ?
+	    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card PreviousStage LastStageName "start"
+	    output_PreviousStage_LastStageName="start"
+	    if ( [ X"${config_SRF_Restart}" = "Xn" ] && [ X"${config_SBG_Restart}" = "Xn" ] ) ; then
+		if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		    if [ ${spinup_UserChoices_duree_inistomate} -gt 0 ] ; then
+		        # Perhaps we want to by-pass first SECHIBA-ONLY Stage and do a SECSTO Job first ?
+			StageName=SECSTOINI
+			ExtName=STOI
+		    else
+			echo "SPINUP no restart : !!!! Error !!!! "
+			echo         "ok_stomate = " ${spinup_UserChoices_ok_stomate}
+			echo         "duree_inistomate = " ${spinup_UserChoices_duree_inistomate}
+			echo "NO SPINUP possible !!"
+			exit 1
+		    fi
+		elif [ ${spinup_UserChoices_duree_nostomate} -gt 0 ] ; then
+			StageName=SECINI
+			ExtName=SECI
+		else
+		    echo "SPINUP : NO RESTART and NO INITIALIZATION !"
+		    echo "     We will launch the iteration loop directly."
+		    if [ ${spinup_UserChoices_duree_sechiba} -gt 0 ] ; then
+			StageName=SECSTO
+			iter=1
+			ExtName=ORC-${iter}
+			Update_SPIN_iter=true
+		    else
+			echo "SPINUP : !!!! Error !!!! "
+			echo         "duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+			echo "NO SPINUP possible !!"
+			exit 1
+		    fi
+		fi
+	    else
+		echo "SPINUP : "
+		echo "     We will to launch the iteration loop WITH RESTARTS."
+		echo "     Global Restart path = " ${config_Restarts_RestartPath}
+		if [ ${spinup_UserChoices_duree_sechiba} -gt 0 ] ; then
+		    StageName=SECSTO
+		    iter=1
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		else
+		    echo "SPINUP : !!!! Error !!!! "
+		    echo "        duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+		    echo "NO SPINUP possible !!"
+		    exit 1
+		fi
+	    fi
+	    echo "(" start "," ${ExtName} ") \\" >> ${SUBMIT_DIR}/output.card
+
+	else
+	    echo "SPINUP : !!!! Error with output !!!! "
+	    echo "        duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+	    echo "NO SPINUP possible !!"
+	    exit 1
+	fi
+
+    else
+	# We are not in first step.
+
+	# WHAT IS THE NEXT STEP ?
+	case ${output_PreviousStage_LastStageName} in
+	    "SECINI")
+		echo "     We begin the iteration loop !!"
+		if [ ${spinup_UserChoices_duree_sechiba} -gt 0 ] ; then
+		    StageName=SECSTO
+		    iter=1
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		else
+		    echo "SPINUP : !!!! Error !!!! "
+		    echo         "duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+		    echo "NO SPINUP possible !!"
+		    exit 1
+		fi
+		;;
+	    "SECSTOINI")
+		if [ ${spinup_UserChoices_duree_offlineini} -gt 0 ] ; then
+		    StageName=TSTOINI
+		    ExtName=TSTOI
+		else
+		    echo "     We begin the iteration loop !!"
+		    if [ ${spinup_UserChoices_duree_sechiba} -gt 0 ] ; then
+			StageName=SECSTO
+			iter=1
+			ExtName=ORC-${iter}
+			Update_SPIN_iter=true
+		    else
+			echo "SPINUP : !!!! Error !!!! "
+			echo         "duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+			echo "NO SPINUP possible !!"
+			exit 1
+		    fi
+		fi
+		;;
+	    "TSTOINI")
+		echo "     We begin the iteration loop !!"
+		if [ ${spinup_UserChoices_duree_sechiba} -gt 0 ] ; then
+		    echo "     We begin the iteration loop !!"
+		    StageName=SECSTO
+		    iter=1
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		else
+		    echo "SPINUP : !!!! Error !!!! "
+		    echo         "duree_sechiba = " ${spinup_UserChoices_duree_sechiba}
+		    echo "NO SPINUP possible !!"
+		    exit 1
+		fi
+		;;
+	    "SECSTO")
+ 		
+		if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		    echo "We will print he value of the previous SPINUP_DONE :"
+		    TestSpinUpDone=""
+		    TestSpinUpDone=$(IGCM_card_PrintOption ${SUBMIT_DIR}/${output_PreviousStage_LastExtName}/COMP/stomate.card UserChoices SPINUP_DONE)
+		    echo "Value of test_spinup : ${TestSpinUpDone} "
+		fi
+
+		if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		    if [ ${spinup_UserChoices_duree_stomate} -gt 0 ] ; then
+			StageName=TSTO
+			ExtName=TST-${iter}
+		    elif [ ${spinup_UserChoices_duree_carbonsol} -gt 0 ] ; then
+			StageName=FORC
+			ExtName=FOR-${iter}
+		    elif ( [ ${iter} -eq ${spinup_UserChoices_n_iter} ] || [ X"${TestSpinUpDone}" = "Xy" ] ) ; then
+			echo "Ending loop Job"
+			StageName=SECSTOF 
+			ExtName=FIN
+			IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration END
+		    else
+			StageName=SECSTO
+			(( iter=iter+1 ))
+			ExtName=ORC-${iter}
+			Update_SPIN_iter=true
+		    fi
+		elif [ ${iter} -eq ${spinup_UserChoices_n_iter} ] ; then
+		    echo "Ending loop Job"
+		    StageName=SECSTOF 
+		    ExtName=FIN
+		    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration END
+		else
+		    StageName=SECSTO
+		    (( iter=iter+1 ))
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		fi
+		;;
+	    "TSTO") 
+		if [ ${spinup_UserChoices_duree_carbonsol} -gt 0 ] ; then
+		    StageName=FORC
+		    ExtName=FOR-${iter}
+		elif [ ${iter} -eq ${spinup_UserChoices_n_iter} ] ; then
+		    echo "Ending loop Job"
+		    StageName=SECSTOF 
+		    ExtName=FIN
+		    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration END
+		else
+		    StageName=SECSTO
+		    (( iter=iter+1 ))
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		fi
+		;;
+	    "FORC") 
+		if [ ${iter} -eq ${spinup_UserChoices_n_iter} ] || [ X${iter} = XEND ] ; then
+		    echo "Ending loop Job"
+		    StageName=SECSTOF 
+		    ExtName=FIN
+		    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration END
+		else
+		    StageName=SECSTO
+		    (( iter=iter+1 ))
+		    ExtName=ORC-${iter}
+		    Update_SPIN_iter=true
+		fi
+		;;
+	    "SECSTOF") 
+		echo "Begin Historical Job"
+		StageName=HISTO 
+		ExtName=HIST
+		IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration HIST
+		;;
+
+	    "HISTO")
+		echo "SPINUP : We have done the SPINUP !! "
+		echo "The job will be closed."
+		;;
+	esac
+    fi
+
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Stage StageName ${StageName}
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Stage ExtName ${ExtName}
+
+    # BEGIN THE NEW STEP : 
+    LastJobName=${config_UserChoices_JobName}${output_PreviousStage_LastExtName}
+
+    # Copy and modifications of the standard card set
+    case $StageName in
+	"SECINI")
+
+	    # SECHIBA only initialisation step
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_nostomate}
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC ${ExtName}
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart n
+    
+            SPIN_prepare
+
+	    SPIN_OptionsSechiba
+
+	    ;;
+	"SECSTOINI")
+
+	    # SECHIBA+STOMATE initialisation step
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_inistomate}
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC_STO ${ExtName}
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart n
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+    		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart n
+	    fi
+    
+	    SPIN_prepare
+
+	    SPIN_OptionsSechiba
+	    SPIN_OptionsStomate
+
+	    ;;
+
+	"TSTOINI")
+
+	    # TESTSTOMATE initialisation step
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_offlineini}
+	    
+	    # TESTSTOMATE will run in one execution only
+	    config_SubJob_PeriodLength="${This_Job_Length_In_Years}Y"
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/TESTSTOMATE ${ExtName}
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    # Always restart for teststomate
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Restarts OverRule n
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${output_PreviousStage_LastRestartDate}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+
+            # Define restart simulation name
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${LastJobName}
+	    config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+	    
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+	    config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+	    
+	    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card PreviousStage LastRestartDate
+
+	    # We Get the forcing file from the previous run of ORCHIDEE
+	    sed -e "s&(\${config_SBG_RestartPath}/\${config_SBG_RestartJobName}/SBG/Restart/\${config_SBG_RestartJobName}_\${Date_Restarts}_stomate_forcing.nc, stomate_forcing.nc)&(${config_SBG_RestartPath}/${LastJobName}/SBG/Restart/${LastJobName}_${output_PreviousStage_LastRestartDate}_stomate_forcing.nc, stomate_forcing.nc)&" ${New_SUBMIT_DIR}/COMP/sechiba.card > sechiba.card.tmp
+	    IGCM_sys_Mv sechiba.card.tmp ${New_SUBMIT_DIR}/COMP/sechiba.card
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices IMPOSE_VEG ${spinup_UserChoices_impose_veg}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices LAND_USE ${spinup_UserChoices_land_use}
+
+	    typeset option
+	    for option in ${config_SubJobPost[*]} ; do
+		eval value=\${config_SubJobPost_${option}}
+		eval echo ${option} ${value}
+		if [ X${value} != X ] ; then
+		    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Post ${option} \${config_SubJobPost_${option}}
+		fi
+	    done
+
+	    SPIN_OptionsStomate
+
+	    ;;
+	"SECSTO")
+
+	    # loop step
+
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_sechiba}
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC_STO ${ExtName}
+	    else
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC ${ExtName}
+	    fi
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    SPIN_prepare
+
+	    if [ X${output_PreviousStage_LastStageName} != X"start" ] ; then
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart y
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${output_PreviousStage_LastRestartDate}
+                # Define restart simulation name
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${LastJobName}
+		config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+
+		if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+		    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+                    # Define restart simulation name
+		    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+		    config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+		    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+		fi
+	    else
+		# If we begin directly with the loop.
+		IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF Restart
+		IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF RestartDate
+		IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF RestartJobName
+		IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF RestartPath
+		IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SRF OldName
+		echo "Run in iteration loop with restarts : "
+		echo ${config_SRF_Restart}, ${config_SRF_RestartDate}, ${config_SRF_RestartJobName}, ${config_SRF_RestartPath}, ${config_SRF_OldName}
+
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart ${config_SRF_Restart}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${config_SRF_RestartDate}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${config_SRF_RestartJobName}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+		if [ X${config_SRF_OldName} != X"" ] ; then
+			IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF OldName ${config_SRF_OldName}
+		fi
+		if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+			IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG Restart
+			IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartDate
+			IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartJobName
+			IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG RestartPath
+			IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/config.card SBG OldName
+			echo "Run in iteration loop with STOMATE restarts : "
+			echo ${config_SBG_Restart}, ${config_SBG_RestartDate}, ${config_SBG_RestartJobName}, ${config_SBG_RestartPath}, ${config_SBG_OldName}
+
+			IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart ${config_SBG_Restart}
+			IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${config_SBG_RestartDate}
+			IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${config_SBG_RestartJobName}
+			IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+			if [ X${config_SBG_OldName} != X"" ] ; then
+			    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG OldName ${config_SBG_OldName}
+			fi
+		fi
+	    fi
+
+	    SPIN_OptionsSechiba
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_OptionsStomate
+	    fi
+
+	    ;;
+	"TSTO") 
+
+	    # TESTSTOMATE loop step
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_stomate}
+	    
+	    # One execution only
+	    config_SubJob_PeriodLength="${This_Job_Length_In_Years}Y"
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/TESTSTOMATE ${ExtName}
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    # Always restart for teststomate
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Restarts OverRule n
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${output_PreviousStage_LastRestartDate}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+
+            # Define restart simulation name
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${LastJobName}
+	    config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+	    config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+
+	    # We Get the forcing file from the previous run of ORCHIDEE
+	    sed -e "s&(\${config_SBG_RestartPath}/\${config_SBG_RestartJobName}/SBG/Restart/\${config_SBG_RestartJobName}_\${Date_Restarts}_stomate_forcing.nc, stomate_forcing.nc)&(${config_SBG_RestartPath}/${LastJobName}/SBG/Restart/${LastJobName}_${output_PreviousStage_LastRestartDate}_stomate_forcing.nc, stomate_forcing.nc)&" ${New_SUBMIT_DIR}/COMP/sechiba.card > sechiba.card.tmp
+	    IGCM_sys_Mv sechiba.card.tmp ${New_SUBMIT_DIR}/COMP/sechiba.card
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices IMPOSE_VEG ${spinup_UserChoices_impose_veg}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/sechiba.card UserChoices LAND_USE ${spinup_UserChoices_land_use}
+
+	    typeset option
+	    for option in ${config_SubJobPost[*]} ; do
+		eval value=\${config_SubJobPost_${option}}
+		eval echo ${option} ${value}
+		if [ X${value} != X ] ; then
+		    eval IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Post ${option} \${config_SubJobPost_${option}}
+		fi
+	    done
+
+	    SPIN_OptionsStomate
+
+	    ;;
+	"FORC") 
+	    # FORCESOIL loop step
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_carbonsol}
+	    
+	    # One execution only
+	    config_SubJob_PeriodLength="${This_Job_Length_In_Years}Y"
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/FORCESOIL ${ExtName}
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    # Always restart for forcesoil
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card Restarts OverRule n
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+
+            # Define restart simulation name
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+	    config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+
+	    # We Get the forcing file from the previous run of ORCHIDEE
+	    IGCM_card_DefineVariableFromOption ${SUBMIT_DIR}/output.card PreviousStage LastRestartDate
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/COMP/stomate.card BoundaryFiles ListNonDel \
+                    "(${config_SBG_RestartPath}/${LastJobName}/SBG/Restart/${LastJobName}_${output_PreviousStage_LastRestartDate}_stomate_Cforcing.nc, stomate_Cforcing.nc), \\"
+
+	    # Nb years for forcing FORCESOIL
+	    ORCHIDEE_def FORCESOIL_STEP_PER_YEAR 365
+
+	    ;;
+	"SECSTOF") 
+
+	    # END step
+
+	    This_Job_Length_In_Years=${spinup_UserChoices_duree_final}
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC_STO ${ExtName}
+	    else
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC ${ExtName}
+	    fi
+
+	    Level_Hist=${spinup_UserChoices_level_hist}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    SPIN_prepare
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${output_PreviousStage_LastRestartDate}
+            # Define restart simulation name
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${LastJobName}
+	    config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+                # Define restart simulation name
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+		config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+	    fi
+
+	    SPIN_OptionsSechiba
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_OptionsStomate
+	    fi
+
+	    ;;
+
+	"HISTO") 
+
+	    # Historical step
+
+	    case ${config_SubJob_PeriodLength} in
+		*Y|*y)
+    		    This_Job_Length_In_Years=$( echo ${1} | awk -F '[yY]' "{print ${config_SubJob_PeriodLength}}" )
+    		    ;;
+		*M|*m)
+    		    This_Job_Length_In_Years=1
+    		    ;;
+		*)
+    		    echo "SPINUP : Impossible"
+    		    echo "     We have a PeriodLength less than 1M : " ${config_SubJob_PeriodLength}
+    		    echo "     We can't do the spinup with such a frequency !"
+    		    exit 1
+    		    ;;
+	    esac
+
+	    # Copy the standard card set 
+	    # !!! must not have been modified !!!
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC_STO ${ExtName}
+	    else
+		SPIN_Cp_Job ${spinup_UserChoices_SubJobPath}/OOL_SEC ${ExtName}
+	    fi
+
+	    Level_Hist=${spinup_UserChoices_level_hist_final}
+	    if [ X${Level_Hist} != X ] ; then
+		ORCHIDEE_def SECHIBA_HISTLEVEL ${Level_Hist}
+		ORCHIDEE_def STOMATE_HISTLEVEL ${Level_Hist}
+	    fi
+
+	    SPIN_prepare
+
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF Restart y
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartDate ${output_PreviousStage_LastRestartDate}
+            # Define restart simulation name
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartJobName ${LastJobName}
+	    config_SRF_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+	    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF RestartPath ${config_SRF_RestartPath}
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG Restart y
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartDate ${output_PreviousStage_LastRestartDate}
+                # Define restart simulation name
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartJobName ${LastJobName}
+		config_SBG_RestartPath=${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG RestartPath ${config_SBG_RestartPath}
+	    fi
+
+	    SPIN_OptionsSechiba
+	    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+		SPIN_OptionsStomate
+	    fi
+
+	    ;;
+	*)
+	    echo "Erreur !! StageName not found."
+	    exit 1
+    esac
+
+
+    # For all Subjobs  
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Stage StageName ${StageName}
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Stage ExtName ${ExtName}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices CalendarType ${config_UserChoices_CalendarType}
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices DateBegin ${config_UserChoices_DateBegin}
+
+    # Compute DateEnd for SECHIBA initialisation step
+    IGCM_date_GetYearMonth ${DateBegin} year month
+    if [ X"${config_UserChoices_CalendarType}" = X"360d" ] ; then
+    	This_Job_DateEnd=$( IGCM_date_YearDigit $(( year + This_Job_Length_In_Years - 1 )) )1230
+    	This_Job_HumanDateEnd=$( IGCM_date_YearDigit $(( year + This_Job_Length_In_Years - 1 )) )-12-30
+    else
+    	This_Job_DateEnd=$( IGCM_date_YearDigit $(( year + This_Job_Length_In_Years - 1 )) )1231
+    	This_Job_HumanDateEnd=$( IGCM_date_YearDigit $(( year + This_Job_Length_In_Years - 1 )) )-12-31
+    fi
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices DateEnd ${This_Job_HumanDateEnd}
+
+
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices PeriodLength ${config_SubJob_PeriodLength}
+    # Compute Subjob number of Periods
+    case ${config_SubJob_PeriodLength} in
+    *Y|*y)
+    	PeriodNbSubJob=$(( This_Job_Length_In_Years / $( echo ${1} | awk -F '[yY]' "{print ${config_SubJob_PeriodLength}}" ) ))
+    	;;
+    *M|*m)
+    	PeriodNbSubJob=$(( 12 * This_Job_Length_In_Years / $( echo ${1} | awk -F '[mM]' "{print ${config_SubJob_PeriodLength}}" ) ))
+    	;;
+    *)
+    	echo "SPINUP : Impossible"
+    	echo "     We have a PeriodLength less than 1M : " ${config_SubJob_PeriodLength}
+    	echo "     We can't do the spinup with such a frequency !"
+    	exit 1
+    	;;
+    esac
+    IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card UserChoices PeriodNb ${PeriodNbSubJob}
+
+    echo "SECHIBA WriteFrequency : " ${config_SRF_WriteFrequency}
+    if ( [ X${StageName} != X"TSTOINI" ] && [ X${StageName} != X"TSTO" ] && [ X${StageName} != X"FORC" ] ) ; then
+	IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SRF WriteFrequency "${config_SRF_WriteFrequency}"
+    fi
+    if [ X"${spinup_UserChoices_ok_stomate}" = "Xy" ] ; then
+	echo "STOMATE WriteFrequency : " ${config_SBG_WriteFrequency}
+	case $StageName in
+	    "TSTOINI"|"TSTO")
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG WriteFrequency "1Y"
+		;;
+	    *)
+		IGCM_card_WriteOption ${New_SUBMIT_DIR}/config.card SBG WriteFrequency "${config_SBG_WriteFrequency}"
+	esac
+    fi
+
+    # Remove the script created by the system (curie or obelix) by IGCM_sys_build_execution_scripts
+    \rm ${RUN_DIR}/script_SPIN.ksh  
+
+    # (Re)-Create the script
+    echo "#!/bin/ksh" > ${RUN_DIR}/script_SPIN.ksh
+    echo "cd ${New_SUBMIT_DIR}" >> ${RUN_DIR}/script_SPIN.ksh
+    echo "export SUBMIT_DIR=${New_SUBMIT_DIR}" >> ${RUN_DIR}/script_SPIN.ksh
+    echo "${New_SUBMIT_DIR}/Job_${SubJobName} > ${New_SUBMIT_DIR}/Script_Output_${SubJobName}.000001 </dev/null 2>&1" >> ${RUN_DIR}/script_SPIN.ksh
+    echo "echo 'End of Subjob : ' \$( date )" >> ${RUN_DIR}/script_SPIN.ksh
+    echo "echo 'finish.'" >> ${RUN_DIR}/script_SPIN.ksh
+
+    # Give Execution right to the script
+    chmod u+x ${RUN_DIR}/script_SPIN.ksh
+
+    cp -rp ${RUN_DIR}/script_SPIN.ksh ${RUN_DIR}/SPIN
+
+    # force run with nohup
+    BATCH_NUM_PROC_TOT=1
+    MPIRUN_COMMAND="time nohup"
+
+    # Compatibility with libIGCM version < 2.0
+    config_Executable_Name=script_SPIN.ksh
+
+    IGCM_debug_PopStack "SPIN_Update"
+}
+
+#-----------------------------------------------------------------
+function SPIN_Finalize
+{
+    IGCM_debug_PushStack "SPIN_Finalize"
+
+    \rm ${RUN_DIR}/script_SPIN.ksh
+
+    echo "Return to Master SPINUP job : " $( date )
+
+    # Does the SubJob began ?
+    if [ -f ${New_SUBMIT_DIR}/run.card ] ; then
+	IGCM_card_DefineVariableFromOption ${New_SUBMIT_DIR}/run.card Configuration PeriodState
+    else
+	run_Configuration_PeriodState="Fatal"
+    fi
+
+# ATTENTION : avec ce test "!= Completed", on impose que chaque sous-job est contenu dans une seule itération PBS
+# On pourrait améliorer ce point pour tenir compte d'un sous-job long... 
+# Mais il faudrait faire ce test au début de la fonction update 
+# pour déterminer si on doit reprendre un job non terminer ou démarrer le suivant.
+    # Did it finish ?
+    if [ X${run_Configuration_PeriodState} != X"Completed" ] ; then
+	IGCM_debug_Exit "SPIN_update Error Run SubJob : " ${SubJobName} ${run_Configuration_PeriodState}
+    fi
+    IGCM_debug_Verif_Exit
+    
+    # Save the Stage in output.card
+    if ( ${Update_SPIN_iter} ) ; then
+	IGCM_card_WriteOption ${SUBMIT_DIR}/output.card Global Iteration ${iter}
+    fi
+
+    echo "(" ${StageName} "," ${ExtName} ") \\" >> ${SUBMIT_DIR}/output.card
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card PreviousStage LastStageName ${StageName}
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card PreviousStage LastExtName ${ExtName}
+    IGCM_card_WriteOption ${SUBMIT_DIR}/output.card PreviousStage LastRestartDate ${This_Job_DateEnd}
+
+
+    # For forcesoil, we have to copy the sechiba restart of last Stage
+    if [ X${StageName} = X"FORC" ] ; then
+        # This must be done on the ARCHIVE HOST.
+	IGCM_sys_MkdirArchive ${config_SBG_RestartPath}/${SubJobName}/SRF/Restart
+	IGCM_sys_RshArchive \
+	    "cp -fp ${config_SBG_RestartPath}/${LastJobName}/SRF/Restart/${LastJobName}_${output_PreviousStage_LastRestartDate}_sechiba_rest.nc"\
+                  " ${config_SBG_RestartPath}/${SubJobName}/SRF/Restart/${SubJobName}_${This_Job_DateEnd}_sechiba_rest.nc"
+    fi
+
+    # For SPINUP, we don't need a restart ! Then we save the output.card 
+    IGCM_sys_Cp ${SUBMIT_DIR}/output.card output_out.card
+    FileToBeDeleted[${#FileToBeDeleted[@]}]=output_out.card
+
+
+# If NOT DEBUG mode : 
+# we can move Previous Job in SPINUP save DIR.
+    if ( [ X${spinup_UserChoices_DEBUG_SPIN} = Xn ] && [ X${output_PreviousStage_LastStageName} != Xstart ] ) ; then
+	if ( [ X${spinup_UserChoices_CONSERVE} = Xn ] \
+	  && [ X${output_PreviousStage_LastStageName} != XSECINI ] \
+          && [ X${output_PreviousStage_LastStageName} != XSECSTOINI ] ) ; then
+	    IGCM_sys_RshArchive "rm -Rf ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}${output_PreviousStage_LastExtName}/*/Analyse/*"
+	    IGCM_sys_RshArchive "rm -Rf ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}${output_PreviousStage_LastExtName}/*/Output/*"
+	fi
+
+	IGCM_sys_RshArchive "mv -f ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}${output_PreviousStage_LastExtName}"\
+                                 " ${R_OUT}/${config_UserChoices_TagName}/${config_UserChoices_SpaceName}/${config_UserChoices_ExperimentName}/${config_UserChoices_JobName}/SPIN/Output/"
+    fi
+
+#   Test the end of the SPINUP !
+    if [ X${StageName} = X"HISTO" ] ; then
+	DateEnd=${PeriodDateEnd}
+	(( SimulationLengthInDays=ExperienceLengthInDays + 1 ))
+	echo "SPINUP : END Job !!!"
+    fi
+
+    IGCM_debug_PopStack "SPIN_Finalize"
+}

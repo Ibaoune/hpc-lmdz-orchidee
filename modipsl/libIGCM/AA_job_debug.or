@@ -1,0 +1,250 @@
+#-Q- curie #!/bin/ksh
+#-Q- curie ######################
+#-Q- curie ## CURIE   TGCC/CEA ##
+#-Q- curie ######################
+#-Q- curie #MSUB -r ::Jobname::        # Job Name
+#-Q- curie #MSUB -o Script_Output_::Jobname::.000001    # standard output
+#-Q- curie #MSUB -e Script_Output_::Jobname::.000001    # error output
+#-Q- curie #MSUB -eo
+#-Q- curie #MSUB -n ::JobNumProcTot::  # Number of MPI tasks (SPMD case) or cores (MPMD case)
+#-Q- curie #MSUB -c ::openMPthreads::  # Number of openMP threads. To specify only for SMPD
+#-Q- curie #MSUB -x                    # exclusive node. To specify only for MPMD together with the one below
+#-Q- curie #MSUB -E '--cpu_bind=none'
+#-Q- curie ##MSUB -E '--distribution cyclic' 
+#-Q- curie #MSUB -T 86400              # Wall clock limit (seconds)
+#-Q- curie #MSUB -q standard           # thin nodes
+#-Q- curie ##MSUB -U high
+#-Q- curie #MSUB -U medium
+#-Q- curie ##MSUB -U low
+#-Q- curie #MSUB -A ::default_project::
+#-Q- curie #MSUB -E --no-requeue
+#-Q- curie # Below specific options that can be activated 
+#-Q- curie ##MSUB -q ivybridge         # Option for Airain
+#-Q- curie
+#-Q- curie BATCH_NUM_PROC_TOT=$BRIDGE_MSUB_NPROC
+#-Q- curie set +x
+#-Q- irene #!/bin/ksh
+#-Q- irene ######################
+#-Q- irene ## IRENE   TGCC/CEA ##
+#-Q- irene ######################
+#-Q- irene #MSUB -r ::Jobname::        # Job Name
+#-Q- irene #MSUB -o Script_Output_::Jobname::.000001    # standard output
+#-Q- irene #MSUB -e Script_Output_::Jobname::.000001    # error output
+#-Q- irene #MSUB -eo
+#-Q- irene #MSUB -n ::JobNumProcTot::  # Number of MPI tasks (SPMD case) or cores (MPMD case)
+#-Q- irene #MSUB -c ::openMPthreads::  # Number of openMP threads. To specify only for SMPD
+#-Q- irene #MSUB -x                    # exclusive node. To specify only for MPMD together with the one below
+#-Q- irene #MSUB -E '--cpu_bind=none'
+#-Q- irene #MSUB -T ::WallTime::              # Wall clock limit (seconds)
+#-Q- irene #MSUB -A ::default_project::
+#-Q- irene #MSUB -q skylake
+#-Q- irene #MSUB -m store,work,scratch
+#-Q- irene
+#-Q- irene BATCH_NUM_PROC_TOT=$BRIDGE_MSUB_NPROC
+#-Q- irene set +x
+#-Q- irene-amd #!/bin/ksh
+#-Q- irene-amd ######################
+#-Q- irene-amd ## IRENE-AMD   TGCC/CEA ##
+#-Q- irene-amd ######################
+#-Q- irene-amd #MSUB -r ::Jobname::        # Job Name
+#-Q- irene-amd #MSUB -o Script_Output_::Jobname::.000001    # standard output
+#-Q- irene-amd #MSUB -e Script_Output_::Jobname::.000001    # error output
+#-Q- irene-amd #MSUB -eo
+#-Q- irene-amd #MSUB -n ::JobNumProcTot::  # Number of MPI tasks (SPMD case) or cores (MPMD case)
+#-Q- irene-amd #MSUB -c ::openMPthreads::  # Number of openMP threads. To specify only for SMPD
+#-Q- irene-amd #MSUB -x                    # exclusive node. To specify only for MPMD together with the one below
+#-Q- irene-amd #MSUB -T ::WallTime::              # Wall clock limit (seconds)
+#-Q- irene-amd #MSUB -A ::default_project::
+#-Q- irene-amd #MSUB -q rome
+#-Q- irene-amd #MSUB -m store,work,scratch
+#-Q- irene-amd
+#-Q- irene-amd BATCH_NUM_PROC_TOT=$BRIDGE_MSUB_NPROC
+#-Q- irene-amd set +x
+#-Q- jeanzay #!/bin/ksh
+#-Q- jeanzay ######################
+#-Q- jeanzay ## JEANZAY    IDRIS ##
+#-Q- jeanzay ######################
+#-Q- jeanzay #SBATCH --job-name=::Jobname::        # Job Name
+#-Q- jeanzay #SBATCH --output=Script_Output_::Jobname::.000001    # standard output
+#-Q- jeanzay #SBATCH --error=Script_Output_::Jobname::.000001    # error output
+#-Q- jeanzay #SBATCH --ntasks=::JobNumProcTot::   # Number of MPI tasks
+#-Q- jeanzay #SBATCH --cpus-per-task=::openMPthreads::  # Number of openMP threads.
+#-Q- jeanzay #SBATCH --hint=nomultithread         # 1 processus MPI par par physical core (no hyperthreading) 
+#-Q- jeanzay #SBATCH --time=::WallTime::             # Wall clock limit (minutes)
+#-Q- jeanzay #SBATCH --account ::default_project::@cpu
+#-Q- jeanzay
+#-Q- jeanzay ##BATCH_NUM_PROC_TOT=$BRIDGE_SBATCH_NPROC
+#-Q- jeanzay set +x
+#-Q- ada #!/bin/ksh
+#-Q- ada # ######################
+#-Q- ada # ##  ADA       IDRIS ##
+#-Q- ada # ######################
+#-Q- ada # Job name 
+#-Q- ada # @ job_name = ::Jobname::
+#-Q- ada # Standard output file name
+#-Q- ada # @ output = Script_Output_::Jobname::.000001
+#-Q- ada # Error output file name
+#-Q- ada # @ error = Script_Output_::Jobname::.000001
+#-Q- ada # Job type
+#-Q- ada # @ job_type = parallel
+#-Q- ada # Total number of tasks
+#-Q- ada # @ total_tasks = ::JobNumProcTot::
+#-Q- ada # Specific option for OpenMP parallelization: Number of OpenMP threads per MPI task
+#-Q- ada # @ parallel_threads = ::openMPthreads::
+#-Q- ada # Memory : as_limit=3.5gb max per process per core. With 4 threads per process use max as_limit=14gb
+#-Q- ada # @ as_limit = 3.5gb
+#-Q- ada # Maximum CPU time per task hh:mm:ss
+#-Q- ada # @ wall_clock_limit = 1:00:00
+#-Q- ada # @ environment = "BATCH_NUM_PROC_TOT=::JobNumProcTot::" ; wall_clock_limit=$(wall_clock_limit)
+#-Q- ada # End of the header options
+#-Q- ada # @ queue
+#-Q- obelix ######################
+#-Q- obelix ## OBELIX      LSCE ##
+#-Q- obelix ######################
+#-Q- obelix #PBS -N ::Jobname::
+#-Q- obelix #PBS -m a
+#-Q- obelix #PBS -j oe
+#-Q- obelix #PBS -q mediump
+#-Q- obelix #PBS -o Script_Output_::Jobname::.000001
+#-Q- obelix #PBS -S /bin/ksh
+#-Q- obelix #PBS -v BATCH_NUM_PROC_TOT=::JobNumProcTot::
+#-Q- obelix #PBS -l nodes=1:ppn=::JobNumProcTot::
+#-Q- mesoipsl #!/bin/ksh
+#-Q- mesoipsl ######################
+#-Q- mesoipsl ## MESO ESPRI IPSL  ##
+#-Q- mesoipsl ######################
+#-Q- mesoipsl #SBATCH --job-name=::Jobname::        # Job Name
+#-Q- mesoipsl #SBATCH --output=Script_Output_::Jobname::.000001    # standard output
+#-Q- mesoipsl #SBATCH --error=Script_Output_::Jobname::.000001    # error output
+#-Q- mesoipsl #SBATCH --ntasks=::JobNumProcTot::   # Number of MPI tasks
+#-Q- mesoipsl #SBATCH --cpus-per-task=::openMPthreads::  # Number of openMP threads.
+#-Q- mesoipsl #SBATCH --hint=nomultithread         # 1 processus MPI par par physical core (no hyperthreading) 
+#-Q- mesoipsl #SBATCH --time=30                    # Wall clock limit (minutes)
+#-Q- mesoipsl set +x
+#-Q- ifort_CICLAD ######################
+#-Q- ifort_CICLAD ##   CICLAD    IPSL ##
+#-Q- ifort_CICLAD ######################
+#-Q- ifort_CICLAD #PBS -N ::Jobname::
+#-Q- ifort_CICLAD #PBS -m a
+#-Q- ifort_CICLAD #PBS -j oe
+#-Q- ifort_CICLAD ###PBS -q h12   # Queue for 12 hours at ciclad only
+#-Q- ifort_CICLAD #PBS -o Script_Output_::Jobname::.000001
+#-Q- ifort_CICLAD #PBS -S /bin/ksh
+#-Q- ifort_CICLAD #PBS -v BATCH_NUM_PROC_TOT=::JobNumProcTot::
+#-Q- ifort_CICLAD #PBS -l nodes=1:ppn=::JobNumProcTot::
+#-Q- ifort_CICLAD #PBS -l mem=6gb
+#-Q- ifort_CICLAD #PBS -l vmem=30gb
+#-Q- default #!/bin/ksh
+#-Q- default ##################
+#-Q- default ## DEFAULT HOST ##
+#-Q- default ##################
+#-Q- default #For MPI use, uncomment next line :
+#-Q- default #BATCH_NUM_PROC_TOT=::JobNumProcTot::
+
+#**************************************************************
+# Author: Sebastien Denvil
+# Contact: Sebastien.Denvil__at__ipsl.jussieu.fr
+# $Revision:: 1536                                     $ Revision of last commit
+# $Author:: rpennel                                    $ Author of last commit
+# $Date:: 2020-07-03 15:16:53 +0200 (Fri, 03 Jul 2020) $ Date of last commit
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see libIGCM/libIGCM_CeCILL.LIC
+#
+#**************************************************************
+
+date
+
+echo
+echo "#######################################"
+echo "#  ANOTHER GREAT DEBUG SIMULATION #"
+echo "#######################################"
+echo
+
+#D------------------------------------------------------
+#D- ENVIRONMENT
+#D-     - Loading environment needed to run
+#D------------------------------------------------------
+
+MODIPSL=::modipsl::
+libIGCM=${MODIPSL}/libIGCM
+SRF_comp=::SRF_comp::
+OCE_comp=::OCE_comp::
+CPL_comp=::CPL_comp::
+CHM_comp=::CHM_comp::
+JobName=::JOBNAME::
+::SUBMIT_DIR::
+ExecutionType=::EXECUTION_TYPE::
+
+#-Q- jeanzay . /gpfslocalsup/spack_soft/environment-modules/current/init/ksh
+#-Q- mesoipsl . /etc/profile.d/modules.sh
+
+. ::ENVFILE::
+
+module list
+
+#D------------------------------------------------------
+#D- EXECUTION
+#D-     - Copy binary files from modipsl directory
+#D-     - Remove of some out restart files 
+#D-     - Execution
+#D------------------------------------------------------
+
+cd ${SUBMIT_DIR}
+
+while read EXEIN EXEOUT ;do
+ eval EXEIN=${EXEIN}
+ cp ${MODIPSL}/bin/${EXEIN} ${EXEOUT}
+done < components_binary.txt
+
+if [ X${SRF_comp} = Xy ] ; then
+  [ -f sechiba_rest_out.nc ] && rm -f sechiba_rest_out.nc
+  [ -f stomate_rest_out.nc ] && rm -f stomate_rest_out.nc
+  [ -f driver_rest_out.nc ] && rm -f driver_rest_out.nc
+fi
+if [ X${OCE_comp} = Xy ] ; then
+  [ X${JobName} != X ] && rm -f ${JobName}*restart*.nc
+fi
+
+if [ X${CPL_comp} = Xy ] ; then
+  if [ -f sstoc_orig.nc ] ; then
+    cp sstoc_orig.nc sstoc.nc
+    cp flxat_orig.nc flxat.nc
+    cp icbrg_orig.nc icbrg.nc
+    cp icshf_orig.nc icshf.nc
+  else
+   cp sstoc.nc sstoc_orig.nc
+   cp flxat.nc flxat_orig.nc
+   cp icbrg.nc icbrg_orig.nc
+   cp icshf.nc icshf_orig.nc
+  fi
+fi
+if [ X${CHM_comp} = Xy ] ; then
+  [ -f reprecipinsoil.dat ] && rm -f reprecipinsoil.dat
+fi
+
+#-Q- jeanzay #Case MPMD + MPI/OpenMP
+#-Q- jeanzay if [ ${ExecutionType} -eq 2 ] ; then
+#-Q- jeanzay    _bkIFS=$IFS;
+#-Q- jeanzay    IFS=$'\n'; set -f
+#-Q- jeanzay    listnodes=($(< <( scontrol show hostnames $SLURM_JOB_NODELIST )))
+#-Q- jeanzay    IFS=$_bkIFS; set +f
+#-Q- jeanzay    rm -f hostlist ; cp hostlist_template hostlist
+#-Q- jeanzay    for nb_proc in `seq 0 $(($SLURM_JOB_NUM_NODES-1))`; do
+#-Q- jeanzay        mv hostlist hostlist_tmp
+#-Q- jeanzay        host_value=${listnodes[${nb_proc}]}
+#-Q- jeanzay        sed -e "s/node_${nb_proc}_X/${host_value}/" hostlist_tmp > hostlist
+#-Q- jeanzay    done
+#-Q- jeanzay    export SLURM_HOSTFILE=./hostlist
+#-Q- jeanzay fi
+#-Q- jeanzay # Workaround at Jean-Zay
+#-Q- jeanzay source $I_MPI_ROOT/intel64/bin/mpivars.sh release_mt
+
+
+::EXECUTION:: > out_execution  2>&1
+RET=$?
+if [ ${RET} -gt 0 ] ; then
+    echo "Return code of executable :" ${RET}
+fi
+
+date
+exit

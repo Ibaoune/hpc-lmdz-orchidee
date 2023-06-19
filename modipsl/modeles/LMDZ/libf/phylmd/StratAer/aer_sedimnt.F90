@@ -1,0 +1,133 @@
+!
+! $Id: aer_sedimnt.F90 3677 2020-05-06 15:18:32Z oboucher $
+!
+SUBROUTINE AER_SEDIMNT(pdtphys, t_seri, pplay, paprs, tr_seri, dens_aer)
+
+!**** *AER_SEDIMNT* -  ROUTINE FOR PARAMETRIZATION OF AEROSOL SEDIMENTATION
+
+!      Christoph Kleinschmitt
+!      based on the sedimentation scheme of
+!      Olivier Boucher & Jean-Jacques Morcrette 
+!      (following the ice sedimentation scheme of Adrian Tompkins)
+
+!**   INTERFACE.
+!     ----------
+!          *AER_SEDIMNT* IS CALLED FROM *traccoag_mod*.
+
+!-----------------------------------------------------------------------
+
+  USE phys_local_var_mod, ONLY: mdw, budg_sed_part, DENSO4, f_r_wet, vsed_aer
+  USE dimphy, ONLY : klon,klev
+  USE infotrac_phy
+  USE aerophys
+  USE YOMCST
+
+IMPLICIT NONE
+
+!-----------------------------------------------------------------------
+
+  ! transfer variables when calling this routine
+  REAL,INTENT(IN)                             :: pdtphys ! Pas d'integration pour la physique (seconde)
+  REAL,DIMENSION(klon,klev),INTENT(IN)        :: t_seri  ! Temperature
+  REAL,DIMENSION(klon,klev),INTENT(IN)        :: pplay   ! pression pour le mileu de chaque couche (en Pa)
+  REAL,DIMENSION(klon,klev+1),INTENT(IN)      :: paprs   ! pression pour chaque inter-couche (en Pa)
+  REAL,DIMENSION(klon,klev,nbtr),INTENT(INOUT):: tr_seri ! Concentration Traceur [U/KgA]
+  REAL,DIMENSION(klon,klev)                   :: dens_aer! density of aerosol particles [kg/m3 aerosol] with default H2SO4 mass
+
+  ! local variables in sedimentation routine
+  INTEGER :: JL,JK,nb    
+  REAL,DIMENSION(klon,klev)                   :: zvis     ! dynamic viscosity of air [kg/(m*s)]
+  REAL,DIMENSION(klon,klev)                   :: zlair    ! mean free path of air [m]
+  REAL                                        :: ZRHO     ! air density [kg/m^3]
+  REAL                                        :: ZGDP     ! =g/dp=1/(rho*dz)
+  REAL                                        :: ZDTGDP   ! =dt/(rho*dz)
+  REAL,DIMENSION(klon,nbtr_bin)               :: ZSEDFLX  ! sedimentation flux of tracer [U/(m^2*s)]
+  REAL,DIMENSION(nbtr_bin)                    :: ZAERONW  ! tracer concentration at current time step [U/KgA]
+  REAL,DIMENSION(klon,nbtr_bin)               :: ZAERONWM1! tracer concentration at preceding time step [U/KgA]
+  REAL,DIMENSION(klon,klev,nbtr_bin)          :: ZVAER    ! sedimentation velocity [m/s]
+  REAL,DIMENSION(nbtr_bin)                    :: ZSOLAERS ! sedimentation flux arriving from above [U/(m^2*s)]
+  REAL,DIMENSION(nbtr_bin)                    :: ZSOLAERB ! sedimentation flux leaving gridbox [U/(m^2*s)]
+  REAL,DIMENSION(klon,klev)                   :: m_sulf
+
+! dynamic viscosity of air (Pruppacher and Klett, 1978) [kg/(m*s)]
+WHERE (t_seri.GE.273.15)
+  zvis=(1.718 + 0.0049*(t_seri-273.15))*1.E-5
+  ELSEWHERE
+  zvis=(1.718 + 0.0049*(t_seri-273.15)-1.2E-05*(t_seri-273.15)**2)*1.E-5
+END WHERE
+
+! mean free path of air (Prupp. Klett) [m]
+zlair(:,:) = 0.066 *(1.01325E+5/pplay(:,:))*(t_seri(:,:)/293.15)*1.E-06
+
+!--initialisations of variables carried out from one layer to the next layer
+!--actually not needed if (JK>1) test is on
+DO JL=1,klon
+  DO nb=1,nbtr_bin
+    ZSEDFLX(JL,nb)=0.0
+    ZAERONWM1(JL,nb)=0.0
+  ENDDO
+ENDDO
+
+!--from top to bottom (!)
+DO JK=klev,1,-1
+  DO JL=1,klon
+    DO nb=1,nbtr_bin
+  !--initialisations
+      ZSOLAERS(nb)=0.0
+      ZSOLAERB(nb)=0.0
+      ZGDP=RG/(paprs(JL,JK)-paprs(JL,JK+1))
+      ZDTGDP=pdtphys*ZGDP
+
+  ! source from above
+      IF (JK<klev) THEN 
+        ZSEDFLX(JL,nb)=ZSEDFLX(JL,nb)*ZAERONWM1(JL,nb)  
+        ZSOLAERS(nb)=ZSOLAERS(nb)+ZSEDFLX(JL,nb)*ZDTGDP
+      ENDIF
+
+  ! sink to next layer
+      ZRHO=pplay(JL,JK)/(RD*t_seri(JL,JK))
+
+      ! stokes-velocity with cunnigham slip- flow correction
+      ZVAER(JL,JK,nb) = 2./9.*(DENSO4(JL,JK)*1000.-ZRHO)*RG/zvis(JL,JK)*(f_r_wet(JL,JK)*mdw(nb)/2.)**2.* &
+         (1.+ 2.*zlair(JL,JK)/(f_r_wet(JL,JK)*mdw(nb))*(1.257+0.4*EXP(-0.55*f_r_wet(JL,JK)*mdw(nb)/zlair(JL,JK))))
+
+      ZSEDFLX(JL,nb)=ZVAER(JL,JK,nb)*ZRHO
+      ZSOLAERB(nb)=ZSOLAERB(nb)+ZDTGDP*ZSEDFLX(JL,nb)
+
+  !---implicit solver
+      ZAERONW(nb)=(tr_seri(JL,JK,nb+nbtr_sulgas)+ZSOLAERS(nb))/(1.0+ZSOLAERB(nb))
+
+  !---new time-step AER variable needed for next layer
+      ZAERONWM1(JL,nb)=ZAERONW(nb)
+
+      tr_seri(JL,JK,nb+nbtr_sulgas)=ZAERONWM1(JL,nb)
+    ENDDO
+  ENDDO
+ENDDO
+
+!---sedimentation flux to the surface
+!---ZAERONWM1 now contains the surface concentration at the new timestep
+!---PFLUXAER in unit of xx m-2 s-1 
+budg_sed_part(:)=0.0
+DO JL=1,klon
+  ZRHO=pplay(JL,1)/(RD*t_seri(JL,1))
+  DO nb=1,nbtr_bin
+    !compute budg_sed_part as sum over bins in kg(S)/m2/s
+    budg_sed_part(JL)=budg_sed_part(JL)+ZRHO*ZAERONWM1(JL,nb)*ZVAER(JL,1,nb)*(mSatom/mH2SO4mol) &
+                & *dens_aer_dry*4./3.*RPI*(mdw(nb)/2.)**3
+  ENDDO
+ENDDO
+
+vsed_aer(:,:)=0.0
+m_sulf(:,:)=0.0
+
+DO nb=1,nbtr_bin
+  !compute mass-weighted mean of sedimentation velocity
+  vsed_aer(:,:)=vsed_aer(:,:)+ZVAER(:,:,nb)*(mdw(nb)/2.)**3*MAX(1.e-30, tr_seri(:,:,nb+nbtr_sulgas))
+  m_sulf(:,:)=m_sulf(:,:)+(mdw(nb)/2.)**3*MAX(1.e-30, tr_seri(:,:,nb+nbtr_sulgas))
+ENDDO
+
+!divide by total aerosol mass in grid cell
+vsed_aer(:,:)=vsed_aer(:,:)/m_sulf(:,:)
+
+END SUBROUTINE AER_SEDIMNT

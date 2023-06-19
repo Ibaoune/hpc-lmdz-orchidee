@@ -1,0 +1,137 @@
+!***************************************************************************
+SUBROUTINE RRTM_CMBGB3
+!***************************************************************************
+
+!     BAND 3:  500-630 cm-1 (low - H2O,CO2; high - H2O,CO2)
+!***************************************************************************
+
+! Parameters
+USE PARKIND1  ,ONLY : JPIM     ,JPRB
+USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
+
+USE YOERRTO3 , ONLY : KAO     ,KBO     ,SELFREFO   ,FRACREFAO  ,&
+ & FRACREFBO  ,FORREFO    ,ABSN2OAO   ,ABSN2OBO  
+USE YOERRTA3 , ONLY : KA      ,KB      ,SELFREF    ,FRACREFA   ,&
+ & FRACREFB   ,FORREF    ,ABSN2OA   ,ABSN2OB  
+USE YOERRTRWT, ONLY : FREFA    ,FREFB    ,FREFADF  ,FREFBDF   ,RWGT
+USE YOERRTFTR, ONLY : NGC      ,NGS      ,NGN      
+
+IMPLICIT NONE
+
+INTEGER(KIND=JPIM) :: IGC, IPR, IPRSM, JN, JP, JT
+
+REAL(KIND=JPRB) :: Z_SUMF, Z_SUMK, Z_SUMK1, Z_SUMK2, Z_SUMK3
+REAL(KIND=JPRB) :: ZHOOK_HANDLE
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB3',0,ZHOOK_HANDLE)
+DO JN = 1,10
+  DO JT = 1,5
+    DO JP = 1,13
+      IPRSM = 0
+      DO IGC = 1,NGC(3)
+        Z_SUMK = 0.0_JPRB
+        DO IPR = 1, NGN(NGS(2)+IGC)
+          IPRSM = IPRSM + 1
+
+          Z_SUMK = Z_SUMK + KAO(JN,JT,JP,IPRSM)*RWGT(IPRSM+32)
+        ENDDO
+
+        KA(JN,JT,JP,IGC) = Z_SUMK
+      ENDDO
+    ENDDO
+  ENDDO
+ENDDO
+DO JN = 1,5
+  DO JT = 1,5
+    DO JP = 13,59
+      IPRSM = 0
+      DO IGC = 1,NGC(3)
+        Z_SUMK = 0.0_JPRB
+        DO IPR = 1, NGN(NGS(2)+IGC)
+          IPRSM = IPRSM + 1
+
+          Z_SUMK = Z_SUMK + KBO(JN,JT,JP,IPRSM)*RWGT(IPRSM+32)
+        ENDDO
+
+        KB(JN,JT,JP,IGC) = Z_SUMK
+      ENDDO
+    ENDDO
+  ENDDO
+ENDDO
+
+DO JT = 1,10
+  IPRSM = 0
+  DO IGC = 1,NGC(3)
+    Z_SUMK = 0.0_JPRB
+    Z_SUMF = 0.0_JPRB
+    DO IPR = 1, NGN(NGS(2)+IGC)
+      IPRSM = IPRSM + 1
+
+      Z_SUMK = Z_SUMK + SELFREFO(JT,IPRSM)*RWGT(IPRSM+32)
+      Z_SUMF = Z_SUMF + FRACREFAO(IPRSM,JT)
+    ENDDO
+
+    SELFREF(JT,IGC) = Z_SUMK
+    FRACREFA(IGC,JT) = Z_SUMF
+  ENDDO
+ENDDO
+
+DO JP = 1,5
+  IPRSM = 0
+  DO IGC = 1,NGC(3)
+    Z_SUMF = 0.0_JPRB
+    DO IPR = 1, NGN(NGS(2)+IGC)
+      IPRSM = IPRSM + 1
+
+      Z_SUMF = Z_SUMF + FRACREFBO(IPRSM,JP)
+    ENDDO
+
+    FRACREFB(IGC,JP) = Z_SUMF
+  ENDDO
+ENDDO
+
+IPRSM = 0
+DO IGC = 1,NGC(3)
+  Z_SUMK1= 0.0_JPRB
+  Z_SUMK2= 0.0_JPRB
+  Z_SUMK3= 0.0_JPRB
+  DO IPR = 1, NGN(NGS(2)+IGC)
+    IPRSM = IPRSM + 1
+
+    Z_SUMK1= Z_SUMK1+ FORREFO(IPRSM)*RWGT(IPRSM+32)
+    Z_SUMK2= Z_SUMK2+ ABSN2OAO(IPRSM)*RWGT(IPRSM+32)
+    Z_SUMK3= Z_SUMK3+ ABSN2OBO(IPRSM)*RWGT(IPRSM+32)
+  ENDDO
+
+  FORREF(IGC) = Z_SUMK1
+  ABSN2OA(IGC) = Z_SUMK2
+  ABSN2OB(IGC) = Z_SUMK3
+ENDDO
+
+DO JP = 1,10
+  DO IGC = 1,NGC(3)
+
+    FREFA(NGS(2)+IGC,JP) = FRACREFA(IGC,JP)
+  ENDDO
+ENDDO
+DO JP = 1,9
+  DO IGC = 1,NGC(3)
+
+    FREFADF(NGS(2)+IGC,JP) = FRACREFA(IGC,JP+1) -FRACREFA(IGC,JP)
+  ENDDO
+ENDDO
+DO JP = 1,5
+  DO IGC = 1,NGC(3)
+
+    FREFB(NGS(2)+IGC,JP) = FRACREFB(IGC,JP)
+  ENDDO
+ENDDO
+DO JP = 1,4
+  DO IGC = 1,NGC(3)
+
+    FREFBDF(NGS(2)+IGC,JP) = FRACREFB(IGC,JP+1) -FRACREFB(IGC,JP)
+  ENDDO
+ENDDO
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB3',1,ZHOOK_HANDLE)
+END SUBROUTINE RRTM_CMBGB3

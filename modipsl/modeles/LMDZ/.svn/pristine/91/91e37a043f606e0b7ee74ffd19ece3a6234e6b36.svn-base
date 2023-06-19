@@ -1,0 +1,123 @@
+!
+! $Id$
+!
+SUBROUTINE calcaerosolstrato_rrtm(pplay,t_seri,paprs,debut)
+
+  USE phys_state_var_mod, ONLY: tau_aero_sw_rrtm, piz_aero_sw_rrtm, cg_aero_sw_rrtm, tau_aero_lw_rrtm
+  USE phys_local_var_mod, ONLY: mdw, tausum_aero, tausum_strat, tau_strat_550, tau_strat_1020, stratomask
+  USE aero_mod
+  USE dimphy
+  USE temps_mod
+  USE YOMCST
+
+  IMPLICIT NONE
+
+  INCLUDE "dimensions.h"
+  INCLUDE "clesphys.h"
+  INCLUDE "paramet.h"
+  INCLUDE "thermcell.h"
+  INCLUDE "iniprint.h"
+
+! Variable input
+  REAL,DIMENSION(klon,klev),INTENT(IN)   :: t_seri  ! Temperature
+  REAL,DIMENSION(klon,klev),INTENT(IN)   :: pplay   ! pression pour le mileu de chaque couche (en Pa)
+  LOGICAL,INTENT(IN)                     :: debut   ! le flag de l'initialisation de la physique
+  REAL,DIMENSION(klon,klev+1),INTENT(IN) :: paprs   ! pression pour chaque inter-couche (en Pa)
+
+! Stratospheric aerosols optical properties
+  REAL, DIMENSION(klon,klev,nbands_sw_rrtm) :: tau_strat, piz_strat, cg_strat
+  REAL, DIMENSION(klon,klev,nwave_sw+nwave_lw) :: tau_strat_wave
+  REAL, DIMENSION(klon,klev,nbands_lw_rrtm) :: tau_lw_abs_rrtm
+
+  INTEGER k, band, wave, i
+  REAL zrho, zdz
+
+!--calculate optical properties of the aerosol size distribution from tr_seri
+  tau_strat=0.0
+  piz_strat=0.0
+  cg_strat=0.0
+  tau_strat_wave=0.0
+  tau_lw_abs_rrtm=0.0
+
+  CALL miecalc_aer(tau_strat, piz_strat, cg_strat, tau_strat_wave, tau_lw_abs_rrtm, paprs, debut)
+
+!!--test CK: deactivate radiative effect of aerosol
+!  tau_strat=0.0
+!  piz_strat=0.0
+!  cg_strat=0.0
+!  tau_strat_wave=0.0
+!  tau_lw_abs_rrtm=0.0
+
+!--test CK: deactivate SW radiative effect of aerosol (but leave LW)
+!  tau_strat=0.0
+!  piz_strat=0.0
+!  cg_strat=0.0
+
+!  DO wave=1, nwave_sw
+!  tau_strat_wave(:,:,wave)=0.0
+!  ENDDO
+
+!--test CK: deactivate LW radiative effect of aerosol (but leave SW)
+!  tau_lw_abs_rrtm=0.0
+
+!  DO wave=nwave_sw+1, nwave_sw+nwave_lw
+!  tau_strat_wave(:,:,wave)=0.0
+!  ENDDO
+
+!--total vertical aod at the 5 SW + 1 LW wavelengths
+  DO wave=1, nwave_sw+nwave_lw
+    DO k=1, klev
+      tausum_aero(:,wave,id_STRAT_phy)=tausum_aero(:,wave,id_STRAT_phy)+tau_strat_wave(:,k,wave)
+    ENDDO
+  ENDDO
+
+!--weighted average for cg, piz and tau, adding strat aerosols on top of tropospheric ones
+  DO band=1, nbands_sw_rrtm
+    !--no stratospheric aerosol in index 1
+    cg_aero_sw_rrtm(:,:,1,band)  =  cg_aero_sw_rrtm(:,:,2,band)
+    piz_aero_sw_rrtm(:,:,1,band)  = piz_aero_sw_rrtm(:,:,2,band)
+    tau_aero_sw_rrtm(:,:,1,band)  = tau_aero_sw_rrtm(:,:,2,band)
+
+    !--tropospheric and stratospheric aerosol in index 2
+    cg_aero_sw_rrtm(:,:,2,band) = ( cg_aero_sw_rrtm(:,:,2,band)*piz_aero_sw_rrtm(:,:,2,band)*tau_aero_sw_rrtm(:,:,2,band) + &
+                                cg_strat(:,:,band)*piz_strat(:,:,band)*tau_strat(:,:,band) ) /                              &
+                                MAX( piz_aero_sw_rrtm(:,:,2,band)*tau_aero_sw_rrtm(:,:,2,band) +                            &
+                                piz_strat(:,:,band)*tau_strat(:,:,band), 1.e-15 )
+    piz_aero_sw_rrtm(:,:,2,band)= ( piz_aero_sw_rrtm(:,:,2,band)*tau_aero_sw_rrtm(:,:,2,band) +                             &
+                                piz_strat(:,:,band)*tau_strat(:,:,band) ) /                                                 &
+                                MAX( tau_aero_sw_rrtm(:,:,2,band) + tau_strat(:,:,band), 1.e-15 )
+    tau_aero_sw_rrtm(:,:,2,band)= tau_aero_sw_rrtm(:,:,2,band) + tau_strat(:,:,band)
+  ENDDO
+
+  DO band=1, nbands_lw_rrtm
+    !--no stratospheric aerosols in index 1
+    tau_aero_lw_rrtm(:,:,1,band)  = tau_aero_lw_rrtm(:,:,2,band)
+    !--tropospheric and stratospheric aerosol in index 2
+    tau_aero_lw_rrtm(:,:,2,band)  = tau_aero_lw_rrtm(:,:,2,band) + tau_lw_abs_rrtm(:,:,band) 
+  ENDDO
+
+  WHERE (tau_aero_sw_rrtm .LT. 1.e-14) piz_aero_sw_rrtm=1.0
+  WHERE (tau_aero_sw_rrtm .LT. 1.e-14) tau_aero_sw_rrtm=1.e-15
+  WHERE (tau_aero_lw_rrtm .LT. 1.e-14) tau_aero_lw_rrtm=1.e-15
+
+  tausum_strat(:,:)=0.0
+  DO i=1,klon
+  DO k=1,klev
+    IF (stratomask(i,k).GT.0.5) THEN
+      tausum_strat(i,1)=tausum_strat(i,1)+tau_strat_wave(i,k,2)  !--550 nm
+      tausum_strat(i,2)=tausum_strat(i,2)+tau_strat_wave(i,k,5)  !--1020 nm
+      tausum_strat(i,3)=tausum_strat(i,3)+tau_strat_wave(i,k,6)  !--10 um
+    ENDIF
+  ENDDO
+  ENDDO
+
+  DO i=1,klon
+  DO k=1,klev
+    zrho=pplay(i,k)/t_seri(i,k)/RD            !air density in kg/m3
+    zdz=(paprs(i,k)-paprs(i,k+1))/zrho/RG     !thickness of layer in m
+    tau_strat_550(i,k)=tau_strat_wave(i,k,2)/zdz
+    tau_strat_1020(i,k)=tau_strat_wave(i,k,5)/zdz
+  ENDDO
+  ENDDO
+
+END SUBROUTINE calcaerosolstrato_rrtm

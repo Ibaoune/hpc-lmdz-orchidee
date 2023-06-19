@@ -1,0 +1,92 @@
+!***************************************************************************
+SUBROUTINE RRTM_CMBGB11
+!***************************************************************************
+
+!     BAND 11:  1480-1800 cm-1 (low - H2O; high - H2O)
+!***************************************************************************
+
+! Parameters
+USE PARKIND1  ,ONLY : JPIM     ,JPRB
+USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
+
+USE YOERRTO11, ONLY : KAO     ,KBO     ,SELFREFO    ,FRACREFAO ,FRACREFBO
+USE YOERRTA11, ONLY : KA      ,KB      ,SELFREF     ,FRACREFA  ,FRACREFB
+USE YOERRTRWT, ONLY : FREFA    ,FREFB    ,RWGT
+USE YOERRTFTR, ONLY : NGC      ,NGS      ,NGN      
+
+IMPLICIT NONE
+
+INTEGER(KIND=JPIM) :: IGC, IPR, IPRSM, JP, JT
+
+REAL(KIND=JPRB) :: Z_SUMF1, Z_SUMF2, Z_SUMK
+REAL(KIND=JPRB) :: ZHOOK_HANDLE
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB11',0,ZHOOK_HANDLE)
+DO JT = 1,5
+  DO JP = 1,13
+    IPRSM = 0
+    DO IGC = 1,NGC(11)
+      Z_SUMK = 0.0_JPRB
+      DO IPR = 1, NGN(NGS(10)+IGC)
+        IPRSM = IPRSM + 1
+
+        Z_SUMK = Z_SUMK + KAO(JT,JP,IPRSM)*RWGT(IPRSM+160)
+      ENDDO
+
+      KA(JT,JP,IGC) = Z_SUMK
+    ENDDO
+  ENDDO
+ENDDO
+DO JT = 1,5
+  DO JP = 13,59
+    IPRSM = 0
+    DO IGC = 1,NGC(11)
+      Z_SUMK = 0.0_JPRB
+      DO IPR = 1, NGN(NGS(10)+IGC)
+        IPRSM = IPRSM + 1
+
+        Z_SUMK = Z_SUMK + KBO(JT,JP,IPRSM)*RWGT(IPRSM+160)
+      ENDDO
+
+      KB(JT,JP,IGC) = Z_SUMK
+    ENDDO
+  ENDDO
+ENDDO
+
+DO JT = 1,10
+  IPRSM = 0
+  DO IGC = 1,NGC(11)
+    Z_SUMK = 0.0_JPRB
+    DO IPR = 1, NGN(NGS(10)+IGC)
+      IPRSM = IPRSM + 1
+
+      Z_SUMK = Z_SUMK + SELFREFO(JT,IPRSM)*RWGT(IPRSM+160)
+    ENDDO
+
+    SELFREF(JT,IGC) = Z_SUMK
+  ENDDO
+ENDDO
+
+IPRSM = 0
+DO IGC = 1,NGC(11)
+  Z_SUMF1= 0.0_JPRB
+  Z_SUMF2= 0.0_JPRB
+  DO IPR = 1, NGN(NGS(10)+IGC)
+    IPRSM = IPRSM + 1
+
+    Z_SUMF1= Z_SUMF1+ FRACREFAO(IPRSM)
+    Z_SUMF2= Z_SUMF2+ FRACREFBO(IPRSM)
+  ENDDO
+
+  FRACREFA(IGC) = Z_SUMF1
+  FRACREFB(IGC) = Z_SUMF2
+ENDDO
+
+DO IGC = 1,NGC(11)
+
+  FREFA(NGS(10)+IGC,1) = FRACREFA(IGC)
+  FREFB(NGS(10)+IGC,1) = FRACREFB(IGC)
+ENDDO
+
+IF (LHOOK) CALL DR_HOOK('RRTM_CMBGB11',1,ZHOOK_HANDLE)
+END SUBROUTINE RRTM_CMBGB11

@@ -1,0 +1,13 @@
+NETCDF_LIBDIR="-L/opt/software/libraries/netcdf/bullxmpi/netcdf-fortran-4.4.1-4.3.3-rc2/lib -lnetcdff -L/opt/software/libraries/netcdf/bullxmpi/netcdf-4.3.3-rc2/lib -lnetcdf -L/opt/software/libraries/hdf5/hdf5_with_bullxmpi/1.8.14/lib -lhdf5_hl -lhdf5 -lz"
+NETCDF_INCDIR="-I/opt/software/libraries/hdf5/hdf5_with_bullxmpi/1.8.14/include -I/opt/software/libraries/netcdf/bullxmpi/netcdf-fortran-4.4.1-4.3.3-rc2/include"
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+XIOS_INCDIR=$LMDGCM/../XIOS/inc
+XIOS_LIBDIR=$LMDGCM/../XIOS/lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../oasis3-mct/BLD/build/lib/psmile.MPI1
+OASIS_LIBDIR=$LMDGCM/../../oasis3-mct/BLD/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/inc
+

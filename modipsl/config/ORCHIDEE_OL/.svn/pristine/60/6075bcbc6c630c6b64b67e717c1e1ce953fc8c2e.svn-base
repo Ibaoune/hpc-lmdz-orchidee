@@ -1,0 +1,167 @@
+[CONFIG]
+# - Forcing files path
+ForcingPath=${R_BC}/OOL/${config_UserChoices_TagName}/NCC
+
+# - Number of PFTs :
+NbPFTs= 13
+
+# - Information on the sites to be treated :
+#   * Number of physical parameters on each sites per PFTs
+NbSitesParam= 2
+# 4 first parameters are Name, Forcing file, Begin date, Number of years in forcing file
+
+#   * ORCHIDEE name for physical parameters on each sites
+#   PFT (IMPOSE_VEG), \
+#   initial LAI (IMPOSE_VEG)
+NameSitesParam= ( HYDROL_SOIL_DEPTH, HYDROL_HUMCSTE )
+
+# Sites descriptions :
+# Number
+NbSites=2
+#       Abbrv,  Filename ,      Inital year (for gregorian calendar) , Length (Y),  \
+#param 1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13
+Sites= ( NCC2, ncc_for_${year}.nc   ,          1950,                         1    , \
+         2.0, \
+         5., .8, .8, 1., .8, .8, 1., 1., .8, 4., 4., 4., 4.) \
+\
+       ( NCC4, ncc_for_${year}.nc   ,          1950,                         1     , \
+         4.0, \
+         5., .4, .4, 1., .8, .8, 1., 1., .8, 4., 1., 4., 1.)
+
+# The following tables of parameters for SECHIBA
+# are in the following order :
+#
+#    1 - Bare soil
+#    2 - tropical  broad-leaved evergreen
+#    3 - tropical  broad-leaved raingreen
+#    4 - temperate needleleaf   evergreen
+#    5 - temperate broad-leaved evergreen
+#    6 - temperate broad-leaved summergreen
+#    7 - boreal    needleleaf   evergreen
+#    8 - boreal    broad-leaved summergreen
+#    9 - boreal    needleleaf   summergreen
+#   10 -           C3           grass
+#   11 -           C4           grass
+#   12 -           C3           agriculture
+#   13 -           C4           agriculture
+
+[SPINUP]
+    # SPINUP configuration : 
+    # ----------------------
+# !! Step of time in N Years !!
+# !! The spinup will change if the ensemble file contains more than one year !!
+#    ( N = Number of years contain in ensemble forcing file ) 
+#     each Year * N
+
+# Initialisation for spin-up :
+# orchidee with sechiba alone (!!! if ok_stomate == n !!!)
+duree_nostomate=0
+# orchidee with stomate
+duree_inistomate=20
+# teststomate (only if duree_nostomate or duree_inistomate > 0)
+duree_offlineini=0
+
+# Loop configuration for spin-up :
+# The whole job is restarted n_iter times
+n_iter=2
+# orchidee with sechiba (and stomate if ok_stomate=y below)
+duree_sechiba=20
+# teststomate
+duree_stomate=400
+# forcesoil
+duree_carbonsol=5000
+
+# Finalization for spin-up :
+# all orchidee
+duree_final=20
+# This last parameter must be non-zero.
+
+
+[UserChoices]
+
+#
+###-- STOMATE flag
+#
+ok_stomate=y
+#
+###-- OK_CO2 flag
+#
+ok_co2=y
+
+#
+###-- LAI flag
+#
+lai_map=n
+
+#
+###-- fix végétation flag
+#
+impose_veg=n
+
+#
+###-- historical vegetation maps
+#
+land_use=n
+
+#
+###-- ROUTING flag
+#
+ok_routing=n
+
+#
+###-- NEW HYDROL CWRR flag
+#
+ok_newhydrol=n
+
+#
+## DEBUG mode for SPINUP 
+#
+# This mode keep all SPINUP directory in ARCHIVE
+# If disable, all ARCHIVE is automaticly cleaned.
+# 
+DEBUG_SPIN=n
+# If you don't want to keep old spinup steps, but last one
+CONSERVE=y
+
+# History levels
+level_hist=2
+level_hist_final=5
+
+
+[SubJobParams]
+# You can specify here any parameters to be modified in run.def
+DEBUG_INFO=n
+LONGPRINT=n
+BAVARD=0
+ALLOW_WEATHERGEN=n
+SECHIBA_reset_time=y
+XIOS_ORCHIDEE_OK=n
+# ensemble files have hour frequency values. NCC files
+SPLIT_DT=12
+SPRED_PREC=3
+
+
+# Western limit of region
+# Western limit of the region we are 
+#  interested in. Between -180 and +180 degrees
+LIMIT_WEST = -180.
+# default = -180.
+
+# Eastern limit of region
+# Eastern limit of the region we are
+#  interested in. Between -180 and +180 degrees
+LIMIT_EAST = 180.
+# default = 180.
+
+# Northern limit of region
+# Northern limit of the region we are
+#  interested in. Between +90 and -90 degrees
+LIMIT_NORTH = 90.
+# default = 90.
+
+# Southern limit of region
+# Southern limit of the region we are
+#  interested in. Between 90 and -90 degrees
+LIMIT_SOUTH = -90.
+
+

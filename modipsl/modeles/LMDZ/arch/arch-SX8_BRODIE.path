@@ -1,0 +1,10 @@
+NETCDF_LIBDIR="-L/SXlocal/pub/netCDF/3.6.1-openmp/lib -lnetcdf"
+NETCDF_INCDIR=-I/SXlocal/pub/netCDF/3.6.1-openmp/include
+IOIPSL_INCDIR=$LMDGCM/../../lib
+IOIPSL_LIBDIR=$LMDGCM/../../lib
+ORCH_INCDIR=$LMDGCM/../../lib
+ORCH_LIBDIR=$LMDGCM/../../lib
+OASIS_INCDIR=$LMDGCM/../../prism/SX/build/lib/psmile.$couple
+OASIS_LIBDIR=$LMDGCM/../../prism/SX/lib
+INCA_LIBDIR=$LMDGCM/../INCA/config/lib
+INCA_INCDIR=$LMDGCM/../INCA/config/lib

@@ -1,0 +1,11 @@
+NETCDF_LIBDIR="-L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdff -lnetcdf"
+NETCDF_INCDIR=-I/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include
+
+IOIPSL_INCDIR="-I${ORCHDIR}/../../lib -I${ORCHDIR}/../IOIPSL/inc"
+IOIPSL_LIBDIR="-L${ORCHDIR}/../../lib -L${ORCHDIR}/../IOIPSL/lib"
+IOIPSL_LIB="-lioipsl"
+
+XIOS_INCDIR="-I${ORCHDIR}/../XIOS/inc"
+XIOS_LIBDIR="-L${ORCHDIR}/../XIOS/lib"
+XIOS_LIB="-lxios"
+

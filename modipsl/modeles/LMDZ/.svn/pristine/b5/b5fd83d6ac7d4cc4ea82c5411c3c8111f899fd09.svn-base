@@ -1,0 +1,6 @@
+NETCDF_LIBDIR="-L/usr/local/netcdf-pgi/lib -lnetcdf"
+NETCDF_INCDIR=-I/usr/local/netcdf-pgi/include
+IOIPSL_INCDIR=...
+IOIPSL_LIBDIR=...
+ORCH_INCDIR=/u/fairhead/modipsl_ioipsl_3/lib
+ORCH_LIBDIR=/u/fairhead/modipsl_ioipsl_3/lib

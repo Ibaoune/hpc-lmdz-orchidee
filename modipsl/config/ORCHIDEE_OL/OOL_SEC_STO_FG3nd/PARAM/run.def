@@ -1,0 +1,159 @@
+# $HeadURL: svn://forge.ipsl.jussieu.fr/orchidee/trunk/ORCHIDEE_OL/OOL_SEC_STO_FG3/PARAM/run.def $
+# $Date: 2018-02-19 14:46:29 +0100 (Mon, 19 Feb 2018) $
+# $Revision: 5016 $
+
+#**************************************************************************
+#           Suggested parameter set up for ORCHIDEE 2.0
+# See all optional parameters in modipsl/modeles/ORCHIDEE/orchidee.default
+#
+# Note when running with libIGCM, variables set here to _AUTOBLOCKER_ can 
+# not be changed in run.def otherwwise the simulation will stop. Variables 
+# set to _AUTO_ can be changed from the comp.card but they can also be 
+# changed directly in the run.def. A value set in run.def can never be
+# changed again by libIGCM. 
+#**************************************************************************
+
+# Activate Stomate component (default y)
+STOMATE_OK_STOMATE = _AUTOBLOCKER_ 
+
+# Time length for one intergration (default full lenght of forcing file)
+START_DATE = _AUTO_
+END_DATE = _AUTO_ 
+DT_SECHIBA = 1200
+FORCING_FILE = forcing_yearm1.nc forcing_year.nc forcing_yearp1.nc
+#
+# Domain description file
+#
+GRID_FILE = NONE
+WEST_EAST = -180.0, 180.0
+SOUTH_NORTH = -90.0, 90.0
+SPRED_PREC_SEC = 3600
+#
+# Parameters related to the restart file and the start date
+#**************************************************************************
+# Time in the forcing file at which the model start if start date is not set by the forcing file (default 0)
+TIME_SKIP = _AUTO_
+
+# If DRIVER_reset_time=y, read the year from forcing file instead of taking it from restart file (default n)
+DRIVER_reset_time = _AUTO_
+
+# Name of restart file for the driver (default NONE)
+RESTART_FILEIN = _AUTOBLOCKER_
+
+# Name of restart file for sechiba part of the model (default NONE)
+SECHIBA_restart_in = _AUTOBLOCKER_
+
+# Name of restart file for stomate part of the model (default NONE)
+STOMATE_RESTART_FILEIN = _AUTOBLOCKER_
+
+# Parameters related to the diagnostic output files
+#**************************************************************************
+# Use XIOS for writing diagnostics file (defulat y)
+XIOS_ORCHIDEE_OK = _AUTOBLOCKER_
+
+# Flag to activate sechiba_out_2.nc history file when using IOIPSL for SECHIBA (defulat n)
+SECHIBA_HISTFILE2 = _AUTO_
+
+# Writefrequency in seconds in sechiba_history.nc when using IOIPSL (default 86400)
+# If WRITE_STEP=0 then all IOIPSL output are deactivated
+WRITE_STEP = _AUTO_
+
+# Writefrequency in seconds sechiba_out_2.nc when using IOIPSL (default 1800)
+WRITE_STEP2 = _AUTO_ 
+
+# Writefrequency in days in stomate_history.nc when using IOIPSL (default 10)
+STOMATE_HIST_DT = _AUTO_
+
+# Writefrequency in days or -1 for monthly output in stomate_ipcc_history.nc when using IOIPSL (default 0)
+STOMATE_IPCC_HIST_DT = _AUTO_
+
+# Print level for text output in out_orchidee_*
+# PRINTLEV = 1 : some output in initialization phase
+# PRINTLEV = 2 : more output in initialization phase and printing of new date
+# PRINTLEV = 3, 4,.. : more output also at each timestep
+PRINTLEV=2
+
+# Hydrology parameters
+#**************************************************************************
+# Activate the multi-layer diffusion scheme adapted from CWRR (default y)
+HYDROL_CWRR = y
+
+# Activate river routing (default y)
+RIVER_ROUTING = y
+
+# Activate creation of river_desc.nc file
+# RIVER_DESC will be activated only the first execution in the simulation
+RIVER_DESC = _AUTO_
+
+# SOILTYPE_CLASSIF :  Type of classification used for the map of soil types (default zobler)
+SOILTYPE_CLASSIF = zobler 
+
+# Parameters related to vegetation map
+#**************************************************************************
+# Update vegetation frequency (default 0Y)
+VEGET_UPDATE = _AUTO_
+
+# Read lai map (default n)
+LAI_MAP = n
+
+# Prescribed vegetation (default n)
+IMPOSE_VEG = n
+
+# Parameters related to surface and thermal physical properties
+#************************************************************************
+# ROUGH_DYN : Account for a dynamic roughness height (activation of Su et al. parametrization) (default y)
+ROUGH_DYN=y
+
+# OK_FREEZE :  Activate the complet soil freezing scheme (default y)
+OK_FREEZE=y
+
+# OK_EXPLICITSNOW :  Activate explict snow scheme (default y)
+OK_EXPLICITSNOW=y
+
+# Carbon related parameters
+#**************************************************************************
+# Analytic spinup (default n)
+SPINUP_ANALYTIC = _AUTO_
+SPINUP_PERIOD = _AUTO_
+
+# Value for atmospheric CO2 (default=350)
+ATM_CO2 = _AUTO_: DEFAULT = 350.
+
+# Activate harvest of wood (default y)
+DO_WOOD_HARVEST=y
+
+# Deactivate fire (default FIRE_DISABLE=y)
+FIRE_DISABLE=y
+
+# Optimized parameters to be used with PFTmap with 15 pfts such as
+# files in IGCM/SRF/PFTMAPS/CMIP6/ESA-LUH2v2/historical/15PFT.v1
+#**************************************************************************
+# Use 15 PFTs. Note that PFTmap.nc must contains 15PFTs.
+# PFT=10, 14 and 15 share the same parametrization except for VCMAX25, LAI_MAX, FRAC_GROWTHRESP, 
+# MAINT_RESP_SLOPE_C and ALWAYS_INIT specified below.  
+# (default NVM=13)
+NVM=15
+PFT_TO_MTC=1,2,3,4,5,6,7,8,9,10,11,12,13,10,10
+PFT_NAME__10='temperate C3           grass      '
+PFT_NAME__14='tropical  C3           grass      '
+PFT_NAME__15='boreal    C3           grass      '
+
+VCMAX25__10 = 50.0 
+VCMAX25__14 = 50.0 
+VCMAX25__15 = 40.0
+
+LAI_MAX__10 = 2.5
+LAI_MAX__14 = 2.5
+LAI_MAX__15 = 2.0
+
+FRAC_GROWTHRESP__10 = 0.28
+FRAC_GROWTHRESP__14 = 0.35
+FRAC_GROWTHRESP__15 = 0.35
+
+MAINT_RESP_SLOPE_C__10 = 0.16
+MAINT_RESP_SLOPE_C__14 = 0.12
+MAINT_RESP_SLOPE_C__15 = 0.25
+
+ALWAYS_INIT__10 = y
+ALWAYS_INIT__14 = n
+ALWAYS_INIT__15 = y

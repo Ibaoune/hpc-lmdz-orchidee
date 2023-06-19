@@ -1,0 +1,406 @@
+!
+! $Id: phyredem.F90 3506 2019-05-16 14:38:11Z ymeurdesoif $
+!
+SUBROUTINE phyredem (fichnom)
+!
+!-------------------------------------------------------------------------------
+! Author: Z.X. Li (LMD/CNRS), 1993/08/18
+!-------------------------------------------------------------------------------
+! Purpose: Write restart state for physics.
+!-------------------------------------------------------------------------------
+  USE dimphy, ONLY: klon, klev
+  USE fonte_neige_mod,  ONLY : fonte_neige_final
+  USE pbl_surface_mod,  ONLY : pbl_surface_final
+  USE phys_state_var_mod, ONLY: radpas, zmasq, pctsrf, ftsol, falb_dir,      &
+                                falb_dif, qsol, fevap, radsol, solsw, sollw, &
+                                sollwdown, rain_fall, snow_fall, z0m, z0h,   &
+                                agesno, zmea, zstd, zsig, zgam, zthe, zpic,  &
+                                zval, rugoro, t_ancien, q_ancien,            &
+                                prw_ancien, prlw_ancien, prsw_ancien,        &
+                                ql_ancien, qs_ancien,  u_ancien,             &
+                                v_ancien, clwcon, rnebcon, ratqs, pbl_tke,   &
+                                wake_delta_pbl_tke, zmax0, f0, sig1, w01,    &
+                                wake_deltat, wake_deltaq, wake_s, wake_dens, &
+                                wake_cstar,                                  &
+                                wake_pe, wake_fip, fm_therm, entr_therm,     &
+                                detr_therm, ale_bl, ale_bl_trig, alp_bl,     &
+                                ale_wake, ale_bl_stat,                       &
+                                du_gwd_rando, du_gwd_front, u10m, v10m,      &
+                                treedrg
+  USE geometry_mod, ONLY : longitude_deg, latitude_deg
+  USE iostart, ONLY: open_restartphy, close_restartphy, enddef_restartphy, put_field, put_var
+  USE traclmdz_mod, ONLY : traclmdz_to_restart
+  USE infotrac_phy, ONLY: type_trac, niadv, tname, nbtr, nqo
+  USE carbon_cycle_mod, ONLY : carbon_cycle_cpl, co2_send
+  USE indice_sol_mod, ONLY: nbsrf, is_oce, is_sic, is_ter, is_lic, epsfra
+  USE surface_data, ONLY: type_ocean, version_ocean
+  USE ocean_slab_mod, ONLY : nslay, tslab, seaice, tice, fsic
+  USE time_phylmdz_mod, ONLY: annee_ref, day_end, itau_phy, pdtphys
+
+  IMPLICIT none
+
+  include "dimsoil.h"
+  include "clesphys.h"
+  include "thermcell.h"
+  include "compbl.h"
+  !======================================================================
+  CHARACTER*(*) fichnom
+
+  ! les variables globales ecrites dans le fichier restart
+
+  REAL tsoil(klon, nsoilmx, nbsrf)
+  REAL qsurf(klon, nbsrf)
+  REAL snow(klon, nbsrf)
+  real fder(klon)
+  REAL run_off_lic_0(klon)
+  REAL trs(klon, nbtr)
+
+  INTEGER nid, nvarid, idim1, idim2, idim3
+  INTEGER ierr
+  INTEGER length
+  PARAMETER (length=100)
+  REAL tab_cntrl(length)
+
+  INTEGER isoil, nsrf,isw
+  CHARACTER (len=2) :: str2
+  CHARACTER (len=256) :: nam, lnam
+  INTEGER           :: it, iiq, pass
+
+  !======================================================================
+
+  ! Get variables which will be written to restart file from module 
+  ! pbl_surface_mod
+  CALL pbl_surface_final(fder, snow, qsurf,  tsoil)
+
+  ! Get a variable calculated in module fonte_neige_mod
+  CALL fonte_neige_final(run_off_lic_0)
+
+  !======================================================================
+
+  CALL open_restartphy(fichnom)
+
+  
+  DO ierr = 1, length
+     tab_cntrl(ierr) = 0.0
+  ENDDO
+  tab_cntrl(1) = pdtphys
+  tab_cntrl(2) = radpas
+  ! co2_ppm : current value of atmospheric CO2
+  tab_cntrl(3) = co2_ppm
+  tab_cntrl(4) = solaire
+  tab_cntrl(5) = iflag_con
+  tab_cntrl(6) = nbapp_rad
+
+  IF( iflag_cycle_diurne.GE.1 ) tab_cntrl( 7 ) = iflag_cycle_diurne
+  IF(   soil_model ) tab_cntrl( 8 ) = 1.
+  IF(     new_oliq ) tab_cntrl( 9 ) = 1.
+  IF(     ok_orodr ) tab_cntrl(10 ) = 1.
+  IF(     ok_orolf ) tab_cntrl(11 ) = 1.
+
+  tab_cntrl(13) = day_end
+  tab_cntrl(14) = annee_ref
+  tab_cntrl(15) = itau_phy
+
+  ! co2_ppm0 : initial value of atmospheric CO2
+  tab_cntrl(16) = co2_ppm0
+
+  DO pass=1,2   ! pass=1 netcdf definition ; pass=2 netcdf write
+  
+    CALL put_var(pass, "controle", "Parametres de controle", tab_cntrl)
+
+    CALL put_field(pass,"longitude", &
+         "Longitudes de la grille physique", longitude_deg)
+
+    CALL put_field(pass,"latitude", "Latitudes de la grille physique", latitude_deg)
+
+    ! PB ajout du masque terre/mer
+
+    CALL put_field(pass,"masque", "masque terre mer", zmasq)
+
+    ! BP ajout des fraction de chaque sous-surface
+
+    ! Get last fractions from slab ocean
+    IF (type_ocean == 'slab' .AND. version_ocean == "sicINT") THEN
+        WHERE (1.-zmasq(:).GT.EPSFRA)
+            pctsrf(:,is_oce)=(1.-fsic(:))*(1.-zmasq(:))
+            pctsrf(:,is_sic)=fsic(:)*(1.-zmasq(:))
+        END WHERE
+    END IF
+
+    ! 1. fraction de terre 
+
+    CALL put_field(pass,"FTER", "fraction de continent", pctsrf(:, is_ter))
+
+    ! 2. Fraction de glace de terre
+
+    CALL put_field(pass,"FLIC", "fraction glace de terre", pctsrf(:, is_lic))
+
+    ! 3. fraction ocean
+
+    CALL put_field(pass,"FOCE", "fraction ocean", pctsrf(:, is_oce))
+
+    ! 4. Fraction glace de mer
+
+    CALL put_field(pass,"FSIC", "fraction glace mer", pctsrf(:, is_sic))
+
+    IF(nbsrf>99) THEN
+      PRINT*, "Trop de sous-mailles";  CALL abort_physic("phyredem", "", 1)
+    END IF
+    IF(nsoilmx>99) THEN
+      PRINT*, "Trop de sous-surfaces"; CALL abort_physic("phyredem", "", 1)
+    END IF
+    IF(nsw>99) THEN
+      PRINT*, "Trop de bandes"; CALL abort_physic("phyredem", "", 1)
+    END IF
+
+    CALL put_field_srf1(pass,"TS","Temperature",ftsol(:,:))
+
+! ================== Albedo =======================================
+    print*,'PHYREDEM NOUVEAU'
+    CALL put_field_srf2(pass,"A_dir_SW","Albedo direct",falb_dir(:,:,:))
+    CALL put_field_srf2(pass,"A_dif_SW","Albedo diffus",falb_dif(:,:,:))
+
+    CALL put_field_srf1(pass,"U10M", "u a 10m", u10m)
+
+    CALL put_field_srf1(pass,"V10M", "v a 10m", v10m)
+
+
+! ================== Tsoil =========================================
+    CALL put_field_srf2(pass,"Tsoil","Temperature",tsoil(:,:,:))
+!FC
+!  CALL put_field_srf2("treedrg","freinage arbres",treedrg(:,:,:))
+    CALL put_field(pass,"treedrg_ter","freinage arbres",treedrg(:,:,is_ter))
+
+
+    CALL put_field_srf1(pass,"QS"  , "Humidite",qsurf(:,:))
+
+    CALL put_field     (pass,"QSOL", "Eau dans le sol (mm)", qsol)
+
+    CALL put_field_srf1(pass,"EVAP", "Evaporation", fevap(:,:))
+
+    CALL put_field_srf1(pass,"SNOW", "Neige", snow(:,:))
+
+    CALL put_field(pass,"RADS", "Rayonnement net a la surface", radsol)
+
+    CALL put_field(pass,"solsw", "Rayonnement solaire a la surface", solsw)
+
+    CALL put_field(pass,"sollw", "Rayonnement IF a la surface", sollw)
+
+    CALL put_field(pass,"sollwdown", "Rayonnement down IF a la surface", sollwdown)
+
+    CALL put_field(pass,"fder", "Derive de flux", fder)
+
+    CALL put_field(pass,"rain_f", "precipitation liquide", rain_fall)
+
+    CALL put_field(pass,"snow_f", "precipitation solide", snow_fall)
+
+    CALL put_field_srf1(pass,"Z0m", "rugosite", z0m(:,:))
+
+    CALL put_field_srf1(pass,"Z0h", "rugosite", z0h(:,:))
+
+    CALL put_field_srf1(pass,"AGESNO", "Age de la neige", agesno(:,:))
+
+    CALL put_field(pass,"ZMEA", "ZMEA", zmea)
+
+    CALL put_field(pass,"ZSTD", "ZSTD", zstd)
+
+    CALL put_field(pass,"ZSIG", "ZSIG", zsig)
+
+    CALL put_field(pass,"ZGAM", "ZGAM", zgam)
+
+    CALL put_field(pass,"ZTHE", "ZTHE", zthe)
+
+    CALL put_field(pass,"ZPIC", "ZPIC", zpic)
+
+    CALL put_field(pass,"ZVAL", "ZVAL", zval)
+
+    CALL put_field(pass,"RUGSREL", "RUGSREL", rugoro)
+
+    CALL put_field(pass,"TANCIEN", "TANCIEN", t_ancien)
+
+    CALL put_field(pass,"QANCIEN", "QANCIEN", q_ancien)
+
+    CALL put_field(pass,"QLANCIEN", "QLANCIEN", ql_ancien)
+
+    CALL put_field(pass,"QSANCIEN", "QSANCIEN", qs_ancien)
+
+    CALL put_field(pass,"PRWANCIEN", "PRWANCIEN", prw_ancien)
+
+    CALL put_field(pass,"PRLWANCIEN", "PRLWANCIEN", prlw_ancien)
+
+    CALL put_field(pass,"PRSWANCIEN", "PRSWANCIEN", prsw_ancien)
+
+    CALL put_field(pass,"UANCIEN", "UANCIEN", u_ancien)
+
+    CALL put_field(pass,"VANCIEN", "VANCIEN", v_ancien)
+
+    CALL put_field(pass,"CLWCON", "Eau liquide convective", clwcon)
+
+    CALL put_field(pass,"RNEBCON", "Nebulosite convective", rnebcon)
+
+    CALL put_field(pass,"RATQS", "Ratqs", ratqs)
+
+    ! run_off_lic_0
+
+    CALL put_field(pass,"RUNOFFLIC0", "Runofflic0", run_off_lic_0)
+
+    ! DEB TKE PBL !
+
+    IF (iflag_pbl>1) then
+      CALL put_field_srf3(pass,"TKE", "Energ. Cineti. Turb.", &
+           pbl_tke(:,:,:))
+      CALL put_field_srf3(pass,"DELTATKE", "Del TKE wk/env.", &
+           wake_delta_pbl_tke(:,:,:))
+    END IF
+
+    ! FIN TKE PBL !
+    !IM ajout zmax0, f0, sig1, w01
+    !IM wake_deltat, wake_deltaq, wake_s, wake_cstar, wake_pe, wake_fip
+
+    CALL put_field(pass,"ZMAX0", "ZMAX0", zmax0)
+
+    CALL put_field(pass,"F0", "F0", f0)
+
+    CALL put_field(pass,"sig1", "sig1 Emanuel", sig1)
+
+    CALL put_field(pass,"w01", "w01 Emanuel", w01)
+
+    ! wake_deltat
+    CALL put_field(pass,"WAKE_DELTAT", "WAKE_DELTAT", wake_deltat)
+
+    CALL put_field(pass,"WAKE_DELTAQ", "WAKE_DELTAQ", wake_deltaq)
+
+    CALL put_field(pass,"WAKE_S", "Wake frac. area", wake_s)
+
+    CALL put_field(pass,"WAKE_DENS", "Wake num. /unit area", wake_dens)
+
+    CALL put_field(pass,"WAKE_CSTAR", "WAKE_CSTAR", wake_cstar)
+
+    CALL put_field(pass,"WAKE_PE", "WAKE_PE", wake_pe)
+
+    CALL put_field(pass,"WAKE_FIP", "WAKE_FIP", wake_fip)
+
+    ! thermiques
+
+    CALL put_field(pass,"FM_THERM", "FM_THERM", fm_therm)
+
+    CALL put_field(pass,"ENTR_THERM", "ENTR_THERM", entr_therm)
+
+    CALL put_field(pass,"DETR_THERM", "DETR_THERM", detr_therm)
+
+    CALL put_field(pass,"ALE_BL", "ALE_BL", ale_bl)
+
+    CALL put_field(pass,"ALE_BL_TRIG", "ALE_BL_TRIG", ale_bl_trig)
+
+    CALL put_field(pass,"ALP_BL", "ALP_BL", alp_bl)
+
+    CALL put_field(pass,"ALE_WAKE", "ALE_WAKE", ale_wake)
+
+    CALL put_field(pass,"ALE_BL_STAT", "ALE_BL_STAT", ale_bl_stat)
+
+
+    ! trs from traclmdz_mod
+    IF (type_trac == 'lmdz') THEN
+       CALL traclmdz_to_restart(trs)
+       DO it=1, nbtr
+!!        iiq=niadv(it+2)                                                           ! jyg
+          iiq=niadv(it+nqo)                                                           ! jyg
+          CALL put_field(pass,"trs_"//tname(iiq), "", trs(:, it))
+       END DO
+       IF (carbon_cycle_cpl) THEN
+          IF (.NOT. ALLOCATED(co2_send)) THEN
+             ! This is the case of create_etat0_limit, ce0l
+             ALLOCATE(co2_send(klon))
+             co2_send(:) = co2_ppm0
+          END IF
+          CALL put_field(pass,"co2_send", "co2_ppm for coupling", co2_send)
+       END IF
+    END IF
+
+    ! Restart variables for Slab ocean
+    IF (type_ocean == 'slab') THEN
+        IF (nslay.EQ.1) THEN
+          CALL put_field(pass,"tslab", "Slab ocean temperature", tslab)
+        ELSE
+          DO it=1,nslay
+            WRITE(str2,'(i2.2)') it
+            CALL put_field(pass,"tslab"//str2, "Slab ocean temperature", tslab(:,it))
+          END DO
+        END IF
+        IF (version_ocean == 'sicINT') THEN
+            CALL put_field(pass,"seaice", "Slab seaice (kg/m2)", seaice)
+            CALL put_field(pass,"slab_tice", "Slab sea ice temperature", tice)
+        END IF
+    END IF
+
+    if (ok_gwd_rando) call put_field(pass,"du_gwd_rando", &
+         "tendency on zonal wind due to flott gravity waves", du_gwd_rando)
+
+    IF (.not. ok_hines .and. ok_gwd_rando) call put_field(pass,"du_gwd_front", &
+         "tendency on zonal wind due to acama gravity waves", du_gwd_front)
+
+    IF (pass==1) CALL enddef_restartphy
+    IF (pass==2) CALL close_restartphy
+  ENDDO
+  
+  !$OMP BARRIER
+
+
+  CONTAINS
+
+
+SUBROUTINE put_field_srf1(pass,nam,lnam,field)
+
+  IMPLICIT NONE
+  INTEGER, INTENT(IN)            :: pass
+  CHARACTER(LEN=*),  INTENT(IN) :: nam, lnam
+  REAL,              INTENT(IN) :: field(:,:)
+  CHARACTER(LEN=256) :: nm, lm, str
+  DO nsrf = 1, SIZE(field,2)
+    WRITE(str, '(i2.2)') nsrf
+    nm=TRIM(nam)//TRIM(str)
+    lm=TRIM(lnam)//" de surface No. "//TRIM(str)
+    CALL put_field(pass,nm,lm,field(:,nsrf))
+  END DO
+
+END SUBROUTINE put_field_srf1
+
+
+SUBROUTINE put_field_srf2(pass,nam,lnam,field)
+
+  IMPLICIT NONE
+  INTEGER, INTENT(IN)            :: pass
+  CHARACTER(LEN=*),  INTENT(IN) :: nam, lnam
+  REAL,              INTENT(IN) :: field(:,:,:)
+  CHARACTER(LEN=256) :: nm, lm, str
+  DO nsrf = 1, SIZE(field,3)
+    DO isoil=1, SIZE(field,2)
+      WRITE(str, '(i2.2,"srf",i2.2)')isoil,nsrf
+!      WRITE(lunout,*)"PHYREDEM ",TRIM(nam)//TRIM(str)
+      nm=TRIM(nam)//TRIM(str)
+      lm=TRIM(lnam)//" du sol No. "//TRIM(str)
+      CALL put_field(pass,nm,lm,field(:,isoil,nsrf))
+    END DO
+  END DO
+
+END SUBROUTINE put_field_srf2
+
+
+SUBROUTINE put_field_srf3(pass,nam,lnam,field)
+
+  IMPLICIT NONE
+  INTEGER, INTENT(IN)            :: pass
+  CHARACTER(LEN=*),  INTENT(IN) :: nam, lnam
+  REAL,              INTENT(IN) :: field(:,:,:)
+  CHARACTER(LEN=256) :: nm, lm, str
+  DO nsrf = 1, SIZE(field,3)
+    WRITE(str, '(i2.2)') nsrf
+    nm=TRIM(nam)//TRIM(str)
+    lm=TRIM(lnam)//TRIM(str)
+    CALL put_field(pass,nm,lm,field(:,1:klev+1,nsrf))
+  END DO
+
+END SUBROUTINE put_field_srf3
+
+
+END SUBROUTINE phyredem

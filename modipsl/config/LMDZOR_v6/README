@@ -1,0 +1,15 @@
+LMDZOR_v6 configuration
+***********************
+How to create a job and run directory :
+
+Choose in EXPERIMENTS the experiment to be done and copy the corresponding config.card to modipsl/config/LMDZOR_v6/, beside this README file. Modify the config.card as usual, for at least the JobName. Apply ../../libIGCM/ins_job and the creation of a new run directory will be done :
+  - the run directory will be created with the same name as JobName in config.card. If a directory with the same name already exists, nothing will be done.
+  - the PARAM, DRIVER and POST directories from GENERAL/ will be copied into the new run directory.
+  - the COMP directory from EXPERIMENTS/ will be copied into the new run directory, according to the variable ExpType in config.card.
+  - the config.card will be moved into the run directory.
+  - a job will be created in the run directory.
+
+Once the run directory has been created with ins_job, this directory is used as a normal run directory. More run directories can be created using ins_job several times. ins_job will never write in an existing run directory.
+
+
+Documentation on how to use the configurations are found here : http://forge.ipsl.jussieu.fr/igcmg_doc/wiki/Doc

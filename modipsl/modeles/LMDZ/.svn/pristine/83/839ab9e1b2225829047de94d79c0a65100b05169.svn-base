@@ -1,0 +1,16 @@
+%COMPILER            mpif90
+%LINK                mpif90
+%AR                  ar
+%ARFLAGS             rs
+%MAKE                gmake
+%FPP_FLAGS           -P -traditional
+%FPP_DEF             NC_DOUBLE 
+%BASE_FFLAGS         -i4 -r8 -auto -align all -fp-model precise
+%PROD_FFLAGS         -O2 
+%DEV_FFLAGS          -p -g -O2 -traceback -fp-stack-check 
+%DEBUG_FFLAGS        -p -g -traceback -fp-stack-check -ftrapuv -check bounds
+%MPI_FFLAGS
+%OMP_FFLAGS          -openmp
+%BASE_LD             -i4 -r8 
+%MPI_LD
+%OMP_LD              -openmp

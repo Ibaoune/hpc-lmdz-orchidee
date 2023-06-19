@@ -1,0 +1,75 @@
+[Compatibility]
+libIGCM=1.0
+
+[UserChoices]
+LAIMAP=n
+IMPOSE_VEG=n
+# if IMPOSE_VEG = n
+LAND_USE=y
+# if LAND_USE=y
+VEGET_UPDATE=0Y
+# if LAND_USE=n and we want to use carteveg5km.nc for maxvegetfrac map.
+# (instead of default PFTmap_1850to2005_AR5_LUHa.rc2 below)
+OLD_VEGET=n
+ROUTING=n
+NEWHYDROL=n
+OKCO2=y
+sechiba_LEVEL=6
+
+[InitialStateFiles]
+List=       (${R_IN}/SRF/ROUTING/routing.nc, .),     \
+            (${R_IN}/SRF/SOIL/soils_param.nc, .), \
+            (${R_IN}/SRF/cartepente2d_15min.nc, .), \
+            (${R_IN}/SRF/ROUTING/floodplains.nc, .), \
+            (${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2/PFTmap_IPCC_${year}.nc, PFTmap.nc)
+
+[BoundaryFiles]
+#List=	(${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2/PFTmap_IPCC_${year_p1}.nc, .)
+List=	()
+ListNonDel= (${R_IN}/SRF/LAI/lai2D_03.nc, lai2D.nc)
+#If you want to come back to old BIG LAND USE file (to run on multipple years, just one time with LAND USE activated), you must 
+# 1) empty BC list and INIT first PFTmap lines
+# 2) and suppress previous ListNonDel line and ucomment next one :
+#ListNonDel= (${R_IN}/SRF/PFTMAPS/CMIP5/PFTmap_1850to2005_AR5_LUHa.rc2.nc, PFTmap.nc) \
+#             (${R_IN}/SRF/lai2D_03.nc, lai2D.nc)
+# See also same comment in sechiba.driver.
+
+[SmoothFiles]
+List=()
+
+[ParametersFiles]
+List=	(${SUBMIT_DIR}/PARAM/run.def, .)
+
+[RestartFiles]
+# List restart that have to be saved/restored each loop (file out, saved, and in) :
+List=	(sechiba_rest_out.nc, sechiba_rest.nc, sechiba_rest_in.nc)
+
+[OutputText]
+List=   (used_run.def, out_orchidee, river_desc.txt)
+
+[OutputFiles]
+List=	(sechiba_history.nc, ${R_OUT_SRF_O_M}/${PREFIX}_1M_sechiba_history.nc, Post_1M_sechiba_history), \
+        (sechiba_out_2.nc, ${R_OUT_SRF_O_H}/${PREFIX}_HF_sechiba_out_2.nc, Post_HF_sechiba_out_2), \
+        (orchidee_watchout.nc, ${R_OUT_SRF_O_M}/${PREFIX}_1M_watchout.nc, NONE)
+
+[Post_1M_sechiba_history]
+Patches = ()
+GatherWithInternal= (lon, lat, veget, time_counter, time_counter_bnds, Areas, Contfrac)
+TimeSeriesVars2D = (nobiofrac, alb_nir, alb_vis, bqsb, evap, fluxlat, fluxsens, gqsb, netrad, qair, rain, runoff, snow, snownobio, snowf, subli, tair, temp_sol, tsol_max, tsol_min, drainage,mrsos, mrso, mrros, mrro, prveg, evspsblveg, evspsblsoi, tran, treeFrac, grassFrac, cropFrac, baresoilFrac, residualFrac)
+# ALMAOUTPUT
+#TimeSeriesVars2D = (nobiofrac, SWnet, LWnet, Qh, Qle, Qg, Qf, DelSurfHeat, DelColdCont, Snowf, Rainf, Evap, Qs, Qsb, Qsm, DelSoilMoist, DelSWE, DelIntercept, AvgSurfT, RadT, Albedo, SWE, SoilMoist, SoilWet, SoilTemp, PotEvap, ESoil, ECanop, TVeg, RootMoist, SubSnow, ACond, SnowFrac, SAlbedo, SnowDepth, dis, GPP)
+ChunckJob2D = NONE
+TimeSeriesVars3D = (lai, maxvegetfrac, vegetfrac, ptn, nee)
+# ALMAOUTPUT
+#TimeSeriesVars3D = (ECanop, TVeg, GPP, CO2FLUX)
+ChunckJob3D = NONE
+Seasonal=ON
+
+[Post_HF_sechiba_out_2]
+Patches= ()
+GatherWithInternal= (lon, lat, veget, time_counter, time_counter_bnds, Areas, Contfrac)
+TimeSeriesVars2D= (mrsos, mrro)
+ChunckJob2D= 50Y
+TimeSeriesVars3D= (ptn)
+ChunckJob3D= 10Y
+Seasonal= OFF
