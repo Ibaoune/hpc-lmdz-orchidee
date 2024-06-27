@@ -155,7 +155,7 @@ typeset -x SUBMIT_DIR=${SUBMIT_DIR:=${SLURM_SUBMIT_DIR}}
 
 #====================================================Mohammad==================
 # Here I am defining a directory that will contain all similar directories (scratch, archive, ) in Jeanzay. To be done after proprely (Mohammad).
-typeset -r SIMILAR_DIR_TBKL_JZ=${SIMILAR_DIR_TBKL_JZ:=/srv/data/mohammad.elaabaribao/Model/Adapted_versions_to_Toubkal/LMDZOR_v6.2.2/similar_dirs_jz_tbkl}
+typeset -r SIMILAR_DIR_TBKL_JZ=${SIMILAR_DIR_TBKL_JZ:=/home/${USER}/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/${USER}/similar_dirs_jz_tbkl}
 
 typeset -r SCRATCH_TBKL=${SCRATCH_TBKL:=$SIMILAR_DIR_TBKL_JZ/SCRATCH_TBKL}
 
