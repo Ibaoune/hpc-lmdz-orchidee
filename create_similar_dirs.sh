@@ -12,10 +12,10 @@ fi
 
 working_path=$(pwd)
 
-cd path_to_similar_dirs_jz
+cd $path_to_similar_dirs_jz
 mkdir STORE_TBKL STORAGE_TBKL SCRATCH_TBKL ARCHIVE_TBKL
 mkdir gpfswork_tbkl gpfsstore_tbkl gpfsscratch_tbkl 
 mkdir gpfsscratch_tbkl/rech  gpfswork_tbkl/rech
 
 # Go back to the model path
-cd working_path
+cd $working_path
