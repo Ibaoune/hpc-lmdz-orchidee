@@ -1,12 +1,12 @@
 #!/bin/ksh
 
 #**************************************************************
-# Author: Sebastien Denvil, Martial Mancip, Arnaud Caubel
-# Contact: Arnaud.Caubel__at__lsce.ipsl.fr
+# Author: M. El Aabaribaoune and A. Idelkadi
+# Contact: mohammad.elaabaribaoune@um6p.ma
 # $Revision:: 1569                                     $ Revision of last commit
-# $Author:: aclsce                                     $ Author of last commit
-# $Date:: 2022-12-15 11:08:40 +0100 (خ, 15 دجنبر#$ Date of last commit
-# IPSL (2006)
+# $Author:: M. El Aabaribaoune                                     $ Author of last commit
+# $Date:: 2023-01-15 11:08:40 +0100 (خ, 15 دجنبر#$ Date of last commit
+# UM6P (2023)
 #  This software is governed by the CeCILL licence see libIGCM/libIGCM_CeCILL.LIC
 #
 #**************************************************************
