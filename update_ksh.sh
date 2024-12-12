@@ -1,12 +1,6 @@
 #!/bin/bash
 #Author: M. El Aabaribaoune
 
-# Description:
-# This script checks if the file ~/.kshrc exists. If it does, it renames it to ~/.kshrc.or.
-# Then, it creates a new ~/.kshrc file with predefined content that includes module load commands
-# and some basic shell configurations.
-
-# Define the path for .kshrc and .kshrc.or
 KSHRC="/home/${USER}/.kshrc"
 KSHRC_OR="/home/${USER}/.kshrc.or"
 
@@ -17,7 +11,6 @@ if [ -f "$KSHRC" ]; then
     echo "The file .kshrc has been moved to .kshrc.or."
 fi
 
-# Write the new content to the .kshrc file
 cat <<EOL > "$KSHRC"
 # .kshrc
 
