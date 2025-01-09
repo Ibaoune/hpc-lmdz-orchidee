@@ -1,4 +1,5 @@
 #!/bin/bash
+#Author: M. El Aabaribaoune (@um6p)
 
 path_to_lmdz_simus="/home/${USER}/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/${USER}/lmdz_simus/"
 if [[ ! -e $path_to_lmdz_simus ]]; then

@@ -1,5 +1,5 @@
 #!/bin/bash
-#Author: M. El Aabaribaoune
+#Author: M. El Aabaribaoune (@um6p)
 
 KSHRC="/home/${USER}/.kshrc"
 KSHRC_OR="/home/${USER}/.kshrc.or"
