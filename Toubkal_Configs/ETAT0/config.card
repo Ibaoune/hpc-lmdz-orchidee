@@ -1,0 +1,87 @@
+# $Id$
+#========================================================================
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+#========================================================================
+#D-- UserChoices -
+[UserChoices]
+#============================
+JobName=ELI-384x220x79-hist
+LongName="create_etat0_limit for interannuel amip run"
+TagName=LMDZ
+#D- Choice of experiment in EXPERIEMENTS directory
+ExpType=LMDZ/CREATE_amip
+#============================
+#D-- leap, noleap, 360d
+CalendarType=leap
+#D-- Begin and end of job 
+#D-- "YYYY-MM-DD"
+DateBegin=1979-01-01
+DateEnd=2014-12-31
+#============================
+#D-- 1Y, 1M, 5D, 1D
+PeriodLength=1Y
+#============================
+#-- Compression level for netcdf output files
+CompressionLevel=0
+#============================
+PeriodNb=50
+#============================
+#-- Source following file with module settings, only if it exists
+EnvFile=${SUBMIT_DIR}/../ARCH/arch.env
+#============================
+#-- ResolAtm indicates the atmospheric resolution
+#   This variable is used in the executable name 
+ResolAtm=384x220x79
+#============================
+# OptMode indicates the optimization mode choosen during compilation
+# This variable is used in the executable name
+OptMode=prod
+
+#========================================================================
+#D-- ListOfComponents -
+[ListOfComponents]
+#D- For each component, Name of component, Tag of component
+ATM= (lmdz, LMDZ)
+
+#========================================================================
+#D-- Executable -
+[Executable]
+#D- For each component: Real name of executable, Name of executable in the run directory 
+ATM= (ce0l_${ResolAtm}_${OptMode}.e, ce0l.e, 1MPI)
+
+#========================================================================
+#D-- Restarts -
+[Restarts]
+#D- If you want a GENERAL RULE FOR RESTARTS, put this flag to 'y'
+OverRule=n
+#D- Last day of the experience used as restart
+RestartDate=
+#D- Define restart simulation name
+RestartJobName=
+#D- Path Server Group Login
+RestartPath=
+# Attention login depend de la machine
+
+#========================================================================
+#D-- ATM -
+[ATM]
+# If config_Restarts_OverRule == 'n' all params are read
+Restart= n
+# Last day of the experience used as restart
+RestartDate=
+# Define restart simulation name
+RestartJobName=
+RestartPath=
+
+#========================================================================
+#D-- NO Post -
+[Post]
+RebuildFrequency=NONE
+PackFrequency=NONE
+TimeSeriesFrequency=NONE
+SeasonalFrequency=NONE
+MetricsPCMDI=FALSE
+#========================================================================
