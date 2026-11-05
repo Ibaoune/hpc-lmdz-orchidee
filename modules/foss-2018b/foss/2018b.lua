@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/foss/.2018b.lua

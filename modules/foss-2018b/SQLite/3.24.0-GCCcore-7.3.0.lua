@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/SQLite/.3.24.0-GCCcore-7.3.0.lua

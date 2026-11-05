@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/CoinUtils/.2.11.3-foss-2018b.lua

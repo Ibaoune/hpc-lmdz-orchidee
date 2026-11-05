@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/Python/.3.6.6-foss-2018b.lua

@@ -1,0 +1,27 @@
+# Author: M. El Aabaribaoune (UM6P)
+# Affiliation: Mohammed VI Polytechnic University - IWRI Climate Team
+# Contact: mohammad.elaabaribaoune@um6p.ma
+################################################################################
+###################                Projet XIOS               ###################
+################################################################################
+
+%CCOMPILER      mpicc
+%FCOMPILER      mpif90
+%LINKER         mpif90
+
+%BASE_CFLAGS    -w
+%PROD_CFLAGS    -O3 -D BOOST_DISABLE_ASSERTS -std=c++11
+%DEV_CFLAGS     -g -O2
+%DEBUG_CFLAGS   -g
+
+%BASE_FFLAGS    -D__NONE__
+%PROD_FFLAGS    -O3
+%DEV_FFLAGS     -g -O2
+%DEBUG_FFLAGS   -g
+
+%BASE_INC       -D__NONE__
+%BASE_LD        -lstdc++
+
+%CPP            cpp
+%FPP            cpp -P
+%MAKE           gmake

@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/gompi/.2018b.lua

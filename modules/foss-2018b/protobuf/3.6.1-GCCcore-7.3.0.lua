@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/protobuf/.3.6.1-GCCcore-7.3.0.lua

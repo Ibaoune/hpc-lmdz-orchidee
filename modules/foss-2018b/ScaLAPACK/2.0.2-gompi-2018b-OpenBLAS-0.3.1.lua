@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/ScaLAPACK/.2.0.2-gompi-2018b-OpenBLAS-0.3.1.lua

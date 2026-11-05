@@ -1,0 +1,15 @@
+# Author: M. El Aabaribaoune (UM6P)
+# Affiliation: Mohammed VI Polytechnic University - IWRI Climate Team
+# Contact: mohammad.elaabaribaoune@um6p.ma
+NETCDF_INCDIR="-I$EBROOTNETCDF/include -I$EBROOTNETCDFMINFORTRAN/include"
+NETCDF_LIBDIR="-L$EBROOTNETCDF/lib -L$EBROOTNETCDFMINFORTRAN/lib"
+NETCDF_LIB="-lnetcdf -lnetcdff"
+
+HDF5_INCDIR=""
+HDF5_LIBDIR=""
+HDF5_LIB=""
+
+MPI_INCDIR=""
+MPI_LIBDIR=""
+MPI_LIB=""
+

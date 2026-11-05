@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/Infernal/.1.1.2-foss-2018b.lua

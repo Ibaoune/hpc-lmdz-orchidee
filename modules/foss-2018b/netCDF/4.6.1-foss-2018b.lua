@@ -1,0 +1,1 @@
+/srv/software/easybuild/modules/all/netCDF/.4.6.1-foss-2018b.lua

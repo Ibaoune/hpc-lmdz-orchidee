@@ -1,0 +1,13 @@
+# Author: M. El Aabaribaoune (UM6P)
+# Affiliation: Mohammed VI Polytechnic University - IWRI Climate Team
+# Contact: mohammad.elaabaribaoune@um6p.ma
+NETCDF_LIBDIR="-L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdff -L/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/lib -lnetcdf"
+NETCDF_INCDIR="-I/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include -I/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/include"
+
+IOIPSL_INCDIR="-I${ORCHDIR}/../../lib -I${ORCHDIR}/../IOIPSL/inc"
+IOIPSL_LIBDIR="-L${ORCHDIR}/../../lib -L${ORCHDIR}/../IOIPSL/lib"
+IOIPSL_LIB="-lioipsl"
+
+XIOS_INCDIR="-I${ORCHDIR}/../XIOS/inc"
+XIOS_LIBDIR="-L${ORCHDIR}/../XIOS/lib"
+XIOS_LIB="-lxios -lstdc++ -L/srv/software/easybuild/software/HDF5/1.10.2-foss-2018b/lib -lhdf5_hl -lhdf5 -lz -lcurl"
