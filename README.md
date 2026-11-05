@@ -84,17 +84,22 @@ The shared repository is organized as follows:
 ├── compile_orchidee_toubkal.sh    # Script de compilation automatisé
 ├── submit_standalone_template.sh  # Modèle générique de batch Slurm standalone
 ├── bin/                           # Exécutables opérationnels compilés :
+│   ├── gcm_384x220x79_prod.e      # Binaire couplé LMDZ–ORCHIDEE 35 km (MPI/OpenMP)
 │   ├── orchidee_ol                # Binaire ORCHIDEE Offline (XIOS 2 + OpenMPI)
 │   ├── orchideedriver             # Driver standalone
-│   └── xios_server.exe            # Serveur d'E/S XIOS parallèle
+│   ├── xios_server.exe            # Serveur d'E/S XIOS parallèle
+│   └── xios_server_prod.exe       # Alias serveur d'E/S pour libIGCM
 ├── configs/
-│   └── offline_1day/              # Configuration validée pour le test 1 jour (1979-02-01)
-│       ├── README.md              # Documentation détaillée du test validé
-│       ├── run.def                # Paramétrage SECHIBA offline
-│       ├── iodef.xml              # Définition serveur XIOS (mode intégré)
-│       ├── context_orchidee.xml   # Domaines et axes de sortie
-│       ├── file_def_orchidee.xml  # Définition des fichiers de sortie XIOS
-│       └── field_def_orchidee.xml # Définition des champs diagnostiques
+│   ├── offline_1day/              # Configuration validée pour le test ORCHIDEE Offline (1979-02-01)
+│   │   ├── README.md              # Documentation détaillée du test validé
+│   │   ├── run.def                # Paramétrage SECHIBA offline
+│   │   └── *.xml                  # Définitions XML pour XIOS (iodef, context, field, file)
+│   └── lmdzor/
+│       └── r35/                   # Configurations couplées LMDZ–ORCHIDEE 35 km (Maroc)
+│           ├── README.md          # Guide complet et synthèse scientifique
+│           ├── common/            # Paramètres partagés (gcm.def, physiq.def, vert.def, CWRR, XIOS)
+│           ├── experiments/       # Configurations de production (ETAT0, HIST, SSP245, SSP585)
+│           └── tests/             # Bancs d'essai 3 jours préparés (HIST, SSP245, SSP585)
 ├── scripts/
 │   ├── README.md                  # Documentation des outils et procédures
 │   ├── prepare_forcing_1day.py    # Extraction et formatage du forçage LMDZ HF
@@ -220,6 +225,12 @@ cd /path/to/my_run_dir
 sbatch run_offline_1day.sh
 # (ou sbatch scripts/run_offline_1day.sh /path/to/my_run_dir)
 ```
+
+### Workflow D: Coupled Regional Simulations LMDZ–ORCHIDEE (35 km Zoom)
+Pour exécuter ou tester les simulations couplées à l'échelle régionale sur le Maroc ($384 \times 220 \times 79$), utiliser les configurations structurées sous [`configs/lmdzor/r35/`](configs/lmdzor/r35/) :
+- **Bancs d'essai préparés (3 jours) :** voir [`configs/lmdzor/r35/tests/`](configs/lmdzor/r35/tests/) (`hist_3days`, `ssp245_3days`, `ssp585_3days`).
+- **Campagnes de production :** voir [`configs/lmdzor/r35/experiments/`](configs/lmdzor/r35/experiments/) (`etat0`, `hist`, `ssp245`, `ssp585`).
+Consultez le guide détaillé : [`configs/lmdzor/r35/README.md`](configs/lmdzor/r35/README.md).
 
 ---
 

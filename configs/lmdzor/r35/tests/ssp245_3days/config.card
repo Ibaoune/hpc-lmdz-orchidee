@@ -1,0 +1,86 @@
+#========================================================================
+#D-- Compatibility -
+[Compatibility]
+libIGCM=1.0
+
+#D-- UserChoices -
+[UserChoices]
+JobName=test-3days-SSP245-r35
+ExperimentName=amip
+SpaceName=TEST
+LongName="LMDZOR 35km 3-day test for SSP245"
+TagName=LMDZOR
+ExpType=LMDZOR/amip
+CalendarType=leap
+DateBegin=2015-01-01
+DateEnd=2015-01-03
+PeriodLength=1D
+CompressionLevel=0
+EnvFile=${SUBMIT_DIR}/../../../../../modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
+ResolAtm=384x220x79
+OptMode=prod
+
+#========================================================================
+#D-- ListOfComponents -
+[ListOfComponents]
+ATM= (lmdz, LMDZ)
+SRF= (orchidee, ORCHIDEE)
+SBG= (stomate, ORCHIDEE)
+IOS= (xios, XIOS)
+
+#========================================================================
+#D-- Executable -
+[Executable]
+ATM= (gcm_${ResolAtm}_${OptMode}.e, lmdz.x, 110MPI, 14OMP)
+SRF= ("", "")
+SBG= ("", "")
+IOS= (xios_server_${OptMode}.exe, xios.x, 1MPI)
+
+#========================================================================
+#D-- Restarts -
+[Restarts]
+OverRule=y
+RestartDate=2014-12-31
+RestartJobName=sim35km-HIST-after2002
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+
+#========================================================================
+#D-- ATM -
+[ATM]
+Restart= y
+RestartDate=2014-12-31
+RestartJobName=sim35km-HIST-after2002
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+
+#========================================================================
+#D-- SRF -
+[SRF]
+Restart= y
+RestartDate=2014-12-31
+RestartJobName=sim35km-HIST-after2002
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+
+#========================================================================
+#D-- SBG - STOMATE
+[SBG]
+Restart= y
+RestartDate=2014-12-31
+RestartJobName=sim35km-HIST-after2002
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+
+#========================================================================
+#D-- IOS -
+[IOS]
+Restart= n
+RestartDate=
+RestartJobName=
+RestartPath=
+
+#========================================================================
+#D-- Post -
+[Post]
+PackFrequency=NONE
+TimeSeriesFrequency=NONE
+SeasonalFrequency=NONE
+SeasonalFrequencyOffset=0
+MetricsPCMDI=FALSE
