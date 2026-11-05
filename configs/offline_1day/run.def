@@ -1,0 +1,102 @@
+# ==============================================================================
+# ORCHIDEE Offline 1-Day Test Configuration (1979-02-01)
+# Derived from OOL_SEC without modifying originals
+# ==============================================================================
+
+# Simulation timing
+# -----------------
+# 1 day = 86400 seconds
+TIME_LENGTH = 1D
+TIME_SKIP = 0
+DRIVER_reset_time = y
+
+# Model time step (default 1800s = 30min, 48 steps per day)
+TIME_STEP = 1800
+
+# Atmospheric forcing file
+FORCING_FILE = forcing_19790201.nc
+
+# Height of atmospheric variables (2m for T/Q, 10m for Wind)
+HEIGHT_LEV1 = 2.0
+HEIGHT_LEVW = 10.0
+
+# Components activation
+# ---------------------
+# Run SECHIBA physics only (offline mode, no STOMATE)
+STOMATE_OK_STOMATE = n
+
+# Restart files
+# -------------
+RESTART_FILEIN = NONE
+SECHIBA_restart_in = sechiba_rest_in.nc
+SECHIBA_rest_out = sechiba_rest_out.nc
+STOMATE_RESTART_FILEIN = NONE
+
+# Diagnostic and output libraries
+# --------------------------------
+XIOS_ORCHIDEE_OK = y
+XIOS_REMAP_OUTPUT = n
+SECHIBA_HISTFILE2 = n
+WRITE_STEP = 0
+WRITE_STEP2 = 0
+STOMATE_HIST_DT = 0
+STOMATE_IPCC_HIST_DT = 0
+PRINTLEV = 2
+
+# Hydrology and physics schemes
+# ------------------------------
+HYDROL_CWRR = y
+RIVER_ROUTING = n
+RIVER_DESC = n
+
+SOILTYPE_CLASSIF = zobler
+SOILALB_FILE = soils_param.nc
+SOILCLASS_FILE = soils_param.nc
+
+VEGET_UPDATE = 0Y
+LAI_MAP = n
+IMPOSE_VEG = n
+
+ROUGH_DYN = y
+OK_FREEZE = y
+OK_EXPLICITSNOW = y
+READ_REFTEMP = y
+DEPTH_MAX_T = 90
+
+# Background albedo from MODIS
+ALB_BG_MODIS = y
+ALB_BG_FILE = alb_bg.nc
+
+# Carbon and vegetation setup (15 PFTs)
+# --------------------------------------
+SPINUP_ANALYTIC = n
+SPINUP_PERIOD = 0
+ATM_CO2 = 336.0
+DO_WOOD_HARVEST = n
+FIRE_DISABLE = y
+
+NVM = 15
+PFT_TO_MTC = 1,2,3,4,5,6,7,8,9,10,11,12,13,10,10
+PFT_NAME__10 = 'temperate C3           grass      '
+PFT_NAME__14 = 'tropical  C3           grass      '
+PFT_NAME__15 = 'boreal    C3           grass      '
+
+VCMAX25__10 = 50.0 
+VCMAX25__14 = 50.0 
+VCMAX25__15 = 40.0
+
+LAI_MAX__10 = 2.5
+LAI_MAX__14 = 2.5
+LAI_MAX__15 = 2.0
+
+FRAC_GROWTHRESP__10 = 0.28
+FRAC_GROWTHRESP__14 = 0.35
+FRAC_GROWTHRESP__15 = 0.35
+
+MAINT_RESP_SLOPE_C__10 = 0.16
+MAINT_RESP_SLOPE_C__14 = 0.12
+MAINT_RESP_SLOPE_C__15 = 0.25
+
+ALWAYS_INIT__10 = y
+ALWAYS_INIT__14 = n
+ALWAYS_INIT__15 = y

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- =========================================================================================================== -->
+<!-- iodef.xml : XIOS 2.0 configuration for ORCHIDEE Offline 1-day simulation (integrated XIOS server)          -->
+<!-- =========================================================================================================== -->
+
+<simulation>
+
+  <!-- =========================================================================================================== -->
+  <!-- XIOS context                                                                                                -->
+  <!-- =========================================================================================================== -->
+  <context id="xios">
+
+    <variable_definition>
+      <variable id="info_level"                type="int">1</variable>
+      <variable id="using_server"              type="bool">false</variable>
+      <variable id="using_oasis"               type="bool">false</variable>
+      <variable id="oasis_codes_id"            type="string">oceanx</variable>
+    </variable_definition>
+               
+  </context>
+
+  <!-- =========================================================================================================== -->
+  <!-- COMPONENT CONTEXT : ORCHIDEE context inclusion                                                              -->
+  <!-- =========================================================================================================== -->
+  <context id="orchidee" src="./context_orchidee.xml"/>
+  <context id="orchidee" src="./context_input_orchidee.xml"/>
+
+</simulation>
