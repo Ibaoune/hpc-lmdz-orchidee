@@ -42,7 +42,7 @@ IOS= (xios_server_${OptMode}.exe, xios.x, 1MPI)
 OverRule=y
 RestartDate=1979-12-31
 RestartJobName=sim35km-HIST
-RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/simulations/lmdzor_restart_stage
 
 #========================================================================
 #D-- ATM -
@@ -50,7 +50,7 @@ RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simula
 Restart= y
 RestartDate=1979-12-31
 RestartJobName=sim35km-HIST
-RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/simulations/lmdzor_restart_stage
 
 #========================================================================
 #D-- SRF -
@@ -58,7 +58,7 @@ RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simula
 Restart= y
 RestartDate=1979-12-31
 RestartJobName=sim35km-HIST
-RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/simulations/lmdzor_restart_stage
 
 #========================================================================
 #D-- SBG - STOMATE
@@ -66,7 +66,7 @@ RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simula
 Restart= y
 RestartDate=1979-12-31
 RestartJobName=sim35km-HIST
-RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist
+RestartPath=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/simulations/lmdzor_restart_stage
 
 #========================================================================
 #D-- IOS -
