@@ -228,8 +228,17 @@ sbatch run_offline_1day.sh
 
 ### Workflow D: Coupled Regional Simulations LMDZ–ORCHIDEE (35 km Zoom)
 Pour exécuter ou tester les simulations couplées à l'échelle régionale sur le Maroc ($384 \times 220 \times 79$), utiliser les configurations structurées sous [`configs/lmdzor/r35/`](configs/lmdzor/r35/) :
-- **Bancs d'essai préparés (3 jours) :** voir [`configs/lmdzor/r35/tests/`](configs/lmdzor/r35/tests/) (`hist_3days`, `ssp245_3days`, `ssp585_3days`).
+- **Bancs d'essai validés (3 jours) :** voir [`configs/lmdzor/r35/tests/`](configs/lmdzor/r35/tests/) :
+  - **HIST (1980-01-01 au 1980-01-03) :** Job `8235576` (`COMPLETED 0:0`, 35m53s).
+  - **SSP2-4.5 (2015-01-01 au 2015-01-03) :** Job `8235853` (`COMPLETED 0:0`, 36m03s).
+  - **SSP5-8.5 (2015-01-01 au 2015-01-03) :** Job `8235912` (`COMPLETED 0:0`, 36m03s).
 - **Campagnes de production :** voir [`configs/lmdzor/r35/experiments/`](configs/lmdzor/r35/experiments/) (`etat0`, `hist`, `ssp245`, `ssp585`).
+- **Recréation des liens de restarts (après clonage Git) :**
+  ```bash
+  mkdir -p simulations/lmdzor_restart_stage
+  ln -sfn /srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist simulations/lmdzor_restart_stage/sim35km-HIST
+  ln -sfn /srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulations/LMDZ/r35/hist simulations/lmdzor_restart_stage/sim35km-HIST-after2002
+  ```
 Consultez le guide détaillé : [`configs/lmdzor/r35/README.md`](configs/lmdzor/r35/README.md).
 
 ---

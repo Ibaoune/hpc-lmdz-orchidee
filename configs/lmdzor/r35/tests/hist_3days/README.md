@@ -12,7 +12,7 @@ Valider sur le cluster HPC Toubkal (UM6P) l'exécution complète et la finalisat
 - **Forçages et conditions aux limites (1980) :** `limit.nc` (SST/glace AMIP), `climoz_LMDZ.nc` (ozone), `aerosols1980.nc` / `aerosols.nat.nc`, `PFTmap.nc`, `woodharvest.nc`, `solarforcing.nc`.
 - **Ressources Slurm :**
   - 28 nœuds exclusifs (partition `compute`).
-  - 111 processus MPI : 110 rangs LMDZ/ORCHIDEE (avec 14 threads OpenMP par rang, 4 rangs par nœud = 56 cœurs) + 1 rang serveur XIOS dédié.
+  - 111 rangs MPI : 110 rangs LMDZ/ORCHIDEE (14 threads OpenMP par rang, 4 rangs par nœud = 56 cœurs) + 1 rang serveur XIOS dédié.
   - Walltime : `01:15:00` (75 minutes).
 
 ## 3. Architecture d'Exécution et Finalisation MPI
@@ -50,3 +50,12 @@ Toutes les sorties scientifiques et les fichiers de restart ont été archivés 
   - `ATM/Output/HF/test-3days-HIST-r35_1980010[1-3]_1980010[1-3]_HF_histhf.nc` (856 Mo/jour)
   - `ATM/Output/MO/test-3days-HIST-r35_1980010[1-3]_1980010[1-3]_1M_histmth.nc` (1,7 Mo/jour)
   - Sorties ORCHIDEE / STOMATE haute fréquence et mensuelles correspondantes.
+## 6. Distinction Explicite entre Validation Technique et Validation Scientifique
+- **Validation Technique (Réussie) :**
+  - Stabilité et exécution complète de la chaîne couplée LMDZ–ORCHIDEE–STOMATE–XIOS sur 28 nœuds Toubkal (111 rangs MPI : 110 rangs LMDZ/ORCHIDEE avec 14 threads OpenMP et 1 rang XIOS).
+  - Résolution des dépendances dynamiques via `env_toubkal.sh` et finalisation Slurm native propre via `srun --mpi=pmix`.
+  - Lecture des restarts 1979-12-31 via l'espace de stage et production des restarts journaliers intègres pour les 3 jours.
+  - Archivage libIGCM complet sous `IGCM_OUT/`.
+- **Validation Scientifique (Non couverte par un test de 3 jours) :**
+  - Un banc d'essai de 3 jours confirme uniquement la validité opérationnelle et numérique du modèle.
+  - Il ne permet pas d'évaluer la représentativité climatologique (précipitations, températures, flux de surface) ni les équilibres des réservoirs de carbone et d'eau. Une validation scientifique nécessite des intégrations pluriannuelles ou décennales.

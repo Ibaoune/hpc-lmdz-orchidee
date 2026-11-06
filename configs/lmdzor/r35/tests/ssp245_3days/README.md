@@ -16,7 +16,7 @@ Tester et valider sur le cluster HPC Toubkal (UM6P) la transition entre la simul
   - Solaire : `solarforcing_daily_3.2_6bands_2015.nc`
 - **Ressources Slurm :**
   - 28 nœuds exclusifs (partition `compute`).
-  - 111 processus MPI : 110 rangs LMDZ/ORCHIDEE (14 threads OpenMP par rang, 4 rangs par nœud = 56 cœurs) + 1 rang serveur XIOS dédié.
+  - 111 rangs MPI : 110 rangs LMDZ/ORCHIDEE (14 threads OpenMP par rang, 4 rangs par nœud = 56 cœurs) + 1 rang serveur XIOS dédié.
   - Walltime : `01:15:00` (75 minutes).
   - Lanceur Slurm natif : `srun --mpi=pmix` avec distribution `multi-prog` et affinité `taskset`.
 
@@ -53,3 +53,12 @@ Toutes les sorties scientifiques et les fichiers de restart ont été archivés 
   - `ATM/Output/DA/test-3days-SSP245-r35_2015010[1-3]_2015010[1-3]_1D_histday.nc` (1,2 Go/jour)
   - `ATM/Output/MO/test-3days-SSP245-r35_2015010[1-3]_2015010[1-3]_1M_histmth.nc` (1,7 Mo/jour)
   - Sorties ORCHIDEE / STOMATE haute fréquence et mensuelles (`1M_stomate_history.nc`, `HF_sechiba_out_2.nc`, `1M_sechiba_history.nc`).
+## 6. Distinction Explicite entre Validation Technique et Validation Scientifique
+- **Validation Technique (Réussie) :**
+  - Transition opérationnelle validée entre HIST (2014-12-31) et le scénario SSP2-4.5 sur 3 jours.
+  - Utilisation des forçages nominaux SSP245 (`scenarios/ssp245` pour `PFTmap` et `woodharvest`).
+  - Enchaînement séquentiel parfait des 3 périodes sous Slurm (`srun --mpi=pmix`) sans reliquat de processus orphelins.
+  - Intégrité NetCDF des fichiers archivés sous `IGCM_OUT/`.
+- **Validation Scientifique (Non couverte par un test de 3 jours) :**
+  - Ce banc d'essai de 3 jours ne permet pas d'évaluer la trajectoire radiative, le réalisme de la réponse climatique ni l'impact de la végétation sous scénario SSP2-4.5.
+  - Une validation scientifique nécessitera des simulations sur plusieurs décennies avec analyse des bilans d'énergie et de masse.
