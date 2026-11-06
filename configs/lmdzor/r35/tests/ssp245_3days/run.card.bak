@@ -1,0 +1,38 @@
+# $Revision:: 1052                                     $ Revision of last commit
+# $Author:: sdipsl                                     $ Author of last commit
+# $Date:: 2014-09-11 15:23:32 +0100 (خ, 11 شتنبر#$ Date of last commit
+# IPSL (2006)
+#  This software is governed by the CeCILL licence see libIGCM/libIGCM_CeCILL.LIC
+
+#========================================================================
+[Configuration]
+#Compute date of loop
+PeriodDateBegin= 2015-01-04
+PeriodDateEnd= 2015-01-04
+CumulPeriod= 4
+# State of Job "Start", "Running", "OnQueue", "Completed"
+PeriodState= Running
+
+SubmitPath= /srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/configs/lmdzor/r35/tests/ssp245_3days
+simuid=
+#========================================================================
+[PostProcessing]
+
+#RebuildRunning=y/n
+#RebuildToComplete=number of dir to rebuild
+#RebuildDateID=PeriodDateEnd correspondant au dernier flag de RebuildFrequency=true
+
+TimeSeriesRunning=n
+TimeSeriesCompleted=
+
+#========================================================================
+[Log]
+# Executables Size
+LastExeSize= ( 112, 0, 0, 111 )
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# CumulPeriod | PeriodDateBegin |   PeriodDateEnd |        RunDateBegin |          RunDateEnd |     RealCpuTime |     UserCpuTime |      SysCpuTime | ExeDate
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#           1 |        20150101 |        20150101 | 2026-11-06T17:35:02 | 2026-11-06T17:49:45 |       882.70000 |         0.07000 |         0.06000 | ATM_Nov_5_17:59-IOS_Nov_5_17:59
+#           2 |        20150102 |        20150102 | 2026-11-06T17:52:23 | 2026-11-06T17:58:42 |       378.66000 |         0.07000 |         0.05000 | ATM_Nov_5_17:59-IOS_Nov_5_17:59
+#           3 |        20150103 |        20150103 | 2026-11-06T18:01:22 | 2026-11-06T18:07:39 |       377.03000 |         0.06000 |         0.05000 | ATM_Nov_5_17:59-IOS_Nov_5_17:59

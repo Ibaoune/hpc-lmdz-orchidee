@@ -1,0 +1,18 @@
+
+#######################################
+EXECUTION of : /usr/bin/time /srv/software/easybuild/software/OpenMPI/3.1.1-GCC-7.3.0-2.30/bin/mpirun      -np 110 ./script_lmdz.x.ksh :  -np 1 ./script_xios.x.ksh 
+
+-------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+-------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[3419,1],0]
+  Exit code:    127
+--------------------------------------------------------------------------
+Command exited with non-zero status 127
+0.04user 0.10system 0:03.42elapsed 4%CPU (0avgtext+0avgdata 11608maxresident)k
+121888inputs+40outputs (169major+3697minor)pagefaults 0swaps

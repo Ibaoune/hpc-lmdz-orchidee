@@ -10,7 +10,7 @@
 #SBATCH --exclusive
 #SBATCH --ntasks=111   # Number of MPI tasks
 #SBATCH --hint=nomultithread         # 1 processus MPI par par physical core (no hyperthreading) 
-#SBATCH --time=00:30:00             # Wall clock limit (minutes)
+#SBATCH --time=01:15:00             # Wall clock limit (minutes)
 #SBATCH --account=CLIMAT-UM6P-ST-IWRI-7KSIFKVWKUY-DEFAULT-CPU
 ##BATCH_NUM_PROC_TOT=$BRIDGE_SBATCH_NPROC
 set +x
@@ -45,6 +45,7 @@ echo
 
 MODIPSL=/srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl
 libIGCM=${MODIPSL}/libIGCM
+. ${MODIPSL}/configs/lmdzor/r35/common/env_toubkal.sh
 
 #D--------------------------------------------------------------------==
 #D- -1. PLACE FOR USER MODIFICATION
@@ -73,7 +74,7 @@ postProcessingStopLevel=1
 JobType=RUN
 
 #D- Number of execution in one job
-PeriodNb=1
+PeriodNb=3
 
 #D-
 #D- --------------------------------------------------------------------------------------------------#

@@ -16,7 +16,7 @@ DateBegin=1980-01-01
 DateEnd=1980-01-03
 PeriodLength=1D
 CompressionLevel=0
-EnvFile=${SUBMIT_DIR}/../../../../../modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
+EnvFile=${SUBMIT_DIR}/../../common/env_toubkal.sh
 ResolAtm=384x220x79
 OptMode=prod
 

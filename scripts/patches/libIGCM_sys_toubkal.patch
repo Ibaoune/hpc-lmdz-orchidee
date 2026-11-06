@@ -1,0 +1,75 @@
+--- a/libIGCM/libIGCM_sys/libIGCM_sys_toubkal.ksh
++++ b/libIGCM/libIGCM_sys/libIGCM_sys_toubkal.ksh
+@@ -1,7 +1,7 @@
+ #!/bin/ksh
+ 
+ #**************************************************************
+-# Author: M. El Aabaribaoune and A. Idelkadi
++# Author: M. El Aabaribaoune (UM6P) and A. Idelkadi
+ # Contact: mohammad.elaabaribaoune@um6p.ma
+ # $Revision:: 1569                                     $ Revision of last commit
+ # $Author:: M. El Aabaribaoune                                     $ Author of last commit
+@@ -186,7 +186,7 @@
+ 
+ #====================================================
+ #- HOST_MPIRUN_COMMAND
+-typeset -r HOST_MPIRUN_COMMAND=${HOST_MPIRUN_COMMAND:="/usr/bin/time /srv/software/easybuild/software/OpenMPI/3.1.1-GCC-7.3.0-2.30/bin/mpirun"}
++typeset -r HOST_MPIRUN_COMMAND=${HOST_MPIRUN_COMMAND:="/usr/bin/time srun --mpi=pmix"}
+ 
+ #====================================================
+ #- Max number of arguments passed to nco operator or demigration command
+@@ -1146,8 +1146,11 @@
+   fi
+   IGCM_debug_Print 1 "IGCM_sys_active_variables : Following EnvFile will be used :" 
+   IGCM_debug_Print 1 ${EnvFile}
+-  #. ${EnvFile}
+-  source ~/.kshrc
++  if [ -f "${EnvFile}" ]; then
++      . ${EnvFile}
++  elif [ -f ~/.kshrc ]; then
++      source ~/.kshrc
++  fi
+   #cp ${EnvFile}  env_file
+   #chmod +x env_file
+   #sed -i '1i#!/bin/bash ' env_file
+@@ -1402,6 +1405,12 @@
+ 
+           echo "#!/bin/ksh" > script_${ExeNameOut}.ksh
+           echo ""  >> script_${ExeNameOut}.ksh
++          if [ X${EnvFile} = X ] && [ ! X${config_UserChoices_EnvFile} = X ] ; then
++              EnvFile=${config_UserChoices_EnvFile}
++          fi
++          if [ ! X${EnvFile} = X ] && [ -f "${EnvFile}" ] ; then
++              echo ". ${EnvFile} > /dev/null 2>&1" >> script_${ExeNameOut}.ksh
++          fi
+           if [ ${comp_proc_omp_loc} -gt 1 ] ; then
+           # Check if the number of threads is correct
+ 	      case ${comp_proc_omp_loc} in
+@@ -1423,7 +1432,7 @@
+           fi
+ 
+           # to have out/err per process on different files
+-          echo "./${ExeNameOut} > out_${ExeNameOut}.out.\${SLURM_PROCID} 2>out_${ExeNameOut}.err.\${SLURM_PROCID}" >> script_${ExeNameOut}.ksh
++          echo "exec ./${ExeNameOut} > out_${ExeNameOut}.out.\${SLURM_PROCID} 2>out_${ExeNameOut}.err.\${SLURM_PROCID}" >> script_${ExeNameOut}.ksh
+ 
+           IGCM_sys_Chmod u+x script_${ExeNameOut}.ksh
+ 	  if ( [ $comp != $last_comp ] ) ; then
+@@ -1455,7 +1464,7 @@
+           echo "(( index = init * $comp_proc_omp_loc ))" >> prog_${ExeNameOut}.sh
+           echo "(( slot = index % 56 ))" >> prog_${ExeNameOut}.sh
+ 	      echo "echo ${ExeNameOut} taskset -c \$slot"-"\$((slot + $comp_proc_omp_loc - 1))" >> prog_${ExeNameOut}.sh
+-          echo "taskset -c \$slot"-"\$((slot + $comp_proc_omp_loc - 1)) ./script_${ExeNameOut}.ksh" >> prog_${ExeNameOut}.sh
++          echo "exec taskset -c \$slot"-"\$((slot + $comp_proc_omp_loc - 1)) ./script_${ExeNameOut}.ksh" >> prog_${ExeNameOut}.sh
+ 
+           IGCM_sys_Chmod u+x prog_${ExeNameOut}.sh
+ 
+@@ -1477,8 +1486,7 @@
+       ## This is used when no error comes from executables and when something stopped an executable without notice. 
+       export SLURM_WAIT=60
+ 
+-      #EXECUTION="${HOST_MPIRUN_COMMAND} --cpu-bind=none --distribution=arbitrary --multi-prog ./run_file"
+-      EXECUTION="${HOST_MPIRUN_COMMAND}   $str_exec_xios_lmdz" #(Mohammad)
++      EXECUTION="${HOST_MPIRUN_COMMAND} --cpu-bind=none --distribution=arbitrary --multi-prog ./run_file"
+ 
+       IGCM_sys_Chmod u+x run_file
+       if ( $DEBUG_sys ) ; then
