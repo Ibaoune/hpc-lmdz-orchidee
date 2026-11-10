@@ -136,6 +136,6 @@ Pour assurer la reproductibilité et la pérennité du travail d'équipe, l'arch
      ```bash
      cd ~/users/$USER/mon_test
      rm run.def
-     cp /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/configs/offline_1day/run.def ./run.def
+     cp ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/configs/offline_1day/run.def ./run.def
      # Éditer run.def puis relancer avec sbatch run_offline_1day.sh
      ```

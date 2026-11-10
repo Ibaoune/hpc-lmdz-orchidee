@@ -1,10 +1,8 @@
 # ORCHIDEE Offline on Toubkal HPC — Team User & Compilation Guide
 
-**Author:** M. El Aabaribaoune (UM6P)  
-**Affiliation:** Mohammed VI Polytechnic University (UM6P) — IWRI Climate Team  
-**Contact:** `mohammad.elaabaribaoune@um6p.ma`  
-**Host System:** Toubkal Supercomputer (UM6P HPC, Slurm / Lustre)  
-**Repository Location:** `/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl`  
+ M. El Aabaribaoune (Climate Assessment, Modeling, and Services, @UM6P)  
+
+**Repository Location:** `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl`  
 **Shared Group:** `climat-um6p-st-iwri-7ksifkvwkuy-users`  
 
 ---
@@ -25,9 +23,8 @@
    - [Workflow A: Validated 1-Day Offline Test (Reproducible)](#workflow-a-validated-1-day-offline-test-reproducible)
    - [Workflow B: libIGCM Automated Workflow (Production / Spinup)](#workflow-b-libigcm-automated-workflow-production--spinup)
    - [Workflow C: Standalone Execution (Local Sites / Testing / AgriVoltaics)](#workflow-c-standalone-execution-local-sites--testing--agrivoltaics)
-9. [Helper Scripts Created by M. El Aabaribaoune](#9-helper-scripts-created-by-m-el-aabaribaoune)
+9. [Helper Scripts](#9-helper-scripts)
 10. [Troubleshooting & Common Pitfalls](#10-troubleshooting--common-pitfalls)
-11. [Permissions and Team Collaboration](#11-permissions-and-team-collaboration)
 
 ---
 
@@ -79,7 +76,7 @@ ls -lh /chemin/vers/mon_repertoire/*.nc
 The shared repository is organized as follows:
 
 ```
-/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/
+~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/
 ├── README.md                      # Guide général d'utilisation et de compilation IPSL
 ├── compile_orchidee_toubkal.sh    # Script de compilation automatisé
 ├── submit_standalone_template.sh  # Modèle générique de batch Slurm standalone
@@ -134,12 +131,12 @@ The model stack on Toubkal is built upon the **foss-2018b** toolchain (GNU Compi
 > **Why custom modules directory?**  
 > Toubkal cluster system administrators hide older EasyBuild modules by prepending a dot to their `.lua` filenames (e.g. `.7.3.0-2.30.lua`), causing standard `module load GCC/7.3.0-2.30` to fail with `Lmod: unknown module`.  
 > An unhidden module symlink tree is maintained at:
-> `/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modules/foss-2018b`
+> `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modules/foss-2018b`
 
 ### How to Load the Environment
 Before compiling any code or running simulations, run:
 ```bash
-source /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
+source ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
 ```
 
 ---
@@ -165,7 +162,7 @@ The build configuration files are located in `modeles/ORCHIDEE/arch/`:
 ### Method 1: Automated Script (`compile_orchidee_toubkal.sh`)
 
 ```bash
-cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl
+cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl
 ./compile_orchidee_toubkal.sh -clean -j 8
 ```
 
@@ -243,7 +240,7 @@ Consultez le guide détaillé : [`configs/lmdzor/r35/README.md`](configs/lmdzor/
 
 ---
 
-## 9. Helper Scripts Created by M. El Aabaribaoune
+## 9. Helper Scripts
 
 1. **[`scripts/prepare_forcing_1day.py`](scripts/prepare_forcing_1day.py)**:
    - Extraction et conversion reproductibles du forçage atmosphérique HF LMDZ vers le format `orchidee_ol`.
@@ -285,10 +282,3 @@ Consultez le guide détaillé : [`configs/lmdzor/r35/README.md`](configs/lmdzor/
 - **Solution:** In a personal directory, specify `--force` with `scripts/run_offline_1day.sh` to voluntarily purge known previous outputs before running. The shared reference directory `simulations/offline_1day` is strictly protected against purge.
 
 ---
-
-## 11. Permissions and Team Collaboration
-
-- **POSIX Group:** All team members belong to `climat-um6p-st-iwri-7ksifkvwkuy-users`.
-- **Inheritance (SGID):** All directories in `shared/TEAM/models` have the SGID bit enabled (`chmod g+s`) so new files automatically inherit the shared group.
-- **Write Access:** Team members can create their own simulation branches or standalone runs. Please do not delete `bin/` or shared reference libraries without consulting the team.
-- **Questions & Maintenance:** Contact **M. El Aabaribaoune** (`mohammad.elaabaribaoune@um6p.ma`).

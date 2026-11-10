@@ -78,7 +78,7 @@ ln -sfn /srv/lustre01/project/climat-um6p-st-iwri-7ksifkvwkuy/ARCHIVE/Simulation
 ## 5. Emplacement des Sorties Archivées (`IGCM_OUT/`)
 
 Les sorties et restarts des trois simulations de test sont archivés sous :
-`/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/mohammad.elaabaribao/lmdz_simus/similar_dirs_jz_tbkl/gpfsscratch_tbkl/rech/NONE/mohammad.elaabaribao/IGCM_OUT/LMDZOR/TEST/amip/`
+`~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/lmdz_simus/similar_dirs_jz_tbkl/gpfsscratch_tbkl/rech/NONE/mohammad.elaabaribao/IGCM_OUT/LMDZOR/TEST/amip/`
 
 - **HIST 3 jours :** `test-3days-HIST-r35/`
 - **SSP2-4.5 3 jours :** `test-3days-SSP245-r35/`

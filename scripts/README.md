@@ -43,7 +43,7 @@ Ce répertoire contient l'ensemble des outils nécessaires pour préparer, initi
   bash scripts/setup_offline_1day.sh
 
   # Configuration dans un répertoire personnel de travail
-  bash scripts/setup_offline_1day.sh /home/mohammad.elaabaribao/lustre/.../users/$USER/mon_test_offline
+  bash scripts/setup_offline_1day.sh ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/mon_test_offline
   ```
 
 ---
@@ -84,7 +84,7 @@ source modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
 python3 scripts/prepare_forcing_1day.py
 
 # 3. Initialiser son répertoire personnel (non destructif)
-MY_RUN_DIR="/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/offline_test_1day"
+MY_RUN_DIR="$HOME/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/offline_test_1day"
 bash scripts/setup_offline_1day.sh "${MY_RUN_DIR}"
 
 # 4. Lancer la simulation Slurm depuis son répertoire

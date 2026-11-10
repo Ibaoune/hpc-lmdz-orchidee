@@ -1,11 +1,8 @@
 # ORCHIDEE Offline on Toubkal HPC — Team User & Compilation Guide
 
-**Author:** M. El Aabaribaoune (UM6P)  
-**Affiliation:** Mohammed VI Polytechnic University (UM6P) — IWRI Climate Team  
-**Contact:** `mohammad.elaabaribaoune@um6p.ma`  
-**Host System:** Toubkal Supercomputer (UM6P HPC, Slurm / Lustre)  
-**Repository Location:** `/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models`  
-**Shared Group:** `climat-um6p-st-iwri-7ksifkvwkuy-users`  
+ M. El Aabaribaoune (Climate Assessment, Modeling, and Services, @UM6P)  
+
+**Repository Location:** `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models`  
 
 ---
 
@@ -23,9 +20,8 @@
 7. [How to Launch Simulations](#7-how-to-launch-simulations)
    - [Workflow A: libIGCM Automated Workflow (Production / Spinup)](#workflow-a-libigcm-automated-workflow-production--spinup)
    - [Workflow B: Standalone Execution (Local Sites / Testing / AgriVoltaics)](#workflow-b-standalone-execution-local-sites--testing--agrivoltaics)
-8. [Helper Scripts Created by M. El Aabaribaoune](#8-helper-scripts-created-by-m-el-aabaribaoune)
+8. [Helper Scripts](#8-helper-scripts)
 9. [Troubleshooting & Common Pitfalls](#9-troubleshooting--common-pitfalls)
-10. [Permissions and Team Collaboration](#10-permissions-and-team-collaboration)
 
 ---
 
@@ -46,10 +42,10 @@ It is designed so that any colleague can:
 The shared repository is organized as follows:
 
 ```
-/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/
-├── README.md                      # This comprehensive guide (Author: M. El Aabaribaoune)
-├── compile_orchidee_toubkal.sh    # One-click compilation script (Author: M. El Aabaribaoune)
-├── submit_standalone_template.sh  # Slurm batch template for standalone runs (Author: M. El Aabaribaoune)
+~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/
+├── README.md                      # Comprehensive guide
+├── compile_orchidee_toubkal.sh    # One-click compilation script
+├── submit_standalone_template.sh  # Slurm batch template for standalone runs
 ├── modules/
 │   └── foss-2018b/                # Unhidden EasyBuild module definitions for Toubkal Lmod
 └── modipsl/
@@ -84,18 +80,18 @@ The model stack on Toubkal is built upon the **foss-2018b** toolchain (GNU Compi
 > **Why custom modules directory?**  
 > Toubkal cluster system administrators hide older EasyBuild modules by prepending a dot to their `.lua` filenames (e.g. `.7.3.0-2.30.lua`), causing standard `module load GCC/7.3.0-2.30` to fail with `Lmod: unknown module`.  
 > An unhidden module symlink tree is maintained at:
-> `/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b`
+> `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b`
 
 ### How to Load the Environment
 Before compiling any code or running standalone simulations, simply run:
 ```bash
-source /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
+source ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
 ```
 
 This single command automatically executes:
 ```bash
 module purge
-module use /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b
+module use ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b
 module load Perl
 module load GCC/7.3.0-2.30
 module load OpenMPI/3.1.1-GCC-7.3.0-2.30
@@ -108,7 +104,7 @@ module load netCDF-Fortran/4.4.4-foss-2018b
 
 ## 4. Toubkal Architecture Files (`arch-X64_TOUBKAL.*`)
 
-To ensure portability across any ORCHIDEE version on Toubkal, M. El Aabaribaoune created standardized architecture files located in:
+To ensure portability across any ORCHIDEE version on Toubkal, standardized architecture files have been created in:
 - `modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env`
 - `modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.path`
 - `modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.fcm`
@@ -130,10 +126,10 @@ To ensure portability across any ORCHIDEE version on Toubkal, M. El Aabaribaoune
 
 ### Method 1: Automated Script (`compile_orchidee_toubkal.sh`)
 
-M. El Aabaribaoune created a turnkey compilation script at the root of `shared/TEAM/models`:
+A turnkey compilation script is available at the root of `shared/TEAM/models`:
 
 ```bash
-cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models
+cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models
 
 # Compile using 8 parallel cores:
 ./compile_orchidee_toubkal.sh -j 8
@@ -151,10 +147,10 @@ If you prefer to compile manually from within the `ORCHIDEE` source directory:
 
 ```bash
 # 1. Load the Toubkal environment
-source /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
+source ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
 
 # 2. Navigate to ORCHIDEE source directory
-cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE
+cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE
 
 # 3. Launch compilation for offline driver with XIOS 2
 ./makeorchidee_fcm -xios2 -j 8 -parallel mpi -prod -arch X64_TOUBKAL -driver
@@ -178,13 +174,13 @@ When receiving a new ORCHIDEE version (e.g. the AgriVoltaics AV package from Lia
 
 1. **Backup current version:**
    ```bash
-   cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles
+   cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles
    mv ORCHIDEE ORCHIDEE_r7086_quest_bak
    ```
 2. **Place new ORCHIDEE version:**
    ```bash
    # Copy or extract new code into modeles/ORCHIDEE
-   cp -r /path/to/ORCHIDEE_AV /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE
+   cp -r /path/to/ORCHIDEE_AV ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/ORCHIDEE
    ```
 3. **Copy the Toubkal Architecture Files into the new version:**
    ```bash
@@ -192,7 +188,7 @@ When receiving a new ORCHIDEE version (e.g. the AgriVoltaics AV package from Lia
    ```
 4. **Compile:**
    ```bash
-   /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/compile_orchidee_toubkal.sh -clean -j 8
+   ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/compile_orchidee_toubkal.sh -clean -j 8
    ```
 
 ---
@@ -204,14 +200,14 @@ In 99% of cases, `libioipsl.a` and `libxios.a` are already compiled and do not n
 - **To recompile IOIPSL:**
   ```bash
   source .../modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
-  cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/IOIPSL/src
+  cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/IOIPSL/src
   gmake clean
   gmake -j 8
   ```
 - **To recompile XIOS:**
   ```bash
   source .../modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.env
-  cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/XIOS
+  cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/modeles/XIOS
   ./make_xios --arch X64_TOUBKAL --job 8
   ```
 
@@ -248,7 +244,7 @@ Pre-existing forcing datasets (or your custom regional / site-level ERA5, WFDEI,
 
 #### Step 1: Go to Experiment Setup Directory
 ```bash
-cd /home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/config/ORCHIDEE_OL/OOL_SEC
+cd ~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/config/ORCHIDEE_OL/OOL_SEC
 ```
 
 #### Step 2: Edit `config.card`
@@ -302,14 +298,14 @@ For localized runs, point tests, or AgriVoltaics experiments where you want dire
 
 #### Step 1: Create a Personal Run Directory
 ```bash
-RUN_DIR="/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/my_orchidee_run"
+RUN_DIR="$HOME~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/users/$USER/my_orchidee_run"
 mkdir -p "${RUN_DIR}"
 cd "${RUN_DIR}"
 ```
 
 #### Step 2: Copy XML Control Files and `run.def`
 ```bash
-MODELS="/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models"
+MODELS="$HOME~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models"
 
 # Copy XIOS XML definitions:
 cp ${MODELS}/modipsl/modeles/ORCHIDEE/src_xml/iodef.xml .
@@ -345,16 +341,15 @@ sbatch run_job.sh
 
 ---
 
-## 8. Helper Scripts Created by M. El Aabaribaoune
-
+## 8. Helper Scripts 
 To make development and simulation seamless for team members, custom utilities are provided:
 
-1. **[`compile_orchidee_toubkal.sh`](file:///home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/compile_orchidee_toubkal.sh)**:
+1. **[`compile_orchidee_toubkal.sh`](../compile_orchidee_toubkal.sh)**:
    - Automated compilation engine for Toubkal.
    - Cleans, verifies dependencies, links NetCDF C/Fortran and C++ runtimes, builds `orchidee_ol`.
-2. **[`submit_standalone_template.sh`](file:///home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/submit_standalone_template.sh)**:
+2. **[`submit_standalone_template.sh`](../submit_standalone_template.sh)**:
    - Ready-to-use Slurm script pre-configured with account `CLIMAT-UM6P-ST-IWRI-7KSIFKVWKUY-DEFAULT-CPU`, proper module loading, and sanity checks.
-3. **[`libIGCM_sys_toubkal.ksh`](file:///home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl/libIGCM/libIGCM_sys/libIGCM_sys_toubkal.ksh)**:
+3. **[`libIGCM_sys_toubkal.ksh`](libIGCM/libIGCM_sys/libIGCM_sys_toubkal.ksh)**:
    - Core system adapter for `libIGCM` on Toubkal, handling Lustre scratch storage and Slurm job queue management.
 
 ---
@@ -363,7 +358,7 @@ To make development and simulation seamless for team members, custom utilities a
 
 ### Issue 1: "Lmod: module GCC/7.3.0-2.30 unknown"
 - **Cause:** Toubkal system administrators hid legacy modules with leading dots.
-- **Solution:** Always run `source .../arch-X64_TOUBKAL.env` which loads the unhidden module path `/home/mohammad.elaabaribao/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b`.
+- **Solution:** Always run `source .../arch-X64_TOUBKAL.env` which loads the unhidden module path `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modules/foss-2018b`.
 
 ### Issue 2: "Cannot find -lstdc++" or undefined XIOS symbols
 - **Cause:** XIOS 2 is written in C++ and compiled with Boost. When linking the Fortran driver `dim2_driver.f90`, the GNU C++ runtime must be linked explicitly.
@@ -378,10 +373,3 @@ To make development and simulation seamless for team members, custom utilities a
 - **Solution:** Always use `#SBATCH --account=CLIMAT-UM6P-ST-IWRI-7KSIFKVWKUY-DEFAULT-CPU`.
 
 ---
-
-## 10. Permissions and Team Collaboration
-
-- **POSIX Group:** All team members belong to `climat-um6p-st-iwri-7ksifkvwkuy-users`.
-- **Inheritance (SGID):** All directories in `shared/TEAM/models` have the SGID bit enabled (`chmod g+s`) so new files automatically inherit the shared group.
-- **Write Access:** Team members can create their own simulation branches or standalone runs. Please do not delete `modipsl/bin/` or shared reference libraries without consulting the team.
-- **Questions & Maintenance:** Contact **M. El Aabaribaoune** (`mohammad.elaabaribaoune@um6p.ma`).
