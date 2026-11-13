@@ -1,0 +1,26 @@
+--- a/modeles/IOIPSL/src/Makefile
++++ b/modeles/IOIPSL/src/Makefile
+@@ -36,10 +36,10 @@
+ M_K = gmake
+ P_C = cpp
+ P_O = -P -C $(P_P)
+-F_C = mpif90 -c -cpp
++F_C = mpif90 -c -cpp -fallow-argument-mismatch
+ F_D =
+ F_P = -fdefault-real-8
+-F_O = -DCPP_PARA -O3 $(F_D) $(F_P) -I$(MODDIR) -module $(MODDIR)
++F_O = -DCPP_PARA -O3 $(F_D) $(F_P) -I$(MODDIR) -J$(MODDIR)
+ F_L = mpif90
+ M_M = 0
+ L_X = 0
+@@ -50,8 +50,8 @@
+ C_O =
+ C_L = mpicc
+ #-
+-NCDF_INC = /srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include
+-NCDF_LIB = -L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdff -L/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/lib -lnetcdf
++NCDF_INC = $(EBROOTNETCDFMINFORTRAN)/include -I$(EBROOTNETCDF)/include
++NCDF_LIB = -L$(EBROOTNETCDFMINFORTRAN)/lib -lnetcdff -L$(EBROOTNETCDF)/lib -lnetcdf
+ #-
+ RM      = rm -f
+ STRIP   = strip

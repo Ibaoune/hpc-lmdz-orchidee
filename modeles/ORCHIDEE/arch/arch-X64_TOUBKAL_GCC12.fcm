@@ -1,0 +1,18 @@
+# Author: M. El Aabaribaoune (UM6P)
+# Affiliation: Mohammed VI Polytechnic University - IWRI Climate Team
+# Contact: mohammad.elaabaribao@um6p.ma
+%COMPILER            mpif90
+%LINK                mpif90
+%AR                  ar
+%MAKE                make
+%FPP_FLAGS           -P -C -traditional -ffreestanding
+%FPP_DEF             
+%BASE_FFLAGS         -cpp -ffree-line-length-0 -fdefault-real-8 -DNC_DOUBLE -fallow-argument-mismatch
+%PROD_FFLAGS         -O3
+%DEV_FFLAGS          -Wall -fbounds-check
+%DEBUG_FFLAGS        -g3 -Wall -fbounds-check -ffpe-trap=invalid,zero,overflow -O0 -fstack-protector-all -fbacktrace -finit-real=snan
+%MPI_FFLAGS          -fcray-pointer
+%OMP_FFLAGS          -fopenmp -fcray-pointer
+%BASE_LD             -lstdc++
+%MPI_LD
+%OMP_LD              -fopenmp

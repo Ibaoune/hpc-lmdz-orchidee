@@ -35,6 +35,7 @@ modeles/ORCHIDEE/*
 !modeles/ORCHIDEE/arch/
 modeles/ORCHIDEE/arch/*
 !modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.*
+!modeles/ORCHIDEE/arch/arch-X64_TOUBKAL_GCC12.*
 
 !modeles/IOIPSL/
 modeles/IOIPSL/*
@@ -47,6 +48,7 @@ modeles/XIOS/*
 !modeles/XIOS/arch/
 modeles/XIOS/arch/*
 !modeles/XIOS/arch/arch-X64_TOUBKAL.*
+!modeles/XIOS/arch/arch-X64_TOUBKAL_GCC12.*
 
 !modeles/LMDZ/
 modeles/LMDZ/*
