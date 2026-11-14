@@ -207,12 +207,11 @@ Establish a clean simulation run directory and create symbolic links to the requ
 ### 2. Commands
 
 ```bash
-# Initialize the execution directory (simulations/offline_1day_gcc12)
+# Initialize the execution directory (simulations/offline_1day_gcc12) from modipsl repository root
 bash scripts/setup_offline_1day_gcc12.sh simulations/offline_1day_gcc12
 
 # Inspect the prepared simulation directory
-cd simulations/offline_1day_gcc12
-ls -l
+ls -l simulations/offline_1day_gcc12
 ```
 
 ### 3. Explanation of Input Files
@@ -258,6 +257,7 @@ Submit and execute the 1-day benchmark simulation using Slurm on Toubkal HPC com
 ### 2. Commands
 
 ```bash
+# Enter the simulation directory (from modipsl repository root)
 cd simulations/offline_1day_gcc12
 
 # Submit the Slurm job (8 MPI tasks, 1 node)
@@ -302,7 +302,8 @@ Verify the generated NetCDF history and restart files, confirming that the simul
 ### 2. Commands
 
 ```bash
-cd simulations/offline_1day_gcc12
+# Ensure you are inside the simulation directory:
+# (If returning from modipsl repository root, run: cd simulations/offline_1day_gcc12)
 
 # 1. Verify that all 4 expected NetCDF simulation outputs were produced
 ls -lh sechiba_history.nc sechiba_out_2.nc sechiba_rest_out.nc driver_rest_out.nc
@@ -311,6 +312,8 @@ ls -lh sechiba_history.nc sechiba_out_2.nc sechiba_rest_out.nc driver_rest_out.n
 sha256sum used_run.def
 
 # 3. Check simulation time bounds inside the output NetCDF
+# Note: Ensure the GCC 12 / NetCDF module environment is loaded if opening a new shell:
+# source ../../modeles/ORCHIDEE/arch/arch-X64_TOUBKAL_GCC12.env
 ncdump -h sechiba_history.nc | grep -E "time_counter =|time_origin"
 ```
 
@@ -346,13 +349,15 @@ All NetCDF output files exist with matching file sizes:
 This section explains root causes and permanent solutions for issues previously encountered during development. The workflow in this guide already prevents these issues, but they are documented here for complete technical transparency.
 
 ### 1. IOIPSL Error: `You must invoke this Makefile from its directory`
-- **Symptom:** IOIPSL compilation fails immediately with an error from GNU Make.
-- **Root Cause:** Historical IPSL `AA_make` templates write an absolute path into `MAKE_DIR` during installation. When the code is cloned into a new workspace, `$(shell /bin/pwd)` does not match `$(MAKE_DIR)`.
-- **Permanent Solution:** In `compile_orchidee_gcc12.sh`, `MAKE_DIR` is dynamically updated before compiling:
+- **Symptom:** IOIPSL compilation fails immediately with an error from GNU Make: `Makefile:69: *** You must invoke this Makefile from its directory. Stop.`
+- **Root Cause:** In `modeles/IOIPSL/src/Makefile`, the directive `USER_DIR = $(shell /bin/pwd)` invokes the external binary `/bin/pwd`, which resolves physical symlinks (e.g. `/home/user/lustre` -> `/srv/lustre01/project/...`). If `MAKE_DIR` is set using a logical path, `ifneq ($(USER_DIR),$(MAKE_DIR))` triggers the safety error.
+- **Permanent Solution:** In `compile_orchidee_gcc12.sh`, `ROOT_MODIPSL` and `MAKE_DIR` are canonicalized to the physical path using `/bin/pwd` before compilation:
   ```bash
-  sed -i "s|^MAKE_DIR = .*|MAKE_DIR = ${ROOT_MODIPSL}/modeles/IOIPSL/src|" "${IOIPSL_MAKEFILE}"
+  ROOT_MODIPSL="$(cd "${ROOT_MODIPSL}" && /bin/pwd)"
+  IOIPSL_SRC_CANONICAL="$(cd "${ROOT_MODIPSL}/modeles/IOIPSL/src" && /bin/pwd)"
+  sed -i "s|^MAKE_DIR = .*|MAKE_DIR = ${IOIPSL_SRC_CANONICAL}|" "${IOIPSL_MAKEFILE}"
   ```
-  This retains the directory safety check while allowing relocation to any workspace.
+  This guarantees that `USER_DIR` matches `MAKE_DIR` across all symlinked directories on Toubkal HPC.
 
 ### 2. IOIPSL Undefined References (`__mathelp_MOD_mathop_r11`) during Link
 - **Symptom:** Linking ORCHIDEE fails with undefined symbols belonging to `mathelp.f90` inside `libioipsl.a`.

@@ -25,6 +25,7 @@ else
     echo "ERREUR : Impossible de localiser la racine modipsl contenant le dossier modeles/." >&2
     exit 1
 fi
+MODIPSL_DIR="$(cd "${MODIPSL_DIR}" && /bin/pwd)"
 
 TARGET_DIR="${1:-${MODIPSL_DIR}/simulations/offline_1day_gcc12}"
 

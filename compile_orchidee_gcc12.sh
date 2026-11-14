@@ -24,6 +24,7 @@ else
     echo "Please execute this script from within the modipsl repository root." >&2
     exit 1
 fi
+ROOT_MODIPSL="$(cd "${ROOT_MODIPSL}" && /bin/pwd)"
 
 NJOBS=8
 CLEAN_BUILD=0
@@ -117,7 +118,8 @@ fi
 
 # Dynamically adapt MAKE_DIR to local modipsl directory, preserving the Makefile safety check
 echo "==> Adapting IOIPSL Makefile MAKE_DIR to local workspace..."
-sed -i "s|^MAKE_DIR = .*|MAKE_DIR = ${ROOT_MODIPSL}/modeles/IOIPSL/src|" "${IOIPSL_MAKEFILE}"
+IOIPSL_SRC_CANONICAL="$(cd "${ROOT_MODIPSL}/modeles/IOIPSL/src" && /bin/pwd)"
+sed -i "s|^MAKE_DIR = .*|MAKE_DIR = ${IOIPSL_SRC_CANONICAL}|" "${IOIPSL_MAKEFILE}"
 
 if grep -q "4.4.4-foss-2018b" "${IOIPSL_MAKEFILE}" 2>/dev/null || ! grep -q -- "-fallow-argument-mismatch" "${IOIPSL_MAKEFILE}" 2>/dev/null; then
     echo "==> Adapting IOIPSL Makefile compiler flags for GCC 12 (gompi-2023a)..."
