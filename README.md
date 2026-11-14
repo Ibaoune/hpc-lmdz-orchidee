@@ -1,5 +1,10 @@
 # ORCHIDEE Offline on Toubkal HPC — Team User & Compilation Guide
 
+> [!IMPORTANT]
+> **Complete GCC 12 Reproduction Guide Available:**  
+> For a fully self-contained, beginner-friendly reproduction workflow using **GCC 12.3.0 (`gompi-2023a`)** with all sources bundled directly in GitHub (no IPSL SVN checkouts or shared directory copies required), consult:  
+> **[`docs/userguide/reproduction_guide.md`](docs/userguide/reproduction_guide.md)**
+
  M. El Aabaribaoune (Climate Assessment, Modeling, and Services, @UM6P)  
 
 **Repository Location:** `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl`  

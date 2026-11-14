@@ -9,56 +9,12 @@
 *.mod
 *.exe
 *.so
-bin/*
-lib/*
-!bin/.gitkeep
-!lib/.gitkeep
 
-# External upstream IPSL framework & source trees (SVN checkouts)
-libIGCM/
-doc/
-util/
-
-# Upstream config directory (exclude all except Toubkal arch files)
-config/*
-!config/LMDZOR_v6/
-config/LMDZOR_v6/*
-!config/LMDZOR_v6/ARCH/
-config/LMDZOR_v6/ARCH/*
-!config/LMDZOR_v6/ARCH/arch-X64_TOUBKAL.*
-
-# Modeles directory (exclude all except Toubkal arch files)
-modeles/*
-
-!modeles/ORCHIDEE/
-modeles/ORCHIDEE/*
-!modeles/ORCHIDEE/arch/
-modeles/ORCHIDEE/arch/*
-!modeles/ORCHIDEE/arch/arch-X64_TOUBKAL.*
-!modeles/ORCHIDEE/arch/arch-X64_TOUBKAL_GCC12.*
-
-!modeles/IOIPSL/
-modeles/IOIPSL/*
-!modeles/IOIPSL/arch/
-modeles/IOIPSL/arch/*
-!modeles/IOIPSL/arch/arch-X64_TOUBKAL.*
-
-!modeles/XIOS/
-modeles/XIOS/*
-!modeles/XIOS/arch/
-modeles/XIOS/arch/*
-!modeles/XIOS/arch/arch-X64_TOUBKAL.*
-!modeles/XIOS/arch/arch-X64_TOUBKAL_GCC12.*
-
-!modeles/LMDZ/
-modeles/LMDZ/*
-!modeles/LMDZ/arch/
-modeles/LMDZ/arch/*
-!modeles/LMDZ/arch/arch-X64_TOUBKAL.*
-
-# External large 3rd-party dependencies in XIOS
-modeles/XIOS/extern/
-modeles/XIOS/tools/
+# Top-level compiled outputs (keep .gitkeep files)
+/bin/*
+!/bin/.gitkeep
+/lib/*
+!/lib/.gitkeep
 
 # Subversion directories
 .svn/
@@ -66,7 +22,6 @@ modeles/XIOS/tools/
 
 # FCM and build artifacts
 .fcm/
-build/
 *.bld
 *.done
 *.log
@@ -97,3 +52,69 @@ scratch/
 
 # Test simulation working directories
 simulations/
+
+# Upstream config directory (exclude all except Toubkal arch files)
+config/*
+!config/LMDZOR_v6/
+config/LMDZOR_v6/*
+!config/LMDZOR_v6/ARCH/
+config/LMDZOR_v6/ARCH/*
+!config/LMDZOR_v6/ARCH/arch-X64_TOUBKAL.*
+
+# External upstream IPSL framework (SVN checkouts not used in offline benchmark)
+libIGCM/
+doc/
+util/
+
+# Coupled model LMDZ (not part of standalone ORCHIDEE offline)
+modeles/LMDZ/*
+!modeles/LMDZ/arch/
+modeles/LMDZ/arch/*
+!modeles/LMDZ/arch/arch-X64_TOUBKAL.*
+
+# Generated compilation products inside modeles/
+# IOIPSL generated artifacts
+modeles/IOIPSL/build/
+modeles/IOIPSL/bin/
+modeles/IOIPSL/lib
+modeles/IOIPSL/inc
+modeles/IOIPSL/arch.env
+modeles/IOIPSL/arch.fcm
+modeles/IOIPSL/arch.path
+
+# XIOS generated artifacts and caches
+modeles/XIOS/obj/
+modeles/XIOS/ppsrc/
+modeles/XIOS/flags/
+modeles/XIOS/done/
+modeles/XIOS/cfg/
+modeles/XIOS/inc/
+modeles/XIOS/lib/
+modeles/XIOS/bin/
+modeles/XIOS/.cache/
+modeles/XIOS/tmp/
+modeles/XIOS/Makefile
+modeles/XIOS/bld_dir.cfg
+modeles/XIOS/config.fcm
+modeles/XIOS/fcm_env.sh
+modeles/XIOS/fcm_env.ksh
+modeles/XIOS/arch.env
+modeles/XIOS/arch.fcm
+modeles/XIOS/arch.path
+modeles/XIOS/extern/netcdf4
+modeles/XIOS/inc_gcc7_backup/
+modeles/XIOS/lib_gcc7_backup/
+
+# ORCHIDEE generated artifacts and caches
+modeles/ORCHIDEE/build/
+modeles/ORCHIDEE/build_*/
+modeles/ORCHIDEE/bin
+modeles/ORCHIDEE/bin_*
+modeles/ORCHIDEE/lib
+modeles/ORCHIDEE/inc
+modeles/ORCHIDEE/arch.env
+modeles/ORCHIDEE/arch.fcm
+modeles/ORCHIDEE/arch.path
+modeles/ORCHIDEE/config.fcm
+modeles/ORCHIDEE/.cache/
+modeles/ORCHIDEE/*.log

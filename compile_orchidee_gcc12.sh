@@ -85,17 +85,42 @@ set -u
 echo "Compiler       : $(which mpif90)"
 echo "GCC Version    : $(gcc --version | head -n 1)"
 echo "NetCDF-Fortran : $(nf-config --version 2>/dev/null || echo 'loaded')"
-echo "HDF5 Version   : $(h5cc -showconfig 2>/dev/null | grep -i "HDF5 Version" | head -n 1 || echo 'loaded')"
+echo "HDF5 Version   : $(h5pcc -showconfig 2>/dev/null | grep -i "HDF5 Version" | head -n 1 | awk '{print $3}' || echo 'loaded')"
 
-# 3. Check and patch IOIPSL Makefile if needed
+# 3. Pre-flight verification of build tools and bundled FCM distributions
+FCM_XIOS="${ROOT_MODIPSL}/modeles/XIOS/tools/FCM_OLD/bin/fcm"
+FCM_ORCH="${ROOT_MODIPSL}/modeles/ORCHIDEE/tools/FCM_V1.2/bin/fcm"
+
+if [ ! -f "${FCM_XIOS}" ]; then
+    echo "ERROR: XIOS FCM build tool not found: ${FCM_XIOS}" >&2
+    echo "Ensure modeles/XIOS/tools/FCM_OLD is bundled in the repository." >&2
+    exit 1
+fi
+
+if [ ! -f "${FCM_ORCH}" ]; then
+    echo "ERROR: ORCHIDEE FCM build tool not found: ${FCM_ORCH}" >&2
+    echo "Ensure modeles/ORCHIDEE/tools/FCM_V1.2 is bundled in the repository." >&2
+    exit 1
+fi
+
+chmod +x "${FCM_XIOS}" "${FCM_ORCH}"
+chmod +x "${ROOT_MODIPSL}/modeles/XIOS/make_xios"
+chmod +x "${ROOT_MODIPSL}/modeles/ORCHIDEE/makeorchidee_fcm"
+mkdir -p "${ROOT_MODIPSL}/modeles/XIOS/.void_dir"
+
+# 4. Check and adapt IOIPSL Makefile for local directory and GCC 12
 IOIPSL_MAKEFILE="${ROOT_MODIPSL}/modeles/IOIPSL/src/Makefile"
 if [ ! -f "${IOIPSL_MAKEFILE}" ]; then
     echo "ERROR: IOIPSL Makefile not found: ${IOIPSL_MAKEFILE}" >&2
     exit 1
 fi
 
+# Dynamically adapt MAKE_DIR to local modipsl directory, preserving the Makefile safety check
+echo "==> Adapting IOIPSL Makefile MAKE_DIR to local workspace..."
+sed -i "s|^MAKE_DIR = .*|MAKE_DIR = ${ROOT_MODIPSL}/modeles/IOIPSL/src|" "${IOIPSL_MAKEFILE}"
+
 if grep -q "4.4.4-foss-2018b" "${IOIPSL_MAKEFILE}" 2>/dev/null || ! grep -q -- "-fallow-argument-mismatch" "${IOIPSL_MAKEFILE}" 2>/dev/null; then
-    echo "==> Adapting IOIPSL Makefile for GCC 12 (gompi-2023a)..."
+    echo "==> Adapting IOIPSL Makefile compiler flags for GCC 12 (gompi-2023a)..."
     PATCH_FILE="${ROOT_MODIPSL}/scripts/patches/ioipsl_makefile_toubkal.patch"
     if [ -f "${PATCH_FILE}" ]; then
         patch -p1 -d "${ROOT_MODIPSL}" < "${PATCH_FILE}" || {
@@ -107,11 +132,10 @@ fi
 # Explicit check for GCC 12 compatibility in IOIPSL Makefile
 if grep -q "4.4.4-foss-2018b" "${IOIPSL_MAKEFILE}" 2>/dev/null || ! grep -q -- "-fallow-argument-mismatch" "${IOIPSL_MAKEFILE}" 2>/dev/null; then
     echo "ERROR: IOIPSL Makefile is incompatible with GCC 12 (-fallow-argument-mismatch missing or legacy NetCDF path present)." >&2
-    echo "Please apply scripts/patches/ioipsl_makefile_toubkal.patch before compiling." >&2
     exit 1
 fi
 
-# 4. Check/Build IOIPSL
+# 5. Check/Build IOIPSL
 IOIPSL_LIB="${ROOT_MODIPSL}/lib/libioipsl.a"
 if [ ! -f "${IOIPSL_LIB}" ] || [ ${CLEAN_BUILD} -eq 1 ]; then
     echo "==> Building IOIPSL library with GCC 12..."
@@ -120,7 +144,7 @@ if [ ! -f "${IOIPSL_LIB}" ] || [ ${CLEAN_BUILD} -eq 1 ]; then
     if [ ${CLEAN_BUILD} -eq 1 ]; then
         gmake clean || true
     fi
-    gmake -j "${NJOBS}" || {
+    gmake || {
         echo "ERROR: IOIPSL compilation failed." >&2
         exit 1
     }
@@ -129,7 +153,7 @@ else
     echo "==> IOIPSL library already present: ${IOIPSL_LIB}"
 fi
 
-# 5. Check/Build XIOS Library
+# 6. Check/Build XIOS Library
 XIOS_LIB="${ROOT_MODIPSL}/modeles/XIOS/lib/libxios.a"
 if [ ! -f "${XIOS_LIB}" ] || [ ${CLEAN_BUILD} -eq 1 ]; then
     echo "==> Building XIOS library with GCC 12..."
@@ -146,7 +170,7 @@ else
     echo "==> XIOS library already present: ${XIOS_LIB}"
 fi
 
-# 6. Check Active Locks in ORCHIDEE
+# 7. Check Active Locks in ORCHIDEE
 LOCK_FILE="${ROOT_MODIPSL}/modeles/ORCHIDEE/build/fcm.bld.lock"
 if [ -f "${LOCK_FILE}" ]; then
     LOCK_PID="$(grep -o '[0-9]\+' "${LOCK_FILE}" 2>/dev/null | head -n 1 || echo "")"
@@ -165,7 +189,7 @@ if [ -f "${LOCK_FILE}" ]; then
     fi
 fi
 
-# 7. Compile ORCHIDEE Offline Driver
+# 8. Compile ORCHIDEE Offline Driver
 echo "==> Compiling ORCHIDEE Offline (dim2_driver / orchidee_ol)..."
 cd "${ROOT_MODIPSL}/modeles/ORCHIDEE"
 
@@ -182,14 +206,8 @@ echo "==> Running: ./makeorchidee_fcm ${FCM_ARGS}"
     exit 1
 }
 
-# 8. Install GCC 12 executable in local bin/
+# 9. Install GCC 12 executable in local bin/
 mkdir -p "${ROOT_MODIPSL}/bin"
-
-# Preserve existing GCC 7 binary if present
-if [ -f "${ROOT_MODIPSL}/bin/orchidee_ol" ] && [ ! -f "${ROOT_MODIPSL}/bin/orchidee_ol_gcc7" ]; then
-    echo "==> Preserving existing binary as bin/orchidee_ol_gcc7..."
-    cp -p "${ROOT_MODIPSL}/bin/orchidee_ol" "${ROOT_MODIPSL}/bin/orchidee_ol_gcc7"
-fi
 
 COMPILED_EXE="${ROOT_MODIPSL}/modeles/ORCHIDEE/build/bin/dim2_driver.exe"
 if [ -f "${COMPILED_EXE}" ]; then

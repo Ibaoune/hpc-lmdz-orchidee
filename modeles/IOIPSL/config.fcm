@@ -1,0 +1,4 @@
+%COMPIL_FFLAGS %PROD_FFLAGS -I/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/include -I/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/include
+%LD_FLAGS %BASE_LD
+%CPP_KEY CPP_NONE
+%LIB -L/srv/software/easybuild/software/netCDF/4.6.1-foss-2018b/lib -L/srv/software/easybuild/software/netCDF-Fortran/4.4.4-foss-2018b/lib -lnetcdf -lnetcdff  
