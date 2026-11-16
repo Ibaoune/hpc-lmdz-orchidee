@@ -1,11 +1,6 @@
 # ORCHIDEE Offline on Toubkal HPC — User Guide for Customizing Simulations
 
-**Author:** International Water Research Institute (IWRI), Mohammed VI Polytechnic University (UM6P)  
-**Target Audience:** Researchers, climate modelers, agronomists, and graduate students using standalone ORCHIDEE Offline on Toubkal HPC  
-**Document Path:** `docs/userguide/customize_simulation_guide.md`  
-**Prerequisite:** Verified reproduction of the reference benchmark (`docs/userguide/reproduction_guide.md`)  
-**Toolchain & Model:** GCC 12.3.0 / OpenMPI 4.1.5 (`gompi/2023a`), ORCHIDEE Quest (SVN r7086), XIOS 2 (SVN r2466), IOIPSL v2_2_5  
-**Reference Case:** 1-Day Standalone Simulation (February 1, 1979) on 35 km North Africa Zoom Grid  
+**Author:** M. El Aabaribaoune
 
 ---
 

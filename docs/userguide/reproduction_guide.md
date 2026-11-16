@@ -1,10 +1,6 @@
 # ORCHIDEE Offline on Toubkal HPC — Complete GCC 12 Reproduction Guide
 
-**Author:** International Water Research Institute (IWRI), Mohammed VI Polytechnic University (UM6P)  
-**Target Audience:** Researchers, climate modelers, and HPC users reproducing ORCHIDEE Offline on Toubkal HPC  
-**Document Path:** `docs/userguide/reproduction_guide.md`  
-**Toolchain:** GCC 12.3.0 / OpenMPI 4.1.5 (`gompi/2023a`), NetCDF-Fortran 4.6.1, HDF5 1.14.0  
-**Benchmark Case:** Standalone 1-Day Simulation (February 1, 1979) on 35 km North Africa Zoom Grid  
+**Author:** M. El Aabaribaoune
 
 ---
 

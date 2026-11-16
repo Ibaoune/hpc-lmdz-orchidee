@@ -1,11 +1,7 @@
 # ORCHIDEE Offline on Toubkal HPC — User Guide
 **Practical Handbook for Atmospheric Forcing Preparation, Standalone Execution, Sensitivity Studies, and AgriPV Modeling**
 
- M. El Aabaribaoune (Climate Assessment, Modeling, and Services, @UM6P)  
-
-**Document Version:** `v0.1 — November 2026`  
-**Repository Path:** `~/lustre/climat-um6p-st-iwri-7ksifkvwkuy/shared/TEAM/models/modipsl`  
-**Benchmark Reference:** Jobs `8228332` / `8234089` (Validated 1979-02-01 Simulation)
+**Author:** M. El Aabaribaoune
 
 ---
 
